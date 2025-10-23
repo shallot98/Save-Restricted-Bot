@@ -33,6 +33,8 @@ env/
 *.session-journal
 mybot.session
 myacc.session
+temp_session.session
+my_account.session
 
 # Downloaded files
 downloads/

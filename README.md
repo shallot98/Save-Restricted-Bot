@@ -2,11 +2,35 @@
 
 *A Telegram Bot, Which can send you restricted content by it's post link*
 
-[中文文档 (Chinese Docs)](#中文文档) | [English](#english-documentation) | [完整中文文档 (Full Chinese README)](README.zh-CN.md)
+## 📖 文档导航 | Documentation
+
+- [🚀 快速开始 (Quick Start)](QUICKSTART.md) - 3分钟快速部署
+- [⚙️ 详细设置指南 (Setup Guide)](SETUP_GUIDE.md) - 完整配置教程
+- [📝 使用示例 (Usage Examples)](USAGE_EXAMPLES.md) - 各种使用场景
+- [🇨🇳 完整中文文档 (Full Chinese Docs)](README.zh-CN.md)
+- [🇬🇧 English Documentation](#english-documentation)
+- [🇨🇳 中文文档](#中文文档)
 
 ---
 
 ## English Documentation
+
+### 🚀 NEW: Auto Setup Script
+
+**No need to manually generate Session String anymore!** 
+
+Use our new auto-configuration script for easy setup:
+
+```bash
+python setup.py
+```
+
+The script will:
+- ✅ Guide you through entering Bot Token, API ID, and API Hash
+- ✅ Automatically login to Telegram and generate Session String
+- ✅ Save all configuration to `.env` and `config.json`
+
+📖 [See detailed setup guide](SETUP_GUIDE.md)
 
 ### Features
 
@@ -15,13 +39,14 @@
 - Multi-post range downloads
 - Media-type aware forwarding
 - Real-time download/upload progress
+- **🆕 Auto Session String generation**
 
 ### Variables
 
 - `HASH` Your API Hash from my.telegram.org
 - `ID` Your API ID from my.telegram.org
 - `TOKEN` Your bot token from @BotFather
-- `STRING` Your session string, you can get it at [gist](https://gist.github.com/bipinkrish/0940b30ed66a5537ae1b5aaaee716897#file-main-py) and run it locally
+- `STRING` Your session string (can be auto-generated with `setup.py` script)
 
 ### Usage
 
@@ -59,7 +84,7 @@ _note that space in between doesn't matter_
 
 ### Deployment
 
-#### Method 1: Using Docker
+#### Method 0: Quick Setup (Recommended for First-Time Users)
 
 1. Clone the repository:
 ```bash
@@ -67,7 +92,47 @@ git clone <repository-url>
 cd <repository-name>
 ```
 
-2. Edit the `config.json` file with your credentials:
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Run the auto-configuration script:
+```bash
+python setup.py
+```
+
+Follow the prompts to:
+- Enter Bot Token (from @BotFather)
+- Enter API ID and Hash (from my.telegram.org)
+- Optionally auto-generate Session String by logging into Telegram
+
+4. Start the bot:
+```bash
+python main.py
+```
+
+Or deploy with Docker Compose:
+```bash
+docker-compose up -d
+```
+
+📖 [See detailed setup guide](SETUP_GUIDE.md)
+
+#### Method 1: Using Docker (Manual Configuration)
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd <repository-name>
+```
+
+2. Run setup script or edit `config.json` manually:
+```bash
+python setup.py
+```
+
+Or manually edit `config.json`:
 ```json
 {
     "TOKEN": "your_bot_token",
@@ -98,7 +163,7 @@ docker run -d --name telegram-bot \
   save-restricted-bot
 ```
 
-#### Method 2: Using Docker Compose
+#### Method 2: Using Docker Compose (Recommended)
 
 1. Clone the repository:
 ```bash
@@ -106,27 +171,15 @@ git clone <repository-url>
 cd <repository-name>
 ```
 
-2. Create a `docker-compose.yml` file (or use the provided one):
-```yaml
-version: '3.8'
-
-services:
-  telegram-bot:
-    build: .
-    container_name: save-restricted-bot
-    restart: unless-stopped
-    ports:
-      - "10000:10000"
-    environment:
-      - TOKEN=${TOKEN}
-      - ID=${ID}
-      - HASH=${HASH}
-      - STRING=${STRING}
-    volumes:
-      - ./downloads:/app/downloads
+2. Run setup script to generate configuration:
+```bash
+pip install pyrogram tgcrypto
+python setup.py
 ```
 
-3. Create a `.env` file with your credentials:
+This will create `.env` and `config.json` files automatically.
+
+Or manually create `.env` file:
 ```env
 TOKEN=your_bot_token
 ID=your_api_id
@@ -134,17 +187,17 @@ HASH=your_api_hash
 STRING=your_session_string
 ```
 
-4. Start the bot:
+3. Start the bot:
 ```bash
 docker-compose up -d
 ```
 
-5. View logs:
+4. View logs:
 ```bash
 docker-compose logs -f
 ```
 
-6. Stop the bot:
+5. Stop the bot:
 ```bash
 docker-compose down
 ```
@@ -157,6 +210,23 @@ Use the included `Procfile` for Heroku deployment. Set the environment variables
 
 ## 中文文档
 
+### 🚀 新功能：自动配置脚本
+
+**无需再手动生成 Session String！**
+
+使用我们的新自动配置脚本，轻松完成设置：
+
+```bash
+python setup.py
+```
+
+脚本会自动：
+- ✅ 引导你输入 Bot Token、API ID 和 API Hash
+- ✅ 自动登录 Telegram 并生成 Session String
+- ✅ 保存所有配置到 `.env` 和 `config.json`
+
+📖 [查看详细设置指南](SETUP_GUIDE.md)
+
 ### 功能特性
 
 - 转发 Telegram 频道/群组的受限内容
@@ -164,13 +234,14 @@ Use the included `Procfile` for Heroku deployment. Set the environment variables
 - 批量下载多条消息
 - 智能识别媒体类型并转发
 - 实时显示下载/上传进度
+- **🆕 自动生成 Session String**
 
 ### 配置变量
 
 - `HASH` 你的 API Hash，从 my.telegram.org 获取
 - `ID` 你的 API ID，从 my.telegram.org 获取
 - `TOKEN` 你的机器人 token，从 @BotFather 获取
-- `STRING` 你的会话字符串，可以通过运行 [这个脚本](https://gist.github.com/bipinkrish/0940b30ed66a5537ae1b5aaaee716897#file-main-py) 在本地获取
+- `STRING` 你的会话字符串（可通过 `setup.py` 脚本自动生成）
 
 ### 使用说明
 
@@ -206,7 +277,7 @@ _注意：中间的空格可有可无_
 
 ### 部署教程
 
-#### 方法一：使用 Docker 部署
+#### 方法零：快速设置（推荐首次使用）
 
 1. 克隆仓库：
 ```bash
@@ -214,7 +285,47 @@ git clone <仓库地址>
 cd <仓库目录>
 ```
 
-2. 编辑 `config.json` 文件，填入你的凭据：
+2. 安装依赖：
+```bash
+pip install -r requirements.txt
+```
+
+3. 运行自动配置脚本：
+```bash
+python setup.py
+```
+
+按提示操作：
+- 输入 Bot Token（从 @BotFather 获取）
+- 输入 API ID 和 Hash（从 my.telegram.org 获取）
+- 选择是否自动生成 Session String（通过登录 Telegram）
+
+4. 启动机器人：
+```bash
+python main.py
+```
+
+或使用 Docker Compose 部署：
+```bash
+docker-compose up -d
+```
+
+📖 [查看详细设置指南](SETUP_GUIDE.md)
+
+#### 方法一：使用 Docker 部署（手动配置）
+
+1. 克隆仓库：
+```bash
+git clone <仓库地址>
+cd <仓库目录>
+```
+
+2. 运行设置脚本或手动编辑配置：
+```bash
+python setup.py
+```
+
+或手动编辑 `config.json`：
 ```json
 {
     "TOKEN": "你的机器人token",
@@ -253,27 +364,15 @@ git clone <仓库地址>
 cd <仓库目录>
 ```
 
-2. 创建 `docker-compose.yml` 文件（或使用提供的文件）：
-```yaml
-version: '3.8'
-
-services:
-  telegram-bot:
-    build: .
-    container_name: save-restricted-bot
-    restart: unless-stopped
-    ports:
-      - "10000:10000"
-    environment:
-      - TOKEN=${TOKEN}
-      - ID=${ID}
-      - HASH=${HASH}
-      - STRING=${STRING}
-    volumes:
-      - ./downloads:/app/downloads
+2. 运行设置脚本生成配置：
+```bash
+pip install pyrogram tgcrypto
+python setup.py
 ```
 
-3. 创建 `.env` 文件，填入你的凭据：
+这将自动创建 `.env` 和 `config.json` 文件。
+
+或手动创建 `.env` 文件：
 ```env
 TOKEN=你的机器人token
 ID=你的API ID
@@ -281,27 +380,27 @@ HASH=你的API Hash
 STRING=你的会话字符串
 ```
 
-4. 启动机器人：
+3. 启动机器人：
 ```bash
 docker-compose up -d
 ```
 
-5. 查看日志：
+4. 查看日志：
 ```bash
 docker-compose logs -f
 ```
 
-6. 停止机器人：
+5. 停止机器人：
 ```bash
 docker-compose down
 ```
 
-7. 重启机器人：
+6. 重启机器人：
 ```bash
 docker-compose restart
 ```
 
-8. 更新机器人（拉取最新代码后）：
+7. 更新机器人（拉取最新代码后）：
 ```bash
 docker-compose down
 docker-compose build --no-cache
@@ -313,6 +412,14 @@ docker-compose up -d
 使用包含的 `Procfile` 文件进行 Heroku 部署。在 Heroku 控制面板中设置环境变量即可。
 
 ### 获取必要的凭据
+
+#### 🚀 推荐方式：使用自动配置脚本
+
+最简单的方法是运行 `python setup.py`，它会自动引导你完成所有步骤！
+
+#### 手动获取凭据
+
+如果你想手动配置，请按以下步骤操作：
 
 #### 1. 获取 API ID 和 API Hash
 
@@ -331,11 +438,22 @@ docker-compose up -d
 
 #### 3. 获取 Session String
 
-1. 下载会话生成脚本：https://gist.github.com/bipinkrish/0940b30ed66a5537ae1b5aaaee716897#file-main-py
-2. 安装 Pyrogram：`pip install pyrogram`
-3. 运行脚本并输入你的 API ID、API Hash 和手机号
-4. 输入收到的验证码
-5. 你将获得一个 session string
+**方式 A：使用我们的自动脚本（推荐）**
+```bash
+python setup.py
+```
+
+**方式 B：手动生成**
+1. 安装 Pyrogram：`pip install pyrogram tgcrypto`
+2. 运行以下命令：
+```python
+python -c "from pyrogram import Client; app = Client('my_account', api_id=YOUR_API_ID, api_hash='YOUR_API_HASH'); app.start(); print(app.export_session_string())"
+```
+3. 输入手机号和验证码
+4. 你将获得一个 session string
+
+**方式 C：使用在线工具**
+访问 https://replit.com/@bipinkrish/Generate-Pyrogram-String-Session 并按提示操作
 
 ### 常见问题
 
