@@ -1,0 +1,62 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Pyrogram session files
+*.session
+*.session-journal
+mybot.session
+myacc.session
+
+# Downloaded files
+downloads/
+*.mp4
+*.mp3
+*.pdf
+*.zip
+*.rar
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Status files
+*status.txt
+
+# Logs
+*.log
+
+# Config with sensitive data (keep config.json.example)
+config.json
