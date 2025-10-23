@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: save-restricted-bot
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+    environment:
+      - TOKEN=${TOKEN}
+      - ID=${ID}
+      - HASH=${HASH}
+      - STRING=${STRING}
+    volumes:
+      - ./downloads:/app/downloads
