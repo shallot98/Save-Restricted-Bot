@@ -30,7 +30,7 @@ This document describes the three major features implemented in this update:
 - Status messages (downloading/uploading) still reply to the original command for user feedback
 
 ### 3. Keyword Blacklist/Whitelist for Monitoring (关键词黑白名单)
-**Requirement:** Add keyword blacklist and whitelist functionality for monitoring, and include relevant keyword information in forwarded content.
+**Requirement:** Add keyword blacklist and whitelist functionality for monitoring. ~~and include relevant keyword information in forwarded content~~ (REMOVED)
 
 **Implementation:**
 
@@ -42,38 +42,46 @@ This document describes the three major features implemented in this update:
       "source_chat_id": {
         "dest": "destination_chat_id",
         "whitelist": ["keyword1", "keyword2"],
-        "blacklist": ["keyword3", "keyword4"]
+        "blacklist": ["keyword3", "keyword4"],
+        "preserve_forward_source": false
       }
     }
   }
   ```
 
 #### Command Updates:
-- **`/watch add`** (lines 148-218):
-  - New syntax: `/watch add <source> <dest> [whitelist:kw1,kw2] [blacklist:kw3,kw4]`
+- **`/watch add`** (lines 162-231):
+  - New syntax: `/watch add <source> <dest> [whitelist:kw1,kw2] [blacklist:kw3,kw4] [preserve_source:true/false]`
   - Parses whitelist and blacklist keywords from command arguments
-  - Stores keywords in the new watch configuration structure
-  - Shows configured keywords in success message
+  - Parses preserve_source option (NEW)
+  - Stores keywords and preserve_forward_source in the new watch configuration structure
+  - Shows configured keywords and preserve_source option in success message
 
-- **`/watch list`** (lines 123-146):
+- **`/watch list`** (lines 134-160):
   - Updated to display whitelist and blacklist keywords for each watch task
+  - Shows preserve_forward_source option if set to true (NEW)
   - Backward compatible with old string-based configurations
 
-- **`/watch remove`** (lines 220-267):
+- **`/watch remove`** (lines 228-265):
   - Updated to handle both old (string) and new (dict) configuration formats
 
-#### Auto-Forward Logic (lines 476-565):
+#### Auto-Forward Logic (lines 493-540):
 - **Whitelist filtering:** Only forwards messages that contain at least one whitelisted keyword
 - **Blacklist filtering:** Skips messages that contain any blacklisted keyword
 - **Keyword matching:** Case-insensitive matching for both whitelist and blacklist
-- **Keyword information display:**
-  - Matched keywords are prepended to the forwarded message: `🔍 匹配关键词: keyword1, keyword2`
-  - Works for both text messages and media captions
-  - Handles various media types (photo, video, document, audio, voice)
+- ~~**Keyword information display:**~~ (REMOVED)
+  - ~~Matched keywords are prepended to the forwarded message: `🔍 匹配关键词: keyword1, keyword2`~~ (REMOVED)
+  - ~~Works for both text messages and media captions~~ (REMOVED)
+  - ~~Handles various media types (photo, video, document, audio, voice)~~ (REMOVED)
+- **Forward Source Preservation (NEW):**
+  - If `preserve_forward_source` is true, uses `forward_messages()` to preserve original source
+  - If false (default), uses `copy_message()` to forward without showing source
 
-#### Help Command Update (lines 84-119):
+#### Help Command Update (lines 84-122):
 - Added detailed documentation for keyword filtering feature
-- Included examples for whitelist, blacklist, and combined usage
+- Added documentation for preserve_source option (NEW)
+- Included examples for whitelist, blacklist, combined usage, and preserve_source
+- Removed mention of keyword information display in forwarded messages
 
 ## Features Compatibility
 

@@ -49,8 +49,8 @@ Bot: [Forwarded content] (NOT replying to command)
 **功能说明 / Description:**
 - 监控功能支持关键词白名单和黑名单
 - Monitoring now supports keyword whitelist and blacklist
-- 匹配的关键词会显示在转发消息中
-- Matched keywords are displayed in forwarded messages
+- ~~匹配的关键词会显示在转发消息中~~ (已移除 / Removed)
+- ~~Matched keywords are displayed in forwarded messages~~ (已移除 / Removed)
 
 **使用方法 / Usage:**
 
@@ -66,6 +66,9 @@ Bot: [Forwarded content] (NOT replying to command)
 
 # 组合使用 / Combined usage
 /watch add @source me whitelist:新闻 blacklist:娱乐
+
+# 保留转发来源 / Preserve forward source (NEW)
+/watch add @source me preserve_source:true
 ```
 
 **过滤规则 / Filtering Rules:**
@@ -80,15 +83,38 @@ Bot: [Forwarded content] (NOT replying to command)
 
 **消息格式 / Message Format:**
 
-转发的消息会在顶部显示匹配的关键词：
-Forwarded messages will show matched keywords at the top:
+转发的消息保持原始内容，不添加任何前缀信息
+Forwarded messages maintain original content without any prefix
 
 ```
-🔍 匹配关键词: 重要, 紧急
-
 [原始消息内容]
 [Original message content]
 ```
+
+### 4. 保留转发来源选项 / Preserve Forward Source Option (NEW)
+
+**功能说明 / Description:**
+- 可选择是否在转发时保留原始消息来源信息
+- Option to preserve original message source information when forwarding
+- 默认不保留（与之前版本行为一致）
+- Default: do not preserve (consistent with previous version behavior)
+
+**使用方法 / Usage:**
+
+```bash
+# 不保留来源（默认）/ Don't preserve source (default)
+/watch add @source @dest
+
+# 保留来源 / Preserve source
+/watch add @source @dest preserve_source:true
+```
+
+**效果对比 / Comparison:**
+
+- `preserve_source:false` (默认 / default): 使用 `copy_message()`，消息不显示来源
+  - Uses `copy_message()`, message doesn't show source
+- `preserve_source:true`: 使用 `forward_messages()`，消息显示 "Forwarded from [原频道]"
+  - Uses `forward_messages()`, message shows "Forwarded from [original channel]"
 
 **配置结构 / Configuration Structure:**
 
@@ -99,7 +125,8 @@ Forwarded messages will show matched keywords at the top:
     "source_chat_id": {
       "dest": "destination_chat_id",
       "whitelist": ["keyword1", "keyword2"],
-      "blacklist": ["keyword3", "keyword4"]
+      "blacklist": ["keyword3", "keyword4"],
+      "preserve_forward_source": false
     }
   }
 }
@@ -126,21 +153,22 @@ Forwarded messages will show matched keywords at the top:
 ## 命令更新 / Command Updates
 
 ### /watch list
-现在显示关键词信息 / Now shows keyword information:
+现在显示关键词信息和转发来源选项 / Now shows keyword information and forward source option:
 ```
 📋 你的监控任务列表：
 
 1. `-100123456789` ➡️ `me`
    白名单: `重要, 紧急`
    黑名单: `广告, 垃圾`
+   保留转发来源: `是`
 
 总计： 1 个监控任务
 ```
 
 ### /watch add
-新增关键词参数 / New keyword parameters:
+新增关键词参数和转发来源选项 / New keyword parameters and forward source option:
 ```
-/watch add <source> <dest> [whitelist:kw1,kw2] [blacklist:kw3,kw4]
+/watch add <source> <dest> [whitelist:kw1,kw2] [blacklist:kw3,kw4] [preserve_source:true/false]
 ```
 
 ### /watch remove
@@ -161,3 +189,7 @@ python3 test_changes.py
    - Messages without text or caption won't be filtered by keywords
 3. 转发失败不会有任何通知，请确保目标频道设置正确
    - No notifications for forwarding failures, ensure destination is configured correctly
+4. 关键词信息不再显示在转发的消息中（已移除此功能）
+   - Keyword information is no longer displayed in forwarded messages (feature removed)
+5. 保留转发来源默认为关闭，与之前版本保持一致
+   - Preserve forward source defaults to off, consistent with previous versions

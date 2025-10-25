@@ -8,13 +8,14 @@ import json
 
 def test_watch_config_structure():
     """Test the new watch configuration structure"""
-    # New format with keywords
+    # New format with keywords and preserve_forward_source
     new_format = {
         "user_id": {
             "source_chat_id": {
                 "dest": "dest_chat_id",
                 "whitelist": ["keyword1", "keyword2"],
-                "blacklist": ["spam", "ad"]
+                "blacklist": ["spam", "ad"],
+                "preserve_forward_source": False
             }
         }
     }
@@ -49,21 +50,44 @@ def test_keyword_matching():
     # Test matched keywords extraction
     matched = [kw for kw in whitelist if kw.lower() in message_text.lower()]
     assert len(matched) == 2, "Matched keywords extraction failed"
-    print(f"✓ Matched keywords: {', '.join(matched)}")
+    print(f"✓ Matched keywords detected: {', '.join(matched)}")
     
     return True
 
-def test_keyword_info_format():
-    """Test the keyword info format for display"""
-    matched_keywords = ["important", "urgent"]
-    keyword_info = f"🔍 匹配关键词: {', '.join(matched_keywords)}\n\n"
+def test_preserve_forward_source():
+    """Test the preserve_forward_source configuration option"""
+    config_with_preserve = {
+        "user_id": {
+            "source_chat_id": {
+                "dest": "dest_chat_id",
+                "whitelist": [],
+                "blacklist": [],
+                "preserve_forward_source": True
+            }
+        }
+    }
     
-    original_text = "This is the original message"
-    new_text = keyword_info + original_text
+    config_without_preserve = {
+        "user_id": {
+            "source_chat_id": {
+                "dest": "dest_chat_id",
+                "whitelist": [],
+                "blacklist": []
+            }
+        }
+    }
     
-    assert new_text.startswith("🔍 匹配关键词:"), "Keyword info format is incorrect"
-    print("✓ Keyword info format is correct")
-    print(f"  Format: {keyword_info.strip()}")
+    # Test with preserve_forward_source = True
+    watch_data = config_with_preserve["user_id"]["source_chat_id"]
+    preserve_source = watch_data.get("preserve_forward_source", False)
+    assert preserve_source == True, "preserve_forward_source should be True"
+    print("✓ preserve_forward_source = True works correctly")
+    
+    # Test without preserve_forward_source (should default to False)
+    watch_data = config_without_preserve["user_id"]["source_chat_id"]
+    preserve_source = watch_data.get("preserve_forward_source", False)
+    assert preserve_source == False, "preserve_forward_source should default to False"
+    print("✓ preserve_forward_source defaults to False correctly")
     
     return True
 
@@ -81,7 +105,8 @@ def test_backward_compatibility():
             "source_3": {
                 "dest": "dest_3",
                 "whitelist": ["test"],
-                "blacklist": []
+                "blacklist": [],
+                "preserve_forward_source": False
             }
         }
     }
@@ -90,9 +115,12 @@ def test_backward_compatibility():
     for source, data in old_config["123456"].items():
         if isinstance(data, dict):
             dest = data.get("dest")
+            preserve_source = data.get("preserve_forward_source", False)
         else:
             dest = data
+            preserve_source = False
         assert dest is not None, "Failed to handle old format"
+        assert preserve_source == False, "Default preserve_source should be False"
     
     print("✓ Backward compatibility check passed")
     return True
@@ -105,7 +133,7 @@ if __name__ == "__main__":
         print()
         test_keyword_matching()
         print()
-        test_keyword_info_format()
+        test_preserve_forward_source()
         print()
         test_backward_compatibility()
         print()
