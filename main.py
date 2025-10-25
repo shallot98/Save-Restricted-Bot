@@ -96,13 +96,21 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 
 **监控功能 (/watch)：**
 /watch list - 查看所有监控任务
-/watch add <来源频道> <目标位置> - 添加监控任务
+/watch add <来源频道> <目标位置> [whitelist:关键词1,关键词2] [blacklist:关键词3,关键词4] - 添加监控任务
 /watch remove <任务ID> - 删除监控任务
+
+**关键词过滤：**
+• whitelist（白名单）- 只转发包含这些关键词的消息
+• blacklist（黑名单）- 不转发包含这些关键词的消息
+• 关键词用逗号分隔，不区分大小写
+• 匹配的关键词会显示在转发消息的顶部
 
 **示例：**
 • `/watch add @source_channel @dest_channel` - 将来源频道消息转发到目标频道
 • `/watch add @source_channel me` - 将消息保存到个人收藏
-• `/watch add -1001234567890 @my_channel` - 使用频道ID监控
+• `/watch add @source me whitelist:重要,紧急` - 只转发包含"重要"或"紧急"的消息
+• `/watch add @source me blacklist:广告,推广` - 不转发包含"广告"或"推广"的消息
+• `/watch add @source me whitelist:新闻 blacklist:娱乐` - 转发包含"新闻"但不包含"娱乐"的消息
 • `/watch list` - 查看所有活动的监控任务
 • `/watch remove 1` - 删除第1个监控任务
 
@@ -129,18 +137,28 @@ def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messag
             return
         
         result = "**📋 你的监控任务列表：**\n\n"
-        for idx, (source, dest) in enumerate(watch_config[user_id].items(), 1):
-            result += f"{idx}. `{source}` ➡️ `{dest}`\n"
+        for idx, (source, watch_data) in enumerate(watch_config[user_id].items(), 1):
+            if isinstance(watch_data, dict):
+                dest = watch_data.get("dest", "unknown")
+                whitelist = watch_data.get("whitelist", [])
+                blacklist = watch_data.get("blacklist", [])
+                result += f"{idx}. `{source}` ➡️ `{dest}`\n"
+                if whitelist:
+                    result += f"   白名单: `{', '.join(whitelist)}`\n"
+                if blacklist:
+                    result += f"   黑名单: `{', '.join(blacklist)}`\n"
+            else:
+                result += f"{idx}. `{source}` ➡️ `{watch_data}`\n"
         
         result += f"\n**总计：** {len(watch_config[user_id])} 个监控任务"
         bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
     
     elif len(parts) >= 2 and parts[1].lower() == "add":
         if len(parts) < 3:
-            bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/watch add <来源频道> <目标位置>`\n\n示例：\n• `/watch add @channel @dest`\n• `/watch add @channel me`", reply_to_message_id=message.id)
+            bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/watch add <来源频道> <目标位置> [whitelist:关键词1,关键词2] [blacklist:关键词3,关键词4]`\n\n示例：\n• `/watch add @channel @dest`\n• `/watch add @channel me whitelist:重要,紧急`\n• `/watch add @channel me blacklist:广告,垃圾`", reply_to_message_id=message.id)
             return
         
-        args = parts[2].split(maxsplit=1)
+        args = parts[2].split()
         if len(args) < 2:
             bot.send_message(message.chat.id, "**❌ 用法错误**\n\n需要指定来源和目标\n\n示例：`/watch add @source_channel @dest_channel`", reply_to_message_id=message.id)
             return
@@ -148,6 +166,15 @@ def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messag
         source_chat = args[0].strip()
         dest_chat = args[1].strip()
         user_id = str(message.from_user.id)
+        
+        whitelist = []
+        blacklist = []
+        
+        for arg in args[2:]:
+            if arg.startswith('whitelist:'):
+                whitelist = [kw.strip() for kw in arg[10:].split(',') if kw.strip()]
+            elif arg.startswith('blacklist:'):
+                blacklist = [kw.strip() for kw in arg[10:].split(',') if kw.strip()]
         
         try:
             if source_chat.startswith('@'):
@@ -172,13 +199,24 @@ def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messag
                 watch_config[user_id] = {}
             
             if source_id in watch_config[user_id]:
-                bot.send_message(message.chat.id, f"**⚠️ 该来源频道已经在监控中**\n\n来源：`{source_chat}`\n目标：`{watch_config[user_id][source_id]}`", reply_to_message_id=message.id)
+                bot.send_message(message.chat.id, f"**⚠️ 该来源频道已经在监控中**\n\n来源：`{source_chat}`", reply_to_message_id=message.id)
                 return
             
-            watch_config[user_id][source_id] = dest_id
+            watch_config[user_id][source_id] = {
+                "dest": dest_id,
+                "whitelist": whitelist,
+                "blacklist": blacklist
+            }
             save_watch_config(watch_config)
             
-            bot.send_message(message.chat.id, f"**✅ 监控任务添加成功！**\n\n来源：`{source_chat}`\n目标：`{dest_chat}`\n\n从现在开始，该频道的新消息将自动转发", reply_to_message_id=message.id)
+            result_msg = f"**✅ 监控任务添加成功！**\n\n来源：`{source_chat}`\n目标：`{dest_chat}`"
+            if whitelist:
+                result_msg += f"\n白名单关键词：`{', '.join(whitelist)}`"
+            if blacklist:
+                result_msg += f"\n黑名单关键词：`{', '.join(blacklist)}`"
+            result_msg += "\n\n从现在开始，该频道的新消息将自动转发"
+            
+            bot.send_message(message.chat.id, result_msg, reply_to_message_id=message.id)
         
         except ChannelPrivate:
             bot.send_message(message.chat.id, "**❌ 无法访问该频道**\n\n请确保：\n1. 账号已加入该频道\n2. 频道ID/用户名正确", reply_to_message_id=message.id)
@@ -210,7 +248,12 @@ def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messag
             return
         
         source_id = list(watch_config[user_id].keys())[task_id - 1]
-        dest_id = watch_config[user_id][source_id]
+        watch_data = watch_config[user_id][source_id]
+        
+        if isinstance(watch_data, dict):
+            dest_id = watch_data.get("dest", "unknown")
+        else:
+            dest_id = watch_data
         
         del watch_config[user_id][source_id]
         
@@ -266,9 +309,8 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                     bot.send_message(message.chat.id,f"**❌ 未设置 String Session**", reply_to_message_id=message.id)
                     return
                 
-                handle_private(message,chatid,msgid)
-                # try: handle_private(message,chatid,msgid)
-                # except Exception as e: bot.send_message(message.chat.id,f"**❌ 错误** : __{e}__", reply_to_message_id=message.id)
+                try: handle_private(message,chatid,msgid)
+                except Exception as e: pass  # Silently ignore forwarding failures
             
             # bot
             elif "https://t.me/b/" in message.text:
@@ -278,7 +320,7 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                     bot.send_message(message.chat.id,f"**❌ 未设置 String Session**", reply_to_message_id=message.id)
                     return
                 try: handle_private(message,username,msgid)
-                except Exception as e: bot.send_message(message.chat.id,f"**❌ 错误** : __{e}__", reply_to_message_id=message.id)
+                except Exception as e: pass  # Silently ignore forwarding failures
 
             # public
             else:
@@ -290,15 +332,15 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                     return
                 try:
                     if '?single' not in message.text:
-                        bot.copy_message(message.chat.id, msg.chat.id, msg.id, reply_to_message_id=message.id)
+                        bot.copy_message(message.chat.id, msg.chat.id, msg.id)
                     else:
-                        bot.copy_media_group(message.chat.id, msg.chat.id, msg.id, reply_to_message_id=message.id)
+                        bot.copy_media_group(message.chat.id, msg.chat.id, msg.id)
                 except:
                     if acc is None:
                         bot.send_message(message.chat.id,f"**❌ 未设置 String Session**", reply_to_message_id=message.id)
                         return
                     try: handle_private(message,username,msgid)
-                    except Exception as e: bot.send_message(message.chat.id,f"**❌ 错误** : __{e}__", reply_to_message_id=message.id)
+                    except Exception as e: pass  # Silently ignore forwarding failures
 
             # wait time
             time.sleep(3)
@@ -310,7 +352,7 @@ def handle_private(message: pyrogram.types.messages_and_media.message.Message, c
         msg_type = get_message_type(msg)
 
         if "Text" == msg_type:
-            bot.send_message(message.chat.id, msg.text, entities=msg.entities, reply_to_message_id=message.id)
+            bot.send_message(message.chat.id, msg.text, entities=msg.entities)
             return
 
         smsg = bot.send_message(message.chat.id, '__⬇️ 下载中__', reply_to_message_id=message.id)
@@ -327,7 +369,7 @@ def handle_private(message: pyrogram.types.messages_and_media.message.Message, c
                 thumb = acc.download_media(msg.document.thumbs[0].file_id)
             except: thumb = None
             
-            bot.send_document(message.chat.id, file, thumb=thumb, caption=msg.caption, caption_entities=msg.caption_entities, reply_to_message_id=message.id, progress=progress, progress_args=[message,"up"])
+            bot.send_document(message.chat.id, file, thumb=thumb, caption=msg.caption, caption_entities=msg.caption_entities, progress=progress, progress_args=[message,"up"])
             if thumb != None: os.remove(thumb)
 
         elif "Video" == msg_type:
@@ -335,28 +377,28 @@ def handle_private(message: pyrogram.types.messages_and_media.message.Message, c
                 thumb = acc.download_media(msg.video.thumbs[0].file_id)
             except: thumb = None
 
-            bot.send_video(message.chat.id, file, duration=msg.video.duration, width=msg.video.width, height=msg.video.height, thumb=thumb, caption=msg.caption, caption_entities=msg.caption_entities, reply_to_message_id=message.id, progress=progress, progress_args=[message,"up"])
+            bot.send_video(message.chat.id, file, duration=msg.video.duration, width=msg.video.width, height=msg.video.height, thumb=thumb, caption=msg.caption, caption_entities=msg.caption_entities, progress=progress, progress_args=[message,"up"])
             if thumb != None: os.remove(thumb)
 
         elif "Animation" == msg_type:
-            bot.send_animation(message.chat.id, file, reply_to_message_id=message.id)
+            bot.send_animation(message.chat.id, file)
                
         elif "Sticker" == msg_type:
-            bot.send_sticker(message.chat.id, file, reply_to_message_id=message.id)
+            bot.send_sticker(message.chat.id, file)
 
         elif "Voice" == msg_type:
-            bot.send_voice(message.chat.id, file, caption=msg.caption, thumb=thumb, caption_entities=msg.caption_entities, reply_to_message_id=message.id, progress=progress, progress_args=[message,"up"])
+            bot.send_voice(message.chat.id, file, caption=msg.caption, thumb=thumb, caption_entities=msg.caption_entities, progress=progress, progress_args=[message,"up"])
 
         elif "Audio" == msg_type:
             try:
                 thumb = acc.download_media(msg.audio.thumbs[0].file_id)
             except: thumb = None
                 
-            bot.send_audio(message.chat.id, file, caption=msg.caption, caption_entities=msg.caption_entities, reply_to_message_id=message.id, progress=progress, progress_args=[message,"up"])   
+            bot.send_audio(message.chat.id, file, caption=msg.caption, caption_entities=msg.caption_entities, progress=progress, progress_args=[message,"up"])   
             if thumb != None: os.remove(thumb)
 
         elif "Photo" == msg_type:
-            bot.send_photo(message.chat.id, file, caption=msg.caption, caption_entities=msg.caption_entities, reply_to_message_id=message.id)
+            bot.send_photo(message.chat.id, file, caption=msg.caption, caption_entities=msg.caption_entities)
 
         os.remove(file)
         if os.path.exists(f'{message.id}upstatus.txt'): os.remove(f'{message.id}upstatus.txt')
@@ -446,15 +488,87 @@ if acc is not None:
             
             for user_id, watches in watch_config.items():
                 if source_chat_id in watches:
-                    dest_chat_id = watches[source_chat_id]
+                    watch_data = watches[source_chat_id]
+                    
+                    if isinstance(watch_data, dict):
+                        dest_chat_id = watch_data.get("dest")
+                        whitelist = watch_data.get("whitelist", [])
+                        blacklist = watch_data.get("blacklist", [])
+                    else:
+                        dest_chat_id = watch_data
+                        whitelist = []
+                        blacklist = []
+                    
+                    message_text = message.text or message.caption or ""
+                    
+                    if whitelist:
+                        if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
+                            continue
+                    
+                    if blacklist:
+                        if any(keyword.lower() in message_text.lower() for keyword in blacklist):
+                            continue
+                    
+                    matched_keywords = []
+                    if whitelist:
+                        matched_keywords = [kw for kw in whitelist if kw.lower() in message_text.lower()]
                     
                     try:
-                        if dest_chat_id == "me":
-                            acc.copy_message("me", message.chat.id, message.id)
+                        if matched_keywords or whitelist or blacklist:
+                            keyword_info = ""
+                            if matched_keywords:
+                                keyword_info = f"🔍 匹配关键词: {', '.join(matched_keywords)}\n\n"
+                            
+                            new_caption = ""
+                            if message.caption:
+                                new_caption = keyword_info + message.caption
+                            elif message.text:
+                                new_caption = keyword_info + message.text if keyword_info else None
+                            
+                            if message.media and new_caption and new_caption != message.text:
+                                if dest_chat_id == "me":
+                                    if message.photo:
+                                        acc.send_photo("me", message.photo.file_id, caption=new_caption)
+                                    elif message.video:
+                                        acc.send_video("me", message.video.file_id, caption=new_caption)
+                                    elif message.document:
+                                        acc.send_document("me", message.document.file_id, caption=new_caption)
+                                    elif message.audio:
+                                        acc.send_audio("me", message.audio.file_id, caption=new_caption)
+                                    elif message.voice:
+                                        acc.send_voice("me", message.voice.file_id, caption=new_caption)
+                                    else:
+                                        acc.copy_message("me", message.chat.id, message.id)
+                                else:
+                                    if message.photo:
+                                        acc.send_photo(int(dest_chat_id), message.photo.file_id, caption=new_caption)
+                                    elif message.video:
+                                        acc.send_video(int(dest_chat_id), message.video.file_id, caption=new_caption)
+                                    elif message.document:
+                                        acc.send_document(int(dest_chat_id), message.document.file_id, caption=new_caption)
+                                    elif message.audio:
+                                        acc.send_audio(int(dest_chat_id), message.audio.file_id, caption=new_caption)
+                                    elif message.voice:
+                                        acc.send_voice(int(dest_chat_id), message.voice.file_id, caption=new_caption)
+                                    else:
+                                        acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+                            elif message.text and keyword_info:
+                                if dest_chat_id == "me":
+                                    acc.send_message("me", new_caption)
+                                else:
+                                    acc.send_message(int(dest_chat_id), new_caption)
+                            else:
+                                if dest_chat_id == "me":
+                                    acc.copy_message("me", message.chat.id, message.id)
+                                else:
+                                    acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                         else:
-                            acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+                            if dest_chat_id == "me":
+                                acc.copy_message("me", message.chat.id, message.id)
+                            else:
+                                acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                     except Exception as e:
-                        print(f"Error forwarding message: {e}")
+                        pass
         except Exception as e:
             print(f"Error in auto_forward: {e}")
 
