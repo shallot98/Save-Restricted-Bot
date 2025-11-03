@@ -14,7 +14,8 @@ from regex_filters import (
     load_filter_config, 
     save_filter_config, 
     parse_regex_pattern, 
-    compile_patterns, 
+    compile_patterns,
+    compile_pattern_list, 
     safe_regex_match, 
     matches_filters,
     extract_matches,
@@ -23,21 +24,27 @@ from regex_filters import (
     MAX_PATTERN_COUNT
 )
 
+# Import watch manager functions
+from watch_manager import (
+    load_watch_config,
+    save_watch_config,
+    get_user_watches,
+    get_watch_by_id,
+    get_watch_by_source,
+    add_watch as add_watch_entry,
+    remove_watch as remove_watch_entry,
+    update_watch_flag,
+    add_watch_keyword,
+    remove_watch_keyword,
+    add_watch_pattern,
+    remove_watch_pattern,
+    generate_watch_id
+)
+
 with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
 
-# Watch configurations file
-WATCH_FILE = 'watch_config.json'
-
-def load_watch_config():
-    if os.path.exists(WATCH_FILE):
-        with open(WATCH_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
-
-def save_watch_config(config):
-    with open(WATCH_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=4, ensure_ascii=False)
+# Watch configurations are now managed by watch_manager module
 
 # Compiled patterns cache
 compiled_patterns = []
@@ -110,62 +117,72 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 **基本命令：**
 /start - 启动机器人并查看使用说明
 /help - 显示此帮助信息
-/watch - 监控频道/群组并自动转发消息
 
 **消息转发功能：**
 直接发送 Telegram 消息链接，机器人会帮你获取内容
 
 **监控功能 (/watch)：**
-/watch list - 查看所有监控任务
-/watch add <来源频道> <目标位置> [whitelist:关键词1,关键词2] [blacklist:关键词3,关键词4] [preserve_source:true/false] - 添加监控任务
-/watch remove <任务ID> - 删除监控任务
+每个监控任务都有独立的过滤器和设置
 
-**关键词过滤：**
-• whitelist（白名单）- 只转发包含这些关键词的消息
-• blacklist（黑名单）- 不转发包含这些关键词的消息
-• 关键词用逗号分隔，不区分大小写
+• `/watch list` - 查看所有监控任务及其设置
+• `/watch add <来源> <目标> [选项]` - 添加监控任务
+• `/watch remove <任务ID>` - 删除监控任务
+• `/watch set <任务ID> <设置> <值>` - 修改监控任务设置
 
-**正则表达式过滤：**
-/addre <pattern> - 添加正则表达式模式
-/delre <index> - 删除正则表达式模式（使用索引号）
-/listre - 列出所有正则表达式模式
-/testre <pattern> <text> - 测试正则表达式模式
+**监控任务选项：**
+• `--extract on|off` - 提取模式（仅转发匹配片段）
+• `--kw on|off` - 关键词/正则过滤开关
+• `--preserve on|off` - 保留原始转发来源
+
+**监控任务过滤器（每个任务独立）：**
+• `/watch keywords add <任务ID> <关键词>` - 添加关键词
+• `/watch keywords del <任务ID> <索引|关键词>` - 删除关键词
+• `/watch keywords list <任务ID>` - 查看关键词列表
+• `/watch regex add <任务ID> <模式>` - 添加正则表达式
+• `/watch regex del <任务ID> <索引|模式>` - 删除正则表达式
+• `/watch regex list <任务ID>` - 查看正则表达式列表
+
+**测试功能：**
+• `/watch preview <任务ID> <文本>` - 预览该任务的提取效果
+
+**全局正则表达式（已弃用，建议使用每任务过滤器）：**
+• `/addre <pattern>` - 添加全局正则表达式模式
+• `/delre <index>` - 删除全局正则表达式模式
+• `/listre` - 列出所有全局正则表达式模式
+• `/testre <pattern> <text>` - 测试正则表达式模式
 
 **正则表达式说明：**
 • 支持标准 Python 正则表达式语法
 • 使用 /pattern/flags 格式指定标志（如 /test/i）
 • 支持的标志：i（忽略大小写）、m（多行）、s（点匹配所有）、x（详细）
 • 默认为不区分大小写匹配
-• 示例：`/addre /urgent|important/i` - 匹配"urgent"或"important"
+• 示例：`/watch regex add <ID> /urgent|important/i`
 
-**提取模式：**
-/mode show - 查看当前提取模式状态
-/mode extract on - 开启提取模式（仅转发匹配片段）
-/mode extract off - 关闭提取模式（转发完整消息）
-/preview <text> - 测试提取效果
-
-**转发选项：**
-• preserve_source（保留转发来源）- true 保留原始转发来源信息，false 不保留（默认：false）
-
-**示例：**
-• `/watch add @source_channel @dest_channel` - 将来源频道消息转发到目标频道
-• `/watch add @source_channel me` - 将消息保存到个人收藏
-• `/watch add @source me whitelist:重要,紧急` - 只转发包含"重要"或"紧急"的消息
-• `/watch add @source me blacklist:广告,推广` - 不转发包含"广告"或"推广"的消息
-• `/watch add @source me whitelist:新闻 blacklist:娱乐` - 转发包含"新闻"但不包含"娱乐"的消息
-• `/watch add @source me preserve_source:true` - 转发时保留原始来源信息
-• `/watch list` - 查看所有活动的监控任务
-• `/watch remove 1` - 删除第1个监控任务
-• `/addre /bitcoin|crypto/i` - 添加匹配"bitcoin"或"crypto"的正则
-• `/testre /\\d{3}-\\d{4}/ 123-4567` - 测试电话号码模式
-• `/mode extract on` - 开启提取模式，仅转发匹配的文本片段
-• `/preview 这是一条重要的消息` - 预览提取效果
+**使用示例：**
+1. 基础监控：
+   `/watch add @source_channel me`
+   
+2. 带关键词过滤的监控：
+   `/watch add @source me --kw on`
+   `/watch keywords add <ID> 重要`
+   `/watch keywords add <ID> 紧急`
+   
+3. 带提取模式的监控：
+   `/watch add @source me --extract on --kw on`
+   `/watch regex add <ID> /bitcoin|crypto/i`
+   
+4. 保留原始来源：
+   `/watch add @source @dest --preserve on`
+   
+5. 修改现有任务：
+   `/watch set <ID> extract on`
+   `/watch set <ID> preserve off`
 
 {USAGE}
 """
     bot.send_message(message.chat.id, help_text, reply_to_message_id=message.id)
 
-# watch command
+# watch command - Main entry point for watch management
 @bot.on_message(filters.command(["watch"]))
 def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
     if acc is None:
@@ -173,155 +190,580 @@ def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messag
         return
     
     text = message.text.strip()
-    parts = text.split(maxsplit=2)
+    parts = text.split(maxsplit=1)
     
-    if len(parts) == 1 or (len(parts) == 2 and parts[1].lower() == "list"):
-        watch_config = load_watch_config()
-        user_id = str(message.from_user.id)
+    if len(parts) == 1:
+        # Default to /watch list
+        watch_list_command(message)
+        return
+    
+    subcommand = parts[1].split()[0].lower()
+    
+    if subcommand == "list":
+        watch_list_command(message)
+    elif subcommand == "add":
+        watch_add_command(message, parts[1])
+    elif subcommand == "remove":
+        watch_remove_command(message, parts[1])
+    elif subcommand == "set":
+        watch_set_command(message, parts[1])
+    elif subcommand == "keywords":
+        watch_keywords_command(message, parts[1])
+    elif subcommand == "regex":
+        watch_regex_command(message, parts[1])
+    elif subcommand == "preview":
+        watch_preview_command(message, parts[1])
+    else:
+        bot.send_message(message.chat.id, 
+            "**❌ 未知子命令**\n\n"
+            "可用命令：\n"
+            "• `/watch list` - 查看监控列表\n"
+            "• `/watch add` - 添加监控\n"
+            "• `/watch remove` - 删除监控\n"
+            "• `/watch set` - 修改设置\n"
+            "• `/watch keywords` - 管理关键词\n"
+            "• `/watch regex` - 管理正则表达式\n"
+            "• `/watch preview` - 预览提取效果",
+            reply_to_message_id=message.id)
+
+
+def watch_list_command(message):
+    """List all watches for the user"""
+    watch_config = load_watch_config()
+    user_id = str(message.from_user.id)
+    user_watches = get_user_watches(watch_config, user_id)
+    
+    if not user_watches:
+        bot.send_message(message.chat.id, 
+            "**📋 你还没有设置任何监控任务**\n\n"
+            "使用 `/watch add <来源> <目标>` 来添加监控\n\n"
+            "示例：`/watch add @channel me --kw on --extract on`",
+            reply_to_message_id=message.id)
+        return
+    
+    result = "**📋 你的监控任务列表：**\n\n"
+    
+    for idx, (watch_id, watch_data) in enumerate(user_watches.items(), 1):
+        source = watch_data.get("source", "unknown")
+        dest = watch_data.get("dest", "unknown")
+        enabled = watch_data.get("enabled", True)
+        flags = watch_data.get("flags", {})
+        filters = watch_data.get("filters", {})
         
-        if user_id not in watch_config or not watch_config[user_id]:
-            bot.send_message(message.chat.id, "**📋 你还没有设置任何监控任务**\n\n使用 `/watch add <来源> <目标>` 来添加监控", reply_to_message_id=message.id)
+        status_icon = "✅" if enabled else "❌"
+        result += f"{idx}. {status_icon} `{source}` ➡️ `{dest}`\n"
+        result += f"   ID: `{watch_id[:8]}...`\n"
+        
+        # Show flags
+        extract = "开" if flags.get("extract_mode") else "关"
+        kw_filter = "开" if flags.get("keywords_enabled") else "关"
+        preserve = "是" if flags.get("preserve_source") else "否"
+        result += f"   提取模式: {extract} | 过滤器: {kw_filter} | 保留来源: {preserve}\n"
+        
+        # Show filter counts
+        kw_count = len(filters.get("keywords", []))
+        pattern_count = len(filters.get("patterns", []))
+        if kw_count > 0 or pattern_count > 0:
+            result += f"   关键词: {kw_count} 个 | 正则: {pattern_count} 个\n"
+        
+        result += "\n"
+    
+    result += f"**总计：** {len(user_watches)} 个监控任务\n\n"
+    result += "💡 **提示：** 使用 `/watch set <ID>` 修改设置"
+    
+    bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
+
+
+def watch_add_command(message, args_str):
+    """Add a new watch"""
+    args = args_str.split()[1:]  # Remove 'add' subcommand
+    
+    if len(args) < 2:
+        bot.send_message(message.chat.id,
+            "**❌ 用法错误**\n\n"
+            "正确格式：`/watch add <来源> <目标> [选项]`\n\n"
+            "选项：\n"
+            "• `--extract on|off` - 提取模式\n"
+            "• `--kw on|off` - 关键词过滤\n"
+            "• `--preserve on|off` - 保留来源\n\n"
+            "示例：\n"
+            "• `/watch add @channel me`\n"
+            "• `/watch add @channel me --kw on --extract on`",
+            reply_to_message_id=message.id)
+        return
+    
+    source_chat = args[0].strip()
+    dest_chat = args[1].strip()
+    user_id = str(message.from_user.id)
+    
+    # Parse options
+    extract_mode = False
+    keywords_enabled = False
+    preserve_source = False
+    
+    i = 2
+    while i < len(args):
+        arg = args[i].lower()
+        if arg == "--extract" and i + 1 < len(args):
+            extract_mode = args[i + 1].lower() in ['on', 'true', '1']
+            i += 2
+        elif arg == "--kw" and i + 1 < len(args):
+            keywords_enabled = args[i + 1].lower() in ['on', 'true', '1']
+            i += 2
+        elif arg == "--preserve" and i + 1 < len(args):
+            preserve_source = args[i + 1].lower() in ['on', 'true', '1']
+            i += 2
+        else:
+            i += 1
+    
+    try:
+        # Resolve source chat ID
+        if source_chat.startswith('@'):
+            source_info = acc.get_chat(source_chat)
+            source_id = str(source_info.id)
+        else:
+            source_id = source_chat
+            source_info = acc.get_chat(int(source_chat))
+        
+        # Resolve destination chat ID
+        if dest_chat.lower() == "me":
+            dest_id = "me"
+        elif dest_chat.startswith('@'):
+            dest_info = acc.get_chat(dest_chat)
+            dest_id = str(dest_info.id)
+        else:
+            dest_id = dest_chat
+            dest_info = acc.get_chat(int(dest_chat))
+        
+        # Add watch
+        watch_config = load_watch_config()
+        success, msg, watch_id = add_watch_entry(
+            watch_config, user_id, source_id, dest_id,
+            extract_mode=extract_mode,
+            keywords_enabled=keywords_enabled,
+            preserve_source=preserve_source
+        )
+        
+        if not success:
+            bot.send_message(message.chat.id, f"**❌ {msg}**", reply_to_message_id=message.id)
             return
         
-        result = "**📋 你的监控任务列表：**\n\n"
-        for idx, (source, watch_data) in enumerate(watch_config[user_id].items(), 1):
-            if isinstance(watch_data, dict):
-                dest = watch_data.get("dest", "unknown")
-                whitelist = watch_data.get("whitelist", [])
-                blacklist = watch_data.get("blacklist", [])
-                preserve_source = watch_data.get("preserve_forward_source", False)
-                result += f"{idx}. `{source}` ➡️ `{dest}`\n"
-                if whitelist:
-                    result += f"   白名单: `{', '.join(whitelist)}`\n"
-                if blacklist:
-                    result += f"   黑名单: `{', '.join(blacklist)}`\n"
-                if preserve_source:
-                    result += f"   保留转发来源: `是`\n"
-            else:
-                result += f"{idx}. `{source}` ➡️ `{watch_data}`\n"
+        result_msg = f"**✅ {msg}！**\n\n"
+        result_msg += f"来源：`{source_chat}`\n"
+        result_msg += f"目标：`{dest_chat}`\n"
+        result_msg += f"任务ID：`{watch_id[:8]}...`\n\n"
+        result_msg += "**设置：**\n"
+        result_msg += f"• 提取模式：{'开启' if extract_mode else '关闭'}\n"
+        result_msg += f"• 关键词过滤：{'开启' if keywords_enabled else '关闭'}\n"
+        result_msg += f"• 保留来源：{'是' if preserve_source else '否'}\n\n"
         
-        result += f"\n**总计：** {len(watch_config[user_id])} 个监控任务"
+        if keywords_enabled:
+            result_msg += "💡 使用 `/watch keywords add <ID> <关键词>` 添加过滤关键词"
+        
+        bot.send_message(message.chat.id, result_msg, reply_to_message_id=message.id)
+    
+    except ChannelPrivate:
+        bot.send_message(message.chat.id, 
+            "**❌ 无法访问该频道**\n\n"
+            "请确保：\n"
+            "1. 账号已加入该频道\n"
+            "2. 频道ID/用户名正确",
+            reply_to_message_id=message.id)
+    except UsernameInvalid:
+        bot.send_message(message.chat.id, 
+            "**❌ 频道用户名无效**\n\n"
+            "请检查用户名是否正确",
+            reply_to_message_id=message.id)
+    except Exception as e:
+        bot.send_message(message.chat.id, f"**❌ 错误：** `{str(e)}`", reply_to_message_id=message.id)
+
+
+def watch_remove_command(message, args_str):
+    """Remove a watch"""
+    args = args_str.split()[1:]  # Remove 'remove' subcommand
+    
+    if len(args) < 1:
+        bot.send_message(message.chat.id,
+            "**❌ 用法错误**\n\n"
+            "正确格式：`/watch remove <任务ID或编号>`\n\n"
+            "使用 `/watch list` 查看任务ID",
+            reply_to_message_id=message.id)
+        return
+    
+    watch_config = load_watch_config()
+    user_id = str(message.from_user.id)
+    user_watches = get_user_watches(watch_config, user_id)
+    
+    if not user_watches:
+        bot.send_message(message.chat.id, "**❌ 你没有任何监控任务**", reply_to_message_id=message.id)
+        return
+    
+    identifier = args[0].strip()
+    
+    # Try as index first
+    try:
+        index = int(identifier)
+        if 1 <= index <= len(user_watches):
+            watch_id = list(user_watches.keys())[index - 1]
+        else:
+            bot.send_message(message.chat.id,
+                f"**❌ 任务编号无效**\n\n"
+                f"请输入 1 到 {len(user_watches)} 之间的数字",
+                reply_to_message_id=message.id)
+            return
+    except ValueError:
+        # Try as watch ID (partial match)
+        watch_id = None
+        for wid in user_watches.keys():
+            if wid.startswith(identifier):
+                watch_id = wid
+                break
+        
+        if not watch_id:
+            bot.send_message(message.chat.id,
+                "**❌ 找不到该监控任务**\n\n"
+                "请检查任务ID或使用 `/watch list` 查看",
+                reply_to_message_id=message.id)
+            return
+    
+    watch_data = user_watches[watch_id]
+    success, msg = remove_watch_entry(watch_config, user_id, watch_id)
+    
+    if success:
+        bot.send_message(message.chat.id,
+            f"**✅ {msg}**\n\n"
+            f"来源：`{watch_data.get('source')}`\n"
+            f"目标：`{watch_data.get('dest')}`",
+            reply_to_message_id=message.id)
+    else:
+        bot.send_message(message.chat.id, f"**❌ {msg}**", reply_to_message_id=message.id)
+
+
+def watch_set_command(message, args_str):
+    """Set watch flags"""
+    args = args_str.split()[1:]  # Remove 'set' subcommand
+    
+    if len(args) < 3:
+        bot.send_message(message.chat.id,
+            "**❌ 用法错误**\n\n"
+            "正确格式：`/watch set <任务ID> <设置> <值>`\n\n"
+            "可用设置：\n"
+            "• `extract` - 提取模式 (on/off)\n"
+            "• `kw` - 关键词过滤 (on/off)\n"
+            "• `preserve` - 保留来源 (on/off)\n\n"
+            "示例：`/watch set abc123 extract on`",
+            reply_to_message_id=message.id)
+        return
+    
+    watch_config = load_watch_config()
+    user_id = str(message.from_user.id)
+    identifier = args[0].strip()
+    flag_name_short = args[1].lower()
+    value_str = args[2].lower()
+    
+    # Map short names to full flag names
+    flag_map = {
+        "extract": "extract_mode",
+        "kw": "keywords_enabled",
+        "preserve": "preserve_source"
+    }
+    
+    if flag_name_short not in flag_map:
+        bot.send_message(message.chat.id,
+            f"**❌ 无效的设置名称**\n\n"
+            f"可用设置：{', '.join(flag_map.keys())}",
+            reply_to_message_id=message.id)
+        return
+    
+    flag_name = flag_map[flag_name_short]
+    value = value_str in ['on', 'true', '1']
+    
+    # Find watch ID
+    user_watches = get_user_watches(watch_config, user_id)
+    watch_id = None
+    for wid in user_watches.keys():
+        if wid.startswith(identifier) or wid == identifier:
+            watch_id = wid
+            break
+    
+    if not watch_id:
+        bot.send_message(message.chat.id,
+            "**❌ 找不到该监控任务**\n\n"
+            "使用 `/watch list` 查看任务ID",
+            reply_to_message_id=message.id)
+        return
+    
+    success, msg = update_watch_flag(watch_config, user_id, watch_id, flag_name, value)
+    
+    if success:
+        status = "开启" if value else "关闭"
+        bot.send_message(message.chat.id,
+            f"**✅ 设置已更新**\n\n"
+            f"任务ID：`{watch_id[:8]}...`\n"
+            f"{flag_name_short}：{status}",
+            reply_to_message_id=message.id)
+    else:
+        bot.send_message(message.chat.id, f"**❌ {msg}**", reply_to_message_id=message.id)
+
+
+def watch_keywords_command(message, args_str):
+    """Manage watch keywords"""
+    args = args_str.split()[1:]  # Remove 'keywords' subcommand
+    
+    if len(args) < 2:
+        bot.send_message(message.chat.id,
+            "**❌ 用法错误**\n\n"
+            "正确格式：\n"
+            "• `/watch keywords add <ID> <关键词>`\n"
+            "• `/watch keywords del <ID> <索引|关键词>`\n"
+            "• `/watch keywords list <ID>`",
+            reply_to_message_id=message.id)
+        return
+    
+    action = args[0].lower()
+    identifier = args[1].strip()
+    
+    watch_config = load_watch_config()
+    user_id = str(message.from_user.id)
+    user_watches = get_user_watches(watch_config, user_id)
+    
+    # Find watch ID
+    watch_id = None
+    for wid in user_watches.keys():
+        if wid.startswith(identifier) or wid == identifier:
+            watch_id = wid
+            break
+    
+    if not watch_id:
+        bot.send_message(message.chat.id,
+            "**❌ 找不到该监控任务**",
+            reply_to_message_id=message.id)
+        return
+    
+    if action == "add":
+        if len(args) < 3:
+            bot.send_message(message.chat.id,
+                "**❌ 请指定要添加的关键词**",
+                reply_to_message_id=message.id)
+            return
+        
+        keyword = " ".join(args[2:])
+        success, msg = add_watch_keyword(watch_config, user_id, watch_id, keyword)
+        bot.send_message(message.chat.id,
+            f"**{'✅' if success else '❌'} {msg}**",
+            reply_to_message_id=message.id)
+    
+    elif action in ["del", "delete", "remove"]:
+        if len(args) < 3:
+            bot.send_message(message.chat.id,
+                "**❌ 请指定要删除的关键词或索引**",
+                reply_to_message_id=message.id)
+            return
+        
+        keyword_or_index = " ".join(args[2:])
+        success, msg = remove_watch_keyword(watch_config, user_id, watch_id, keyword_or_index)
+        bot.send_message(message.chat.id,
+            f"**{'✅' if success else '❌'} {msg}**",
+            reply_to_message_id=message.id)
+    
+    elif action == "list":
+        watch = get_watch_by_id(watch_config, user_id, watch_id)
+        keywords = watch.get("filters", {}).get("keywords", [])
+        
+        if not keywords:
+            bot.send_message(message.chat.id,
+                "**📋 该监控任务没有关键词**\n\n"
+                "使用 `/watch keywords add <ID> <关键词>` 添加",
+                reply_to_message_id=message.id)
+            return
+        
+        result = f"**📋 监控任务关键词列表：**\n\n"
+        result += f"任务ID：`{watch_id[:8]}...`\n\n"
+        for idx, kw in enumerate(keywords, 1):
+            result += f"{idx}. `{kw}`\n"
+        result += f"\n**总计：** {len(keywords)} 个关键词"
+        
         bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
     
-    elif len(parts) >= 2 and parts[1].lower() == "add":
-        if len(parts) < 3:
-            bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/watch add <来源频道> <目标位置> [whitelist:关键词1,关键词2] [blacklist:关键词3,关键词4] [preserve_source:true/false]`\n\n示例：\n• `/watch add @channel @dest`\n• `/watch add @channel me whitelist:重要,紧急`\n• `/watch add @channel me blacklist:广告,垃圾`\n• `/watch add @channel me preserve_source:true`", reply_to_message_id=message.id)
-            return
-        
-        args = parts[2].split()
-        if len(args) < 2:
-            bot.send_message(message.chat.id, "**❌ 用法错误**\n\n需要指定来源和目标\n\n示例：`/watch add @source_channel @dest_channel`", reply_to_message_id=message.id)
-            return
-        
-        source_chat = args[0].strip()
-        dest_chat = args[1].strip()
-        user_id = str(message.from_user.id)
-        
-        whitelist = []
-        blacklist = []
-        preserve_forward_source = False
-        
-        for arg in args[2:]:
-            if arg.startswith('whitelist:'):
-                whitelist = [kw.strip() for kw in arg[10:].split(',') if kw.strip()]
-            elif arg.startswith('blacklist:'):
-                blacklist = [kw.strip() for kw in arg[10:].split(',') if kw.strip()]
-            elif arg.startswith('preserve_source:'):
-                preserve_forward_source = arg[16:].lower() in ['true', '1', 'yes']
-        
-        try:
-            if source_chat.startswith('@'):
-                source_info = acc.get_chat(source_chat)
-                source_id = str(source_info.id)
-            else:
-                source_id = source_chat
-                source_info = acc.get_chat(int(source_chat))
-            
-            if dest_chat.lower() == "me":
-                dest_id = "me"
-            elif dest_chat.startswith('@'):
-                dest_info = acc.get_chat(dest_chat)
-                dest_id = str(dest_info.id)
-            else:
-                dest_id = dest_chat
-                dest_info = acc.get_chat(int(dest_chat))
-            
-            watch_config = load_watch_config()
-            
-            if user_id not in watch_config:
-                watch_config[user_id] = {}
-            
-            if source_id in watch_config[user_id]:
-                bot.send_message(message.chat.id, f"**⚠️ 该来源频道已经在监控中**\n\n来源：`{source_chat}`", reply_to_message_id=message.id)
-                return
-            
-            watch_config[user_id][source_id] = {
-                "dest": dest_id,
-                "whitelist": whitelist,
-                "blacklist": blacklist,
-                "preserve_forward_source": preserve_forward_source
-            }
-            save_watch_config(watch_config)
-            
-            result_msg = f"**✅ 监控任务添加成功！**\n\n来源：`{source_chat}`\n目标：`{dest_chat}`"
-            if whitelist:
-                result_msg += f"\n白名单关键词：`{', '.join(whitelist)}`"
-            if blacklist:
-                result_msg += f"\n黑名单关键词：`{', '.join(blacklist)}`"
-            if preserve_forward_source:
-                result_msg += f"\n保留转发来源：`是`"
-            result_msg += "\n\n从现在开始，该频道的新消息将自动转发"
-            
-            bot.send_message(message.chat.id, result_msg, reply_to_message_id=message.id)
-        
-        except ChannelPrivate:
-            bot.send_message(message.chat.id, "**❌ 无法访问该频道**\n\n请确保：\n1. 账号已加入该频道\n2. 频道ID/用户名正确", reply_to_message_id=message.id)
-        except UsernameInvalid:
-            bot.send_message(message.chat.id, "**❌ 频道用户名无效**\n\n请检查用户名是否正确", reply_to_message_id=message.id)
-        except Exception as e:
-            bot.send_message(message.chat.id, f"**❌ 错误：** `{str(e)}`", reply_to_message_id=message.id)
+    else:
+        bot.send_message(message.chat.id,
+            "**❌ 无效的操作**\n\n"
+            "可用操作：add, del, list",
+            reply_to_message_id=message.id)
+
+
+def watch_regex_command(message, args_str):
+    """Manage watch regex patterns"""
+    args = args_str.split()[1:]  # Remove 'regex' subcommand
     
-    elif len(parts) >= 2 and parts[1].lower() == "remove":
-        if len(parts) < 3:
-            bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/watch remove <任务编号>`\n\n使用 `/watch list` 查看任务编号", reply_to_message_id=message.id)
+    if len(args) < 2:
+        bot.send_message(message.chat.id,
+            "**❌ 用法错误**\n\n"
+            "正确格式：\n"
+            "• `/watch regex add <ID> <模式>`\n"
+            "• `/watch regex del <ID> <索引|模式>`\n"
+            "• `/watch regex list <ID>`",
+            reply_to_message_id=message.id)
+        return
+    
+    action = args[0].lower()
+    identifier = args[1].strip()
+    
+    watch_config = load_watch_config()
+    user_id = str(message.from_user.id)
+    user_watches = get_user_watches(watch_config, user_id)
+    
+    # Find watch ID
+    watch_id = None
+    for wid in user_watches.keys():
+        if wid.startswith(identifier) or wid == identifier:
+            watch_id = wid
+            break
+    
+    if not watch_id:
+        bot.send_message(message.chat.id,
+            "**❌ 找不到该监控任务**",
+            reply_to_message_id=message.id)
+        return
+    
+    if action == "add":
+        if len(args) < 3:
+            bot.send_message(message.chat.id,
+                "**❌ 请指定要添加的正则表达式模式**",
+                reply_to_message_id=message.id)
             return
         
-        try:
-            task_id = int(parts[2].strip())
-        except ValueError:
-            bot.send_message(message.chat.id, "**❌ 任务编号必须是数字**", reply_to_message_id=message.id)
+        pattern = " ".join(args[2:])
+        success, msg = add_watch_pattern(watch_config, user_id, watch_id, pattern)
+        bot.send_message(message.chat.id,
+            f"**{'✅' if success else '❌'} {msg}**",
+            reply_to_message_id=message.id)
+    
+    elif action in ["del", "delete", "remove"]:
+        if len(args) < 3:
+            bot.send_message(message.chat.id,
+                "**❌ 请指定要删除的模式或索引**",
+                reply_to_message_id=message.id)
             return
         
-        watch_config = load_watch_config()
-        user_id = str(message.from_user.id)
+        pattern_or_index = " ".join(args[2:])
+        success, msg = remove_watch_pattern(watch_config, user_id, watch_id, pattern_or_index)
+        bot.send_message(message.chat.id,
+            f"**{'✅' if success else '❌'} {msg}**",
+            reply_to_message_id=message.id)
+    
+    elif action == "list":
+        watch = get_watch_by_id(watch_config, user_id, watch_id)
+        patterns = watch.get("filters", {}).get("patterns", [])
         
-        if user_id not in watch_config or not watch_config[user_id]:
-            bot.send_message(message.chat.id, "**❌ 你没有任何监控任务**", reply_to_message_id=message.id)
+        if not patterns:
+            bot.send_message(message.chat.id,
+                "**📋 该监控任务没有正则表达式模式**\n\n"
+                "使用 `/watch regex add <ID> <模式>` 添加",
+                reply_to_message_id=message.id)
             return
         
-        if task_id < 1 or task_id > len(watch_config[user_id]):
-            bot.send_message(message.chat.id, f"**❌ 任务编号无效**\n\n请输入 1 到 {len(watch_config[user_id])} 之间的数字", reply_to_message_id=message.id)
-            return
+        result = f"**📋 监控任务正则表达式列表：**\n\n"
+        result += f"任务ID：`{watch_id[:8]}...`\n\n"
+        for idx, pattern in enumerate(patterns, 1):
+            result += f"{idx}. `{pattern}`\n"
+        result += f"\n**总计：** {len(patterns)} 个模式"
         
-        source_id = list(watch_config[user_id].keys())[task_id - 1]
-        watch_data = watch_config[user_id][source_id]
-        
-        if isinstance(watch_data, dict):
-            dest_id = watch_data.get("dest", "unknown")
-        else:
-            dest_id = watch_data
-        
-        del watch_config[user_id][source_id]
-        
-        if not watch_config[user_id]:
-            del watch_config[user_id]
-        
-        save_watch_config(watch_config)
-        
-        bot.send_message(message.chat.id, f"**✅ 监控任务已删除**\n\n来源：`{source_id}`\n目标：`{dest_id}`", reply_to_message_id=message.id)
+        bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
     
     else:
-        bot.send_message(message.chat.id, "**❌ 未知命令**\n\n可用命令：\n• `/watch list` - 查看监控列表\n• `/watch add <来源> <目标>` - 添加监控\n• `/watch remove <编号>` - 删除监控", reply_to_message_id=message.id)
+        bot.send_message(message.chat.id,
+            "**❌ 无效的操作**\n\n"
+            "可用操作：add, del, list",
+            reply_to_message_id=message.id)
+
+
+def watch_preview_command(message, args_str):
+    """Preview extraction for a watch"""
+    args = args_str.split(maxsplit=2)[1:]  # Remove 'preview' subcommand
+    
+    if len(args) < 2:
+        bot.send_message(message.chat.id,
+            "**❌ 用法错误**\n\n"
+            "正确格式：`/watch preview <任务ID> <测试文本>`\n\n"
+            "示例：`/watch preview abc123 This is a test message`",
+            reply_to_message_id=message.id)
+        return
+    
+    identifier = args[0].strip()
+    test_text = args[1]
+    
+    watch_config = load_watch_config()
+    user_id = str(message.from_user.id)
+    user_watches = get_user_watches(watch_config, user_id)
+    
+    # Find watch ID
+    watch_id = None
+    for wid in user_watches.keys():
+        if wid.startswith(identifier) or wid == identifier:
+            watch_id = wid
+            break
+    
+    if not watch_id:
+        bot.send_message(message.chat.id,
+            "**❌ 找不到该监控任务**",
+            reply_to_message_id=message.id)
+        return
+    
+    watch = get_watch_by_id(watch_config, user_id, watch_id)
+    flags = watch.get("flags", {})
+    filters = watch.get("filters", {})
+    
+    keywords = filters.get("keywords", [])
+    patterns = filters.get("patterns", [])
+    keywords_enabled = flags.get("keywords_enabled", False)
+    extract_mode = flags.get("extract_mode", False)
+    
+    # Compile patterns
+    compiled = compile_pattern_list(patterns)
+    
+    # Check if keywords/patterns are enabled
+    if not keywords_enabled:
+        bot.send_message(message.chat.id,
+            "**⚠️ 该监控任务的关键词过滤已关闭**\n\n"
+            "所有消息都会被转发（不进行过滤）",
+            reply_to_message_id=message.id)
+        return
+    
+    # Check for matches
+    has_matches, snippets = extract_matches(test_text, keywords, compiled)
+    
+    if not has_matches:
+        bot.send_message(message.chat.id,
+            "**❌ 没有匹配**\n\n"
+            f"该文本不匹配任何过滤器\n\n"
+            f"关键词数量：{len(keywords)}\n"
+            f"正则模式数量：{len(patterns)}",
+            reply_to_message_id=message.id)
+        return
+    
+    # Show results
+    result = f"**✅ 预览结果**\n\n"
+    result += f"任务ID：`{watch_id[:8]}...`\n"
+    result += f"提取模式：{'开启' if extract_mode else '关闭'}\n"
+    result += f"找到匹配：{len(snippets)} 个\n\n"
+    
+    if extract_mode:
+        result += "**提取的片段：**\n\n"
+        # Format snippets
+        metadata = {
+            "author": "预览测试",
+            "chat_title": "测试频道",
+            "link": "https://t.me/test/123"
+        }
+        formatted = format_snippets_for_telegram(snippets, metadata, include_metadata=True)
+        bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
+        for msg in formatted:
+            bot.send_message(message.chat.id, msg, parse_mode="html")
+    else:
+        result += "**转发模式：** 完整消息\n\n"
+        result += f"原始文本：\n`{test_text[:200]}{'...' if len(test_text) > 200 else ''}`"
+        bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
 
 
 # addre command - add regex pattern
@@ -801,7 +1243,7 @@ https://t.me/c/xxxx/101 - 120
 __注意：中间的空格无关紧要__
 """
 
-# Auto-forward handler for watched channels
+# Auto-forward handler for watched channels (per-watch filters)
 if acc is not None:
     @acc.on_message(filters.channel | filters.group)
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
@@ -809,110 +1251,119 @@ if acc is not None:
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
             
-            for user_id, watches in watch_config.items():
-                if source_chat_id in watches:
-                    watch_data = watches[source_chat_id]
-                    
-                    if isinstance(watch_data, dict):
-                        dest_chat_id = watch_data.get("dest")
-                        whitelist = watch_data.get("whitelist", [])
-                        blacklist = watch_data.get("blacklist", [])
-                        preserve_forward_source = watch_data.get("preserve_forward_source", False)
-                    else:
-                        dest_chat_id = watch_data
-                        whitelist = []
-                        blacklist = []
-                        preserve_forward_source = False
-                    
-                    # Build text to check: include message text, caption, and document filename
-                    message_text = message.text or message.caption or ""
-                    
-                    # Add document filename if present
-                    if message.document and hasattr(message.document, 'file_name') and message.document.file_name:
-                        message_text += " " + message.document.file_name
-                    
-                    # Check whitelist (existing per-watch keywords)
-                    if whitelist:
-                        if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
-                            continue
-                    
-                    # Check blacklist (existing per-watch keywords)
-                    if blacklist:
-                        if any(keyword.lower() in message_text.lower() for keyword in blacklist):
-                            continue
-                    
-                    # Check global filters (keywords and regex patterns)
-                    # Only apply if there are global filters defined
-                    filter_config = load_filter_config()
-                    global_keywords = filter_config.get("keywords", [])
-                    extract_mode = filter_config.get("extract_mode", False)
-                    has_global_filters = bool(global_keywords or compiled_patterns)
-                    
-                    if has_global_filters:
-                        # Check if message matches global keywords/patterns and extract if needed
-                        has_matches, snippets = extract_matches(message_text, global_keywords, compiled_patterns)
-                        
-                        # If global filters exist but no match, skip this message
-                        if not has_matches:
-                            continue
-                        
-                        # If extract mode is on, send extracted snippets instead of full message
-                        if extract_mode:
-                            try:
-                                # Build metadata for snippets
-                                metadata = {}
-                                
-                                # Get author name
-                                if message.from_user:
-                                    if message.from_user.first_name:
-                                        author = message.from_user.first_name
-                                        if message.from_user.last_name:
-                                            author += " " + message.from_user.last_name
-                                        metadata["author"] = author
-                                    elif message.from_user.username:
-                                        metadata["author"] = "@" + message.from_user.username
-                                
-                                # Get chat title
-                                if message.chat:
-                                    if message.chat.title:
-                                        metadata["chat_title"] = message.chat.title
-                                    elif message.chat.username:
-                                        metadata["chat_title"] = "@" + message.chat.username
-                                
-                                # Generate message link
-                                if message.chat.username:
-                                    metadata["link"] = f"https://t.me/{message.chat.username}/{message.id}"
-                                else:
-                                    # Private channel/group
-                                    chat_id_str = str(message.chat.id).replace("-100", "")
-                                    metadata["link"] = f"https://t.me/c/{chat_id_str}/{message.id}"
-                                
-                                # Format snippets for telegram
-                                formatted_messages = format_snippets_for_telegram(snippets, metadata, include_metadata=True)
-                                
-                                # Send formatted messages
-                                for formatted_msg in formatted_messages:
-                                    if dest_chat_id == "me":
-                                        acc.send_message("me", formatted_msg, parse_mode="html")
-                                    else:
-                                        acc.send_message(int(dest_chat_id), formatted_msg, parse_mode="html")
-                            except Exception as e:
-                                print(f"Error sending extracted snippets: {e}")
-                            continue
-                    
+            # Find all watches for this source
+            result = get_watch_by_source(watch_config, source_chat_id)
+            if not result:
+                return
+            
+            user_id, watch_id, watch_data = result
+            
+            # Check if watch is enabled
+            if not watch_data.get("enabled", True):
+                return
+            
+            # Get watch configuration
+            dest_chat_id = watch_data.get("dest")
+            flags = watch_data.get("flags", {})
+            filters_data = watch_data.get("filters", {})
+            
+            extract_mode = flags.get("extract_mode", False)
+            keywords_enabled = flags.get("keywords_enabled", False)
+            preserve_source = flags.get("preserve_source", False)
+            
+            keywords = filters_data.get("keywords", [])
+            patterns = filters_data.get("patterns", [])
+            
+            # Handle legacy whitelist/blacklist if present
+            legacy_whitelist = watch_data.get("_legacy_whitelist", [])
+            legacy_blacklist = watch_data.get("_legacy_blacklist", [])
+            
+            # Build text to check: include message text, caption, and document filename
+            message_text = message.text or message.caption or ""
+            
+            # Add document filename if present
+            if message.document and hasattr(message.document, 'file_name') and message.document.file_name:
+                message_text += " " + message.document.file_name
+            
+            # Handle legacy whitelist/blacklist (for backward compatibility)
+            if legacy_whitelist:
+                if not any(keyword.lower() in message_text.lower() for keyword in legacy_whitelist):
+                    return
+            
+            if legacy_blacklist:
+                if any(keyword.lower() in message_text.lower() for keyword in legacy_blacklist):
+                    return
+            
+            # Apply per-watch filters if keywords_enabled
+            if keywords_enabled and (keywords or patterns):
+                # Compile this watch's patterns
+                compiled = compile_pattern_list(patterns)
+                
+                # Check for matches
+                has_matches, snippets = extract_matches(message_text, keywords, compiled)
+                
+                # If filters are enabled but no match, skip
+                if not has_matches:
+                    return
+                
+                # If extract mode is on, send extracted snippets
+                if extract_mode:
                     try:
-                        if preserve_forward_source:
-                            if dest_chat_id == "me":
-                                acc.forward_messages("me", message.chat.id, message.id)
-                            else:
-                                acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
+                        # Build metadata for snippets
+                        metadata = {}
+                        
+                        # Get author name
+                        if message.from_user:
+                            if message.from_user.first_name:
+                                author = message.from_user.first_name
+                                if message.from_user.last_name:
+                                    author += " " + message.from_user.last_name
+                                metadata["author"] = author
+                            elif message.from_user.username:
+                                metadata["author"] = "@" + message.from_user.username
+                        
+                        # Get chat title
+                        if message.chat:
+                            if message.chat.title:
+                                metadata["chat_title"] = message.chat.title
+                            elif message.chat.username:
+                                metadata["chat_title"] = "@" + message.chat.username
+                        
+                        # Generate message link
+                        if message.chat.username:
+                            metadata["link"] = f"https://t.me/{message.chat.username}/{message.id}"
                         else:
+                            # Private channel/group
+                            chat_id_str = str(message.chat.id).replace("-100", "")
+                            metadata["link"] = f"https://t.me/c/{chat_id_str}/{message.id}"
+                        
+                        # Format snippets for telegram
+                        formatted_messages = format_snippets_for_telegram(snippets, metadata, include_metadata=True)
+                        
+                        # Send formatted messages
+                        for formatted_msg in formatted_messages:
                             if dest_chat_id == "me":
-                                acc.copy_message("me", message.chat.id, message.id)
+                                acc.send_message("me", formatted_msg, parse_mode="html")
                             else:
-                                acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+                                acc.send_message(int(dest_chat_id), formatted_msg, parse_mode="html")
                     except Exception as e:
-                        pass
+                        print(f"Error sending extracted snippets: {e}")
+                    return
+            
+            # Forward the full message (either filters disabled or extract mode off)
+            try:
+                if preserve_source:
+                    if dest_chat_id == "me":
+                        acc.forward_messages("me", message.chat.id, message.id)
+                    else:
+                        acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
+                else:
+                    if dest_chat_id == "me":
+                        acc.copy_message("me", message.chat.id, message.id)
+                    else:
+                        acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+            except Exception as e:
+                print(f"Error forwarding message: {e}")
         except Exception as e:
             print(f"Error in auto_forward: {e}")
 
