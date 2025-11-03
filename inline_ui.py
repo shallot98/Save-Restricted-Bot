@@ -6,6 +6,9 @@ import pyrogram
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from typing import Dict, List, Optional, Tuple
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from watch_manager import (
     load_watch_config,
@@ -20,6 +23,7 @@ from watch_manager import (
     remove_watch_pattern
 )
 from regex_filters import compile_pattern_list, extract_matches, format_snippets_for_telegram
+from peer_utils import ensure_peer
 
 
 # User input state tracking
@@ -278,7 +282,9 @@ def handle_callback(bot, callback_query: CallbackQuery):
     """
     Main callback handler for inline keyboard interactions
     
-    Callback data format: w:<watch_id>:<action>:<param1>:<param2>:...
+    Callback data format: 
+    - w:<watch_id>:<action>:<param1>:<param2>:... (watch management)
+    - iktest:<action> (inline keyboard test)
     """
     data = callback_query.data
     user_id = str(callback_query.from_user.id)
@@ -293,6 +299,29 @@ def handle_callback(bot, callback_query: CallbackQuery):
             return
         
         prefix = parts[0]
+        
+        # Handle iktest callbacks
+        if prefix == "iktest":
+            action = parts[1] if len(parts) > 1 else "ok"
+            if action == "ok":
+                bot.answer_callback_query(callback_query.id, "✅ 按钮工作正常！", show_alert=True)
+            elif action == "refresh":
+                bot.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=message.id,
+                    text="**🧪 Inline Keyboard Test (Refreshed)**\n\n"
+                         "Buttons are working correctly!\n\n"
+                         f"Chat ID: `{message.chat.id}`\n"
+                         f"User ID: {callback_query.from_user.id}",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("✅ Test Button", callback_data="iktest:ok")],
+                        [InlineKeyboardButton("🔄 Refresh", callback_data="iktest:refresh")]
+                    ])
+                )
+                bot.answer_callback_query(callback_query.id, "🔄 已刷新")
+            return
+        
+        # Watch management callbacks
         if prefix != "w":
             return  # Not our callback
         
@@ -637,6 +666,66 @@ def handle_callback(bot, callback_query: CallbackQuery):
                         else:
                             bot.answer_callback_query(callback_query.id, f"❌ {msg}", show_alert=True)
         
+        elif action == "preview":
+            # Preview watch source - safely resolve peer
+            # This requires network access and may fail
+            from main import acc
+            
+            if acc is None:
+                bot.answer_callback_query(
+                    callback_query.id,
+                    "❌ 需要配置用户会话才能预览",
+                    show_alert=True
+                )
+                return
+            
+            # Safe peer resolution
+            success, error_msg, chat = ensure_peer(acc, watch_data)
+            
+            if not success:
+                bot.answer_callback_query(
+                    callback_query.id,
+                    f"❌ {error_msg}",
+                    show_alert=True
+                )
+                return
+            
+            # Successfully resolved, show preview
+            source = watch_data.get("source", {})
+            if isinstance(source, dict):
+                source_title = source.get("title", "Unknown")
+                source_type = source.get("type", "channel")
+            else:
+                source_title = "Unknown"
+                source_type = "channel"
+            
+            preview_text = f"**🔍 频道预览**\n\n"
+            preview_text += f"**标题:** {chat.title or 'N/A'}\n"
+            preview_text += f"**用户名:** @{chat.username or 'N/A'}\n"
+            preview_text += f"**ID:** `{chat.id}`\n"
+            preview_text += f"**类型:** {source_type}\n"
+            
+            if hasattr(chat, 'members_count') and chat.members_count:
+                preview_text += f"**成员数:** {chat.members_count}\n"
+            
+            if hasattr(chat, 'description') and chat.description:
+                desc = chat.description[:100] + "..." if len(chat.description) > 100 else chat.description
+                preview_text += f"\n**简介:** {desc}\n"
+            
+            preview_text += f"\n✅ 机器人可以访问此频道/群组"
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ 返回", callback_data=f"w:{watch_id}:detail")]
+            ])
+            
+            bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=message.id,
+                text=preview_text,
+                reply_markup=keyboard
+            )
+            bot.answer_callback_query(callback_query.id, "✅ 预览成功")
+        
         elif action == "delete":
             # Delete watch confirmation
             if parts[3] == "confirm":
@@ -679,10 +768,9 @@ def handle_callback(bot, callback_query: CallbackQuery):
             bot.answer_callback_query(callback_query.id, "未知操作")
     
     except Exception as e:
-        print(f"Error in callback handler: {e}")
-        import traceback
-        traceback.print_exc()
-        bot.answer_callback_query(callback_query.id, f"错误: {str(e)}", show_alert=True)
+        logger.error(f"Error in callback handler: {e}", exc_info=True)
+        error_summary = str(e)[:100]  # Truncate for callback query
+        bot.answer_callback_query(callback_query.id, f"错误: {error_summary}", show_alert=True)
 
 
 def handle_user_input(bot, message, acc):
@@ -756,7 +844,7 @@ def handle_user_input(bot, message, acc):
         return True
     
     except Exception as e:
-        print(f"Error handling user input: {e}")
+        logger.error(f"Error handling user input: {e}", exc_info=True)
         bot.send_message(message.chat.id, f"❌ 错误: {str(e)}")
         del user_input_states[user_id]
         return True
