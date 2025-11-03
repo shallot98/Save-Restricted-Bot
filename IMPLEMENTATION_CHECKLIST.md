@@ -1,233 +1,179 @@
-# Regex-Based Keyword Monitoring - Implementation Checklist
+# Implementation Checklist - Extraction Mode Feature
 
-This document tracks the implementation of all requirements from the ticket.
+## Requirements from Ticket
+
+### Core Functionality
+- [x] Add configurable `extract_mode` (default: off)
+- [x] When on, forward only matched snippets
+- [x] When off, preserve existing full-message forwarding
+
+### Matching Sources
+- [x] Text messages: apply keyword/regex matching
+- [x] Captions: apply extraction to caption
+- [x] Media-only messages: do not alter media forwarding
+- [x] Collect match spans from keywords
+- [x] Collect match spans from regex
+- [x] Extract surrounding sentence for keywords
+- [x] Extract small context window for keywords (fallback)
+- [x] Extract exact match for regex
+- [x] Extract named groups for regex if present
+
+### Forwarding Behavior
+- [x] Send new text message with extracted snippets
+- [x] Include message metadata (author, chat title, link)
+- [x] Apply Telegram HTML formatting
+- [x] HTML entity escaping
+- [x] Truncate or paginate if exceeding 4096 chars
+- [x] Silent skip when no matches found
+- [x] Preserve full-message forwarding when extract_mode is off
+
+### Commands
+- [x] `/mode extract on` - Enable extraction mode
+- [x] `/mode extract off` - Disable extraction mode
+- [x] `/mode show` - Display current mode
+- [x] `/preview <text>` - Test extractor and show preview
+
+### Configuration & Persistence
+- [x] Persist `extract_mode` in filter_config.json
+- [x] Atomic save with backup
+- [x] Safe reads with defaults
+
+### Edge Cases & Safety
+- [x] Valid message links
+- [x] HTML entity escaping
+- [x] Combine multiple matches smartly
+- [x] Merge overlapping spans
+- [x] Cap number of snippets per message (max 10)
+- [x] Handle messages exceeding Telegram limit
+- [x] Gracefully split long messages
+- [x] Show truncation notice when needed
 
 ## Acceptance Criteria
 
-### ✅ Bot supports `/addre`, `/delre`, `/listre`, `/testre` commands
+- [x] When `extract_mode` is ON, only matched snippets are forwarded for text/caption messages
+- [x] When OFF, behavior matches current implementation
+- [x] Commands `/mode extract on|off` function correctly
+- [x] Command `/preview` functions and shows extraction preview
+- [x] State persists across restarts
+- [x] Messages exceeding Telegram length are gracefully split or truncated with notice
 
-**Status**: COMPLETE
+## Code Quality
 
-- [x] `/addre <pattern>` - Add regex pattern with validation
-- [x] `/delre <index>` - Remove pattern by index
-- [x] `/listre` - List patterns with compilation status
-- [x] `/testre <pattern> <text>` - Test pattern with detailed output
+### Implementation
+- [x] Functions added to regex_filters.py
+- [x] Commands added to main.py
+- [x] Auto-forward handler modified
+- [x] Help text updated
+- [x] Imports updated
 
-**Files**: `main.py` lines 459-620
+### Testing
+- [x] Unit tests created (test_extraction_mode.py)
+- [x] All new tests pass
+- [x] All existing tests updated and pass
+- [x] Integration tests pass
+- [x] Demo script created and works
 
-### ✅ Messages are considered matches if they hit either a keyword or a regex pattern
+### Documentation
+- [x] Feature documentation (EXTRACTION_MODE.md)
+- [x] Quick start guide (EXTRACTION_MODE_QUICKSTART.md)
+- [x] Implementation summary (IMPLEMENTATION_SUMMARY.md)
+- [x] Code comments added
+- [x] Docstrings for all functions
 
-**Status**: COMPLETE
+### Safety
+- [x] No breaking changes
+- [x] Backward compatible
+- [x] Config files in .gitignore
+- [x] Error handling in place
+- [x] No hardcoded credentials
+- [x] HTML injection prevented
 
-- [x] Checks message text
-- [x] Checks message caption
-- [x] Checks document filename
-- [x] Matches on keywords OR patterns (any match passes)
+## Files Modified
 
-**Files**: `main.py` lines 714-748, `regex_filters.py` lines 163-183
+- [x] regex_filters.py - Added extraction functions
+- [x] main.py - Added commands and modified auto_forward
+- [x] test_regex_filters.py - Updated default config test
 
-### ✅ Invalid regex inputs do not crash the bot and return a clear error message
+## Files Created
 
-**Status**: COMPLETE
+- [x] test_extraction_mode.py - Comprehensive test suite
+- [x] EXTRACTION_MODE.md - Full documentation
+- [x] EXTRACTION_MODE_QUICKSTART.md - Quick start guide
+- [x] demo_extraction.py - Interactive demo
+- [x] IMPLEMENTATION_SUMMARY.md - Implementation details
+- [x] IMPLEMENTATION_CHECKLIST.md - This file
 
-- [x] Pattern validation at add time
-- [x] User-friendly error messages
-- [x] Invalid patterns skipped during matching
-- [x] Error status shown in `/listre`
+## Validation
 
-**Files**: `main.py` lines 492-498, `regex_filters.py` lines 101-121
+### Compilation
+- [x] main.py compiles without errors
+- [x] regex_filters.py compiles without errors
+- [x] All test files compile and run
 
-### ✅ Config persists patterns and is backward compatible with existing deployments
+### Testing
+- [x] test_regex_filters.py - PASS
+- [x] test_regex_integration.py - PASS
+- [x] test_extraction_mode.py - PASS
+- [x] test_feature.py - PASS
+- [x] test_changes.py - PASS
+- [x] demo_extraction.py - WORKS
 
-**Status**: COMPLETE
+### Integration
+- [x] Config save/load works
+- [x] Pattern compilation works
+- [x] Extraction works
+- [x] Formatting works
+- [x] End-to-end workflow tested
 
-- [x] `filter_config.json` stores keywords and patterns
-- [x] Atomic writes with backup
-- [x] Default empty structure if file missing
-- [x] No breaking changes to existing code
+## Pre-Deployment Checklist
 
-**Files**: `regex_filters.py` lines 20-38
+- [x] Code reviewed
+- [x] Tests comprehensive
+- [x] Documentation complete
+- [x] No credentials in code
+- [x] .gitignore updated
+- [x] Backward compatible
+- [x] Performance acceptable
+- [x] Error handling robust
 
-## Technical Requirements
+## Post-Deployment Checklist
 
-### Config/Schema
+- [ ] Monitor first extractions
+- [ ] Check log for errors
+- [ ] Verify user feedback
+- [ ] Confirm persistence works
+- [ ] Test with real Telegram messages
+- [ ] Validate HTML formatting in Telegram
+- [ ] Check message links work
+- [ ] Verify metadata displays correctly
 
-- [x] New config section `filters` with `keywords` and `patterns` arrays
-- [x] Backward compatibility (empty arrays if no config)
-- [x] Support `/pattern/flags` syntax
-- [x] Default to case-insensitive matching
+## Known Limitations
 
-**Files**: `regex_filters.py`, `filter_config.json.example`
+1. Windows platform: Regex timeout not enforced (no signal support)
+2. Named groups: Uses simple text search to find group position
+3. Sentence detection: Uses basic delimiters (., !, ?, newline)
+4. Context window: Fixed at 100 chars (not configurable per-watch)
+5. Max snippets: Hard limit of 10 per message
 
-### Runtime Logic
+## Future Improvements
 
-- [x] Check text, captions, and filenames
-- [x] Match against keywords (substring search)
-- [x] Match against compiled regex patterns
-- [x] Compile patterns at startup
-- [x] Handle invalid patterns gracefully
+- [ ] Configurable context window size
+- [ ] Per-watch extraction mode override
+- [ ] Custom metadata templates
+- [ ] Snippet highlighting with formatting
+- [ ] Better sentence boundary detection
+- [ ] Multi-language support
+- [ ] Snippet deduplication
+- [ ] Analytics on extraction patterns
 
-**Files**: `main.py` lines 55, 197, 714-748
+## Sign-Off
 
-### Bot Commands
+**Feature**: Extraction Mode  
+**Status**: ✅ Complete  
+**Tests**: ✅ All Passing  
+**Documentation**: ✅ Complete  
+**Ready for Deployment**: ✅ YES  
 
-#### `/addre <pattern>`
-- [x] Validates pattern length (max 500 chars)
-- [x] Validates pattern count (max 100)
-- [x] Checks for duplicates
-- [x] Compiles to verify validity
-- [x] Saves to config
-- [x] Recompiles all patterns
-- [x] Clear success/error messages
-
-#### `/delre <index>`
-- [x] Validates index is a number
-- [x] Validates index in range
-- [x] Removes pattern from config
-- [x] Recompiles all patterns
-- [x] Confirmation message
-
-#### `/listre`
-- [x] Lists all patterns with indices
-- [x] Shows compilation status (✅ or ⚠️)
-- [x] Shows error messages for invalid patterns
-- [x] Shows total count
-
-#### `/testre <pattern> <text>`
-- [x] Validates pattern syntax
-- [x] Compiles pattern with flags
-- [x] Tests against sample text
-- [x] Shows match details (position, text, groups)
-- [x] Clear success/failure indication
-
-### Persistence
-
-- [x] Store in `filter_config.json`
-- [x] Atomic write operation
-- [x] Automatic backup to `.backup` file
-- [x] JSON format with indentation
-
-**Files**: `regex_filters.py` lines 30-38
-
-### Validation & Safety
-
-#### Pattern Length Limit
-- [x] Maximum 500 characters
-- [x] Checked at add time
-- [x] Clear error message
-
-#### Pattern Count Limit
-- [x] Maximum 100 patterns
-- [x] Checked at add time
-- [x] Clear error message
-
-#### Timeout Protection
-- [x] 1-second timeout (Unix systems)
-- [x] Catches TimeoutError
-- [x] Graceful fallback for Windows
-- [x] Prevents catastrophic backtracking
-
-**Files**: `regex_filters.py` lines 111-158
-
-#### Input Sanitization
-- [x] Pattern validation before compilation
-- [x] Error messages don't expose internals
-- [x] User input validated in all commands
-
-### Tests & Documentation
-
-#### Unit Tests
-- [x] Pattern parsing tests
-- [x] Pattern compilation tests
-- [x] Matching logic tests
-- [x] Config persistence tests
-- [x] Flag handling tests
-- [x] Edge case tests
-
-**Files**: `test_regex_filters.py`, `test_regex_integration.py`
-
-#### Integration Tests
-- [x] Message filtering scenarios
-- [x] Watch + global filter integration
-- [x] Document filename filtering
-- [x] Error handling in production context
-
-**Files**: `test_regex_integration.py`
-
-#### Documentation
-- [x] Updated `/help` command
-- [x] Comprehensive user guide (`REGEX_FILTERS.md`)
-- [x] Implementation summary (`REGEX_IMPLEMENTATION_SUMMARY.md`)
-- [x] Example config file (`filter_config.json.example`)
-- [x] This checklist
-
-### Help Text
-- [x] Documents regex commands
-- [x] Explains pattern syntax
-- [x] Shows usage examples
-- [x] Brief but informative
-
-**Files**: `main.py` lines 268-279
-
-## Additional Enhancements
-
-### Beyond Requirements
-- [x] Standalone `regex_filters.py` module for reusability
-- [x] Comprehensive error messages in Chinese
-- [x] Test suite with 100% pass rate
-- [x] `.gitignore` updated for filter configs
-- [x] Pattern compilation status in `/listre`
-- [x] Detailed match info in `/testre` (groups, positions)
-
-## Test Results
-
-### Unit Tests
-```
-test_regex_filters.py: ✓ All 21 tests passed
-test_regex_integration.py: ✓ All 4 test suites passed
-test_changes.py: ✓ All tests passed (backward compatibility)
-test_feature.py: ✓ All tests passed (existing features)
-```
-
-### Code Quality
-```
-python3 -m py_compile: ✓ All files compile
-Syntax validation: ✓ No errors
-Module imports: ✓ All imports work
-```
-
-## Files Changed/Created
-
-### Modified
-- [x] `main.py` - Added commands, updated help, integrated filtering
-- [x] `.gitignore` - Added filter config files
-
-### Created
-- [x] `regex_filters.py` - Core filtering module
-- [x] `filter_config.json.example` - Example configuration
-- [x] `test_regex_filters.py` - Unit tests
-- [x] `test_regex_integration.py` - Integration tests
-- [x] `REGEX_FILTERS.md` - User documentation
-- [x] `REGEX_IMPLEMENTATION_SUMMARY.md` - Implementation docs
-- [x] `IMPLEMENTATION_CHECKLIST.md` - This file
-
-## Git Status
-
-Branch: `feature/add-regex-keyword-monitoring`
-
-Changes ready to commit:
-- 2 modified files
-- 7 new files
-- All tests passing
-- Documentation complete
-
-## Ready for Review
-
-✅ All acceptance criteria met
-✅ All technical requirements implemented
-✅ All tests passing
-✅ Documentation complete
-✅ Code quality verified
-✅ Backward compatibility maintained
-
-**Status**: READY FOR MERGE
+**Date**: 2024  
+**Implemented by**: AI Assistant  
+**Ticket**: Forward only matched content (extraction mode)
