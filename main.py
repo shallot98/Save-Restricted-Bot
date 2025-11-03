@@ -7,6 +7,19 @@ import time
 import os
 import threading
 import json
+import re
+
+# Import regex filter functions
+from regex_filters import (
+    load_filter_config, 
+    save_filter_config, 
+    parse_regex_pattern, 
+    compile_patterns, 
+    safe_regex_match, 
+    matches_filters,
+    MAX_PATTERN_LENGTH,
+    MAX_PATTERN_COUNT
+)
 
 with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
@@ -24,6 +37,9 @@ def save_watch_config(config):
     with open(WATCH_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
 
+# Compiled patterns cache
+compiled_patterns = []
+
 bot_token = getenv("TOKEN") 
 api_hash = getenv("HASH") 
 api_id = getenv("ID")
@@ -34,6 +50,9 @@ if ss is not None:
     acc = Client("myacc" ,api_id=api_id, api_hash=api_hash, session_string=ss)
     acc.start()
 else: acc = None
+
+# Initialize compiled patterns at startup
+compiled_patterns = compile_patterns()
 
 # download status
 def downstatus(statusfile,message):
@@ -104,6 +123,19 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 • blacklist（黑名单）- 不转发包含这些关键词的消息
 • 关键词用逗号分隔，不区分大小写
 
+**正则表达式过滤：**
+/addre <pattern> - 添加正则表达式模式
+/delre <index> - 删除正则表达式模式（使用索引号）
+/listre - 列出所有正则表达式模式
+/testre <pattern> <text> - 测试正则表达式模式
+
+**正则表达式说明：**
+• 支持标准 Python 正则表达式语法
+• 使用 /pattern/flags 格式指定标志（如 /test/i）
+• 支持的标志：i（忽略大小写）、m（多行）、s（点匹配所有）、x（详细）
+• 默认为不区分大小写匹配
+• 示例：`/addre /urgent|important/i` - 匹配"urgent"或"important"
+
 **转发选项：**
 • preserve_source（保留转发来源）- true 保留原始转发来源信息，false 不保留（默认：false）
 
@@ -116,6 +148,8 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 • `/watch add @source me preserve_source:true` - 转发时保留原始来源信息
 • `/watch list` - 查看所有活动的监控任务
 • `/watch remove 1` - 删除第1个监控任务
+• `/addre /bitcoin|crypto/i` - 添加匹配"bitcoin"或"crypto"的正则
+• `/testre /\\d{3}-\\d{4}/ 123-4567` - 测试电话号码模式
 
 {USAGE}
 """
@@ -278,6 +312,170 @@ def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messag
     
     else:
         bot.send_message(message.chat.id, "**❌ 未知命令**\n\n可用命令：\n• `/watch list` - 查看监控列表\n• `/watch add <来源> <目标>` - 添加监控\n• `/watch remove <编号>` - 删除监控", reply_to_message_id=message.id)
+
+
+# addre command - add regex pattern
+@bot.on_message(filters.command(["addre"]))
+def add_regex(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    global compiled_patterns
+    
+    text = message.text.strip()
+    parts = text.split(maxsplit=1)
+    
+    if len(parts) < 2:
+        bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/addre <pattern>`\n\n示例：\n• `/addre /urgent|important/i`\n• `/addre bitcoin`\n• `/addre /\\d{3}-\\d{4}/`", reply_to_message_id=message.id)
+        return
+    
+    pattern_str = parts[1].strip()
+    
+    # Check pattern length
+    if len(pattern_str) > MAX_PATTERN_LENGTH:
+        bot.send_message(message.chat.id, f"**❌ 模式太长**\n\n最大长度：{MAX_PATTERN_LENGTH} 字符", reply_to_message_id=message.id)
+        return
+    
+    # Load current config
+    filter_config = load_filter_config()
+    patterns = filter_config.get("patterns", [])
+    
+    # Check pattern count
+    if len(patterns) >= MAX_PATTERN_COUNT:
+        bot.send_message(message.chat.id, f"**❌ 已达到最大模式数量**\n\n最大数量：{MAX_PATTERN_COUNT}", reply_to_message_id=message.id)
+        return
+    
+    # Check if pattern already exists
+    if pattern_str in patterns:
+        bot.send_message(message.chat.id, "**⚠️ 该模式已存在**", reply_to_message_id=message.id)
+        return
+    
+    # Try to compile the pattern
+    try:
+        pattern, flags = parse_regex_pattern(pattern_str)
+        compiled_re = re.compile(pattern, flags)
+    except re.error as e:
+        bot.send_message(message.chat.id, f"**❌ 无效的正则表达式**\n\n错误：`{str(e)}`\n\n请检查你的模式语法", reply_to_message_id=message.id)
+        return
+    
+    # Add pattern to config
+    patterns.append(pattern_str)
+    filter_config["patterns"] = patterns
+    save_filter_config(filter_config)
+    
+    # Recompile all patterns
+    compiled_patterns = compile_patterns()
+    
+    bot.send_message(message.chat.id, f"**✅ 已添加正则表达式模式**\n\n模式：`{pattern_str}`\n编译后的模式：`{pattern}`\n\n使用 `/listre` 查看所有模式", reply_to_message_id=message.id)
+
+
+# delre command - delete regex pattern
+@bot.on_message(filters.command(["delre"]))
+def delete_regex(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    global compiled_patterns
+    
+    text = message.text.strip()
+    parts = text.split(maxsplit=1)
+    
+    if len(parts) < 2:
+        bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/delre <index>`\n\n使用 `/listre` 查看模式索引", reply_to_message_id=message.id)
+        return
+    
+    # Load current config
+    filter_config = load_filter_config()
+    patterns = filter_config.get("patterns", [])
+    
+    if not patterns:
+        bot.send_message(message.chat.id, "**❌ 没有任何正则表达式模式**", reply_to_message_id=message.id)
+        return
+    
+    try:
+        index = int(parts[1].strip())
+    except ValueError:
+        bot.send_message(message.chat.id, "**❌ 索引必须是数字**", reply_to_message_id=message.id)
+        return
+    
+    if index < 1 or index > len(patterns):
+        bot.send_message(message.chat.id, f"**❌ 索引无效**\n\n请输入 1 到 {len(patterns)} 之间的数字", reply_to_message_id=message.id)
+        return
+    
+    # Remove pattern
+    removed_pattern = patterns.pop(index - 1)
+    filter_config["patterns"] = patterns
+    save_filter_config(filter_config)
+    
+    # Recompile all patterns
+    compiled_patterns = compile_patterns()
+    
+    bot.send_message(message.chat.id, f"**✅ 已删除正则表达式模式**\n\n模式：`{removed_pattern}`", reply_to_message_id=message.id)
+
+
+# listre command - list regex patterns
+@bot.on_message(filters.command(["listre"]))
+def list_regex(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    filter_config = load_filter_config()
+    patterns = filter_config.get("patterns", [])
+    
+    if not patterns:
+        bot.send_message(message.chat.id, "**📋 没有设置任何正则表达式模式**\n\n使用 `/addre <pattern>` 来添加模式", reply_to_message_id=message.id)
+        return
+    
+    result = "**📋 正则表达式模式列表：**\n\n"
+    for idx, pattern_str in enumerate(patterns, 1):
+        result += f"{idx}. `{pattern_str}`\n"
+        
+        # Check if pattern compiled successfully
+        for orig, compiled, error in compiled_patterns:
+            if orig == pattern_str:
+                if error:
+                    result += f"   ⚠️ 错误：`{error}`\n"
+                else:
+                    result += f"   ✅ 已编译\n"
+                break
+    
+    result += f"\n**总计：** {len(patterns)} 个模式"
+    bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
+
+
+# testre command - test regex pattern
+@bot.on_message(filters.command(["testre"]))
+def test_regex(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    text = message.text.strip()
+    parts = text.split(maxsplit=2)
+    
+    if len(parts) < 3:
+        bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/testre <pattern> <text>`\n\n示例：\n• `/testre /\\d{3}-\\d{4}/ 123-4567`\n• `/testre bitcoin This is a bitcoin message`", reply_to_message_id=message.id)
+        return
+    
+    pattern_str = parts[1].strip()
+    test_text = parts[2].strip()
+    
+    # Try to compile and test the pattern
+    try:
+        pattern, flags = parse_regex_pattern(pattern_str)
+        compiled_re = re.compile(pattern, flags)
+    except re.error as e:
+        bot.send_message(message.chat.id, f"**❌ 无效的正则表达式**\n\n错误：`{str(e)}`", reply_to_message_id=message.id)
+        return
+    
+    # Test the pattern
+    match = safe_regex_match(compiled_re, test_text)
+    
+    if match:
+        result = "**✅ 匹配成功！**\n\n"
+        result += f"模式：`{pattern_str}`\n"
+        result += f"测试文本：`{test_text}`\n\n"
+        result += f"匹配的文本：`{match.group()}`\n"
+        result += f"位置：{match.start()} - {match.end()}\n"
+        
+        # Show groups if any
+        if match.groups():
+            result += f"\n**捕获组：**\n"
+            for i, group in enumerate(match.groups(), 1):
+                result += f"{i}. `{group}`\n"
+    else:
+        result = "**❌ 没有匹配**\n\n"
+        result += f"模式：`{pattern_str}`\n"
+        result += f"测试文本：`{test_text}`"
+    
+    bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
 
 
 @bot.on_message(filters.text)
@@ -513,14 +711,44 @@ if acc is not None:
                         blacklist = []
                         preserve_forward_source = False
                     
+                    # Build text to check: include message text, caption, and document filename
                     message_text = message.text or message.caption or ""
                     
+                    # Add document filename if present
+                    if message.document and hasattr(message.document, 'file_name') and message.document.file_name:
+                        message_text += " " + message.document.file_name
+                    
+                    # Check whitelist (existing per-watch keywords)
                     if whitelist:
                         if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
                             continue
                     
+                    # Check blacklist (existing per-watch keywords)
                     if blacklist:
                         if any(keyword.lower() in message_text.lower() for keyword in blacklist):
+                            continue
+                    
+                    # Check global filters (keywords and regex patterns)
+                    # Only apply if there are global filters defined
+                    filter_config = load_filter_config()
+                    global_keywords = filter_config.get("keywords", [])
+                    has_global_filters = bool(global_keywords or compiled_patterns)
+                    
+                    if has_global_filters:
+                        # Check if message matches global keywords
+                        keyword_match = any(keyword.lower() in message_text.lower() for keyword in global_keywords)
+                        
+                        # Check if message matches regex patterns
+                        pattern_match = False
+                        for pattern_str, compiled_pattern, error in compiled_patterns:
+                            if compiled_pattern is None:
+                                continue
+                            if safe_regex_match(compiled_pattern, message_text):
+                                pattern_match = True
+                                break
+                        
+                        # If global filters exist but no match, skip this message
+                        if not keyword_match and not pattern_match:
                             continue
                     
                     try:
