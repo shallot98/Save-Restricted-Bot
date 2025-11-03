@@ -52,11 +52,19 @@ from watch_manager import (
     generate_watch_id
 )
 
-# Import inline UI handlers
-from inline_ui import handle_callback, handle_user_input, get_watch_list_keyboard
+# Import inline UI handlers (v2 with callback router)
+from inline_ui_v2 import (
+    handle_user_input,
+    get_watch_list_keyboard,
+    register_all_handlers
+)
+from callback_router import router
 
 # Import peer utilities
 from peer_utils import warm_up_peers, ensure_peer
+
+# Legacy support for old inline_ui
+from inline_ui import handle_callback as handle_callback_legacy
 
 with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
@@ -109,8 +117,31 @@ if acc is not None:
 # Callback query handler for inline keyboards
 @bot.on_callback_query()
 def callback_handler(client, callback_query):
-    """Handle inline keyboard button presses"""
-    handle_callback(bot, callback_query)
+    """
+    Handle inline keyboard button presses
+    
+    Uses new callback router (v2) with fallback to legacy handler
+    """
+    data = callback_query.data
+    logger.info(f"Callback query received: {data} from user {callback_query.from_user.id}")
+    
+    # Load watch config
+    watch_config = load_watch_config()
+    
+    # Try new router first (v2 format: w:<id>|sec:<s>|act:<a>)
+    handled = router.handle_callback(callback_query, bot, watch_config)
+    
+    if handled:
+        logger.info(f"Callback handled by v2 router: {data}")
+        return
+    
+    # Fallback to legacy handler for old format (w:<id>:<action>:...)
+    if data.startswith("iktest:") or data.startswith("w:"):
+        logger.info(f"Falling back to legacy handler for: {data}")
+        handle_callback_legacy(bot, callback_query)
+    else:
+        logger.warning(f"Unhandled callback query: {data}")
+        bot.answer_callback_query(callback_query.id, "未知操作")
 
 
 # download status
