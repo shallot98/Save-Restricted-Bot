@@ -12,5 +12,7 @@ services:
       - ID=${ID}
       - HASH=${HASH}
       - STRING=${STRING}
+      - SESSION_DIR=/data/sessions
     volumes:
       - ./downloads:/app/downloads
+      - ./data/sessions:/data/sessions

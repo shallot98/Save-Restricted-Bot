@@ -8,6 +8,14 @@ import os
 import threading
 import json
 import re
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Import regex filter functions
 from regex_filters import (
@@ -47,6 +55,9 @@ from watch_manager import (
 # Import inline UI handlers
 from inline_ui import handle_callback, handle_user_input, get_watch_list_keyboard
 
+# Import peer utilities
+from peer_utils import warm_up_peers, ensure_peer
+
 with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
 
@@ -55,19 +66,44 @@ def getenv(var): return os.environ.get(var) or DATA.get(var, None)
 # Compiled patterns cache
 compiled_patterns = []
 
+# Configure session persistence directory
+SESSION_DIR = os.getenv("SESSION_DIR", "/data/sessions")
+try:
+    os.makedirs(SESSION_DIR, exist_ok=True)
+except (PermissionError, OSError):
+    # Fallback to local directory if /data is not writable
+    SESSION_DIR = "./sessions"
+    os.makedirs(SESSION_DIR, exist_ok=True)
+    logger.warning(f"Cannot write to /data, using fallback: {SESSION_DIR}")
+
 bot_token = getenv("TOKEN") 
 api_hash = getenv("HASH") 
 api_id = getenv("ID")
-bot = Client("mybot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
+
+# Configure bot with persistent session
+bot_session_name = os.path.join(SESSION_DIR, "mybot")
+bot = Client(bot_session_name, api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
 ss = getenv("STRING")
 if ss is not None:
-    acc = Client("myacc" ,api_id=api_id, api_hash=api_hash, session_string=ss)
+    acc_session_name = os.path.join(SESSION_DIR, "myacc")
+    acc = Client(acc_session_name, api_id=api_id, api_hash=api_hash, session_string=ss)
     acc.start()
-else: acc = None
+    logger.info("User session started")
+else: 
+    acc = None
+    logger.warning("No user session configured (STRING not set)")
 
 # Initialize compiled patterns at startup
 compiled_patterns = compile_patterns()
+
+# Warm up peer cache on startup (non-fatal)
+if acc is not None:
+    try:
+        watch_config = load_watch_config()
+        warm_up_peers(acc, watch_config)
+    except Exception as e:
+        logger.error(f"Error during peer warm-up: {e}")
 
 
 # Callback query handler for inline keyboards
@@ -120,17 +156,42 @@ def progress(current, total, message, type):
 # start command
 @bot.on_message(filters.command(["start"]))
 def send_start(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    logger.info(f"/start called by user {message.from_user.id} in chat {message.chat.id}")
     bot.send_message(message.chat.id, f"__👋 你好 **{message.from_user.mention}**，我是受限内容保存机器人，我可以通过帖子链接发送受限内容给你__\n\n{USAGE}",
     reply_markup=InlineKeyboardMarkup([[ InlineKeyboardButton("🌐 源代码", url="https://github.com/bipinkrish/Save-Restricted-Bot")]]), reply_to_message_id=message.id)
+
+# iktest command - diagnostic for inline keyboards
+@bot.on_message(filters.command(["iktest"]))
+def iktest_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    """Diagnostic command to test inline keyboards"""
+    logger.info(f"/iktest called by user {message.from_user.id} in chat {message.chat.id} (type: {message.chat.type})")
+    
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Test Button", callback_data="iktest:ok")],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="iktest:refresh")]
+    ])
+    
+    bot.send_message(
+        message.chat.id,
+        "**🧪 Inline Keyboard Test**\n\n"
+        "If you can see and click the buttons below, inline keyboards are working correctly.\n\n"
+        f"Chat ID: `{message.chat.id}`\n"
+        f"Chat Type: {message.chat.type}\n"
+        f"User ID: {message.from_user.id}",
+        reply_markup=keyboard,
+        reply_to_message_id=message.id
+    )
 
 # help command
 @bot.on_message(filters.command(["help"]))
 def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    logger.info(f"/help called by user {message.from_user.id} in chat {message.chat.id}")
     help_text = """**📖 命令帮助**
 
 **基本命令：**
 /start - 启动机器人并查看使用说明
 /help - 显示此帮助信息
+/iktest - 测试内联键盘功能（诊断工具）
 
 **消息转发功能：**
 直接发送 Telegram 消息链接，机器人会帮你获取内容
@@ -199,6 +260,8 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 # watch command - Main entry point for watch management
 @bot.on_message(filters.command(["watch"]))
 def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    logger.info(f"/watch called by user {message.from_user.id} in chat {message.chat.id}, text: {message.text[:50]}")
+    
     if acc is None:
         bot.send_message(message.chat.id, "**❌ 需要配置 String Session 才能使用监控功能**", reply_to_message_id=message.id)
         return
@@ -243,29 +306,45 @@ def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messag
 
 def watch_list_command(message):
     """List all watches for the user with inline keyboard"""
-    watch_config = load_watch_config()
-    user_id = str(message.from_user.id)
-    user_watches = get_user_watches(watch_config, user_id)
+    logger.info(f"/watch list called by user {message.from_user.id} in chat {message.chat.id}")
     
-    if not user_watches:
-        bot.send_message(message.chat.id, 
-            "**📋 你还没有设置任何监控任务**\n\n"
-            "使用 `/watch add <来源> <目标>` 来添加监控\n\n"
-            "示例：`/watch add @channel me`",
-            reply_to_message_id=message.id)
-        return
-    
-    # Use inline keyboard UI
-    keyboard = get_watch_list_keyboard(user_watches, page=1)
-    result_text = f"**📋 监控任务列表** (共 {len(user_watches)} 个)\n\n"
-    result_text += "点击任务查看详情和管理"
-    
-    bot.send_message(
-        message.chat.id,
-        result_text,
-        reply_markup=keyboard,
-        reply_to_message_id=message.id
-    )
+    try:
+        watch_config = load_watch_config()
+        user_id = str(message.from_user.id)
+        user_watches = get_user_watches(watch_config, user_id)
+        
+        if not user_watches:
+            bot.send_message(message.chat.id, 
+                "**📋 你还没有设置任何监控任务**\n\n"
+                "使用 `/watch add <来源> <目标>` 来添加监控\n\n"
+                "示例：`/watch add @channel me`",
+                reply_to_message_id=message.id)
+            return
+        
+        # Use inline keyboard UI - purely from config, no network calls
+        keyboard = get_watch_list_keyboard(user_watches, page=1)
+        result_text = f"**📋 监控任务列表** (共 {len(user_watches)} 个)\n\n"
+        result_text += "点击任务查看详情和管理"
+        
+        bot.send_message(
+            message.chat.id,
+            result_text,
+            reply_markup=keyboard,
+            reply_to_message_id=message.id
+        )
+        logger.info(f"Watch list sent successfully to user {message.from_user.id}")
+        
+    except Exception as e:
+        logger.error(f"Error in watch_list_command: {e}", exc_info=True)
+        error_msg = "**❌ 显示监控列表时出错**\n\n"
+        error_msg += f"错误信息：{str(e)}\n\n"
+        error_msg += "请稍后重试或联系管理员。"
+        
+        bot.send_message(
+            message.chat.id,
+            error_msg,
+            reply_to_message_id=message.id
+        )
 
 
 def watch_add_command(message, args_str):
@@ -439,7 +518,7 @@ def watch_remove_command(message, args_str):
 
 
 def watch_set_command(message, args_str):
-    """Set watch flags"""
+    """Set watch flags (v3 - use inline UI for better UX)"""
     args = args_str.split()[1:]  # Remove 'set' subcommand
     
     if len(args) < 3:
@@ -447,35 +526,19 @@ def watch_set_command(message, args_str):
             "**❌ 用法错误**\n\n"
             "正确格式：`/watch set <任务ID> <设置> <值>`\n\n"
             "可用设置：\n"
-            "• `extract` - 提取模式 (on/off)\n"
-            "• `kw` - 关键词过滤 (on/off)\n"
-            "• `preserve` - 保留来源 (on/off)\n\n"
-            "示例：`/watch set abc123 extract on`",
+            "• `mode` - 转发模式 (full/extract)\n"
+            "• `preserve` - 保留来源 (on/off)\n"
+            "• `enabled` - 启用/禁用 (on/off)\n\n"
+            "示例：`/watch set abc123 mode extract`\n\n"
+            "💡 推荐使用 `/watch list` 打开交互式界面进行设置",
             reply_to_message_id=message.id)
         return
     
     watch_config = load_watch_config()
     user_id = str(message.from_user.id)
     identifier = args[0].strip()
-    flag_name_short = args[1].lower()
+    setting_name = args[1].lower()
     value_str = args[2].lower()
-    
-    # Map short names to full flag names
-    flag_map = {
-        "extract": "extract_mode",
-        "kw": "keywords_enabled",
-        "preserve": "preserve_source"
-    }
-    
-    if flag_name_short not in flag_map:
-        bot.send_message(message.chat.id,
-            f"**❌ 无效的设置名称**\n\n"
-            f"可用设置：{', '.join(flag_map.keys())}",
-            reply_to_message_id=message.id)
-        return
-    
-    flag_name = flag_map[flag_name_short]
-    value = value_str in ['on', 'true', '1']
     
     # Find watch ID
     user_watches = get_user_watches(watch_config, user_id)
@@ -492,14 +555,36 @@ def watch_set_command(message, args_str):
             reply_to_message_id=message.id)
         return
     
-    success, msg = update_watch_flag(watch_config, user_id, watch_id, flag_name, value)
+    # Use v3 specific update functions
+    success = False
+    msg = ""
+    
+    if setting_name == "mode":
+        if value_str in ['full', 'extract']:
+            success, msg = update_watch_forward_mode(watch_config, user_id, watch_id, value_str)
+        else:
+            bot.send_message(message.chat.id,
+                "**❌ 无效的模式**\n\n模式必须是 `full` 或 `extract`",
+                reply_to_message_id=message.id)
+            return
+    elif setting_name == "preserve":
+        value = value_str in ['on', 'true', '1']
+        success, msg = update_watch_preserve_source(watch_config, user_id, watch_id, value)
+    elif setting_name == "enabled":
+        value = value_str in ['on', 'true', '1']
+        success, msg = update_watch_enabled(watch_config, user_id, watch_id, value)
+    else:
+        bot.send_message(message.chat.id,
+            f"**❌ 无效的设置名称**\n\n"
+            f"可用设置：mode, preserve, enabled",
+            reply_to_message_id=message.id)
+        return
     
     if success:
-        status = "开启" if value else "关闭"
         bot.send_message(message.chat.id,
             f"**✅ 设置已更新**\n\n"
             f"任务ID：`{watch_id[:8]}...`\n"
-            f"{flag_name_short}：{status}",
+            f"{msg}",
             reply_to_message_id=message.id)
     else:
         bot.send_message(message.chat.id, f"**❌ {msg}**", reply_to_message_id=message.id)

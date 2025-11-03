@@ -37,6 +37,10 @@ myacc.session
 temp_session.session
 my_account.session
 
+# Session directory
+data/sessions/
+sessions/
+
 # Downloaded files
 downloads/
 *.mp4
