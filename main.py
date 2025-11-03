@@ -33,13 +33,19 @@ from watch_manager import (
     get_watch_by_source,
     add_watch as add_watch_entry,
     remove_watch as remove_watch_entry,
-    update_watch_flag,
+    update_watch_forward_mode,
+    update_watch_preserve_source,
+    update_watch_enabled,
+    update_watch_source_info,
     add_watch_keyword,
     remove_watch_keyword,
     add_watch_pattern,
     remove_watch_pattern,
     generate_watch_id
 )
+
+# Import inline UI handlers
+from inline_ui import handle_callback, handle_user_input, get_watch_list_keyboard
 
 with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
@@ -62,6 +68,14 @@ else: acc = None
 
 # Initialize compiled patterns at startup
 compiled_patterns = compile_patterns()
+
+
+# Callback query handler for inline keyboards
+@bot.on_callback_query()
+def callback_handler(client, callback_query):
+    """Handle inline keyboard button presses"""
+    handle_callback(bot, callback_query)
+
 
 # download status
 def downstatus(statusfile,message):
@@ -122,61 +136,61 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 直接发送 Telegram 消息链接，机器人会帮你获取内容
 
 **监控功能 (/watch)：**
-每个监控任务都有独立的过滤器和设置
+支持频道和群组监控，每个任务都有独立的过滤器和转发模式
 
-• `/watch list` - 查看所有监控任务及其设置
+• `/watch list` - 📋 查看所有监控任务（交互式管理界面）
 • `/watch add <来源> <目标> [选项]` - 添加监控任务
 • `/watch remove <任务ID>` - 删除监控任务
-• `/watch set <任务ID> <设置> <值>` - 修改监控任务设置
+
+**转发模式（互斥）：**
+• **Full 模式** - 转发完整消息
+  - 使用监控过滤器决定是否转发
+  - 如果监控过滤器为空，则转发所有消息
+  
+• **Extract 模式** - 仅转发提取的匹配片段
+  - 使用提取过滤器查找匹配内容
+  - 如果提取过滤器为空，则不转发任何内容
 
 **监控任务选项：**
-• `--extract on|off` - 提取模式（仅转发匹配片段）
-• `--kw on|off` - 关键词/正则过滤开关
-• `--preserve on|off` - 保留原始转发来源
+• `--mode full|extract` - 转发模式（默认：full）
+• `--preserve on|off` - 保留原始转发来源（默认：off）
 
-**监控任务过滤器（每个任务独立）：**
-• `/watch keywords add <任务ID> <关键词>` - 添加关键词
-• `/watch keywords del <任务ID> <索引|关键词>` - 删除关键词
-• `/watch keywords list <任务ID>` - 查看关键词列表
-• `/watch regex add <任务ID> <模式>` - 添加正则表达式
-• `/watch regex del <任务ID> <索引|模式>` - 删除正则表达式
-• `/watch regex list <任务ID>` - 查看正则表达式列表
+**过滤器管理：**
+使用 `/watch list` 打开交互式界面管理过滤器：
+• 监控过滤器 - 用于 full 模式，决定是否转发
+• 提取过滤器 - 用于 extract 模式，选择要提取的内容
 
-**测试功能：**
-• `/watch preview <任务ID> <文本>` - 预览该任务的提取效果
-
-**全局正则表达式（已弃用，建议使用每任务过滤器）：**
-• `/addre <pattern>` - 添加全局正则表达式模式
-• `/delre <index>` - 删除全局正则表达式模式
-• `/listre` - 列出所有全局正则表达式模式
-• `/testre <pattern> <text>` - 测试正则表达式模式
+每个过滤器类型支持：
+• 关键词匹配（不区分大小写）
+• 正则表达式模式（支持高级匹配）
 
 **正则表达式说明：**
 • 支持标准 Python 正则表达式语法
 • 使用 /pattern/flags 格式指定标志（如 /test/i）
 • 支持的标志：i（忽略大小写）、m（多行）、s（点匹配所有）、x（详细）
 • 默认为不区分大小写匹配
-• 示例：`/watch regex add <ID> /urgent|important/i`
+• 示例：`/urgent|important/i`
 
 **使用示例：**
-1. 基础监控：
+1. 基础监控（转发所有消息）：
    `/watch add @source_channel me`
    
-2. 带关键词过滤的监控：
-   `/watch add @source me --kw on`
-   `/watch keywords add <ID> 重要`
-   `/watch keywords add <ID> 紧急`
+2. 监控带过滤（仅转发匹配的完整消息）：
+   `/watch add @source me --mode full`
+   然后使用 `/watch list` 添加监控过滤器
    
-3. 带提取模式的监控：
-   `/watch add @source me --extract on --kw on`
-   `/watch regex add <ID> /bitcoin|crypto/i`
+3. 提取模式（仅转发匹配片段）：
+   `/watch add @source me --mode extract`
+   然后使用 `/watch list` 添加提取过滤器
    
 4. 保留原始来源：
    `/watch add @source @dest --preserve on`
    
-5. 修改现有任务：
-   `/watch set <ID> extract on`
-   `/watch set <ID> preserve off`
+5. 群组监控：
+   `/watch add @mygroup me --mode full`
+
+**提示：**
+💡 使用 `/watch list` 命令打开交互式管理界面，更方便地管理过滤器和设置
 
 {USAGE}
 """
@@ -228,7 +242,7 @@ def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messag
 
 
 def watch_list_command(message):
-    """List all watches for the user"""
+    """List all watches for the user with inline keyboard"""
     watch_config = load_watch_config()
     user_id = str(message.from_user.id)
     user_watches = get_user_watches(watch_config, user_id)
@@ -237,45 +251,25 @@ def watch_list_command(message):
         bot.send_message(message.chat.id, 
             "**📋 你还没有设置任何监控任务**\n\n"
             "使用 `/watch add <来源> <目标>` 来添加监控\n\n"
-            "示例：`/watch add @channel me --kw on --extract on`",
+            "示例：`/watch add @channel me`",
             reply_to_message_id=message.id)
         return
     
-    result = "**📋 你的监控任务列表：**\n\n"
+    # Use inline keyboard UI
+    keyboard = get_watch_list_keyboard(user_watches, page=1)
+    result_text = f"**📋 监控任务列表** (共 {len(user_watches)} 个)\n\n"
+    result_text += "点击任务查看详情和管理"
     
-    for idx, (watch_id, watch_data) in enumerate(user_watches.items(), 1):
-        source = watch_data.get("source", "unknown")
-        dest = watch_data.get("dest", "unknown")
-        enabled = watch_data.get("enabled", True)
-        flags = watch_data.get("flags", {})
-        filters = watch_data.get("filters", {})
-        
-        status_icon = "✅" if enabled else "❌"
-        result += f"{idx}. {status_icon} `{source}` ➡️ `{dest}`\n"
-        result += f"   ID: `{watch_id[:8]}...`\n"
-        
-        # Show flags
-        extract = "开" if flags.get("extract_mode") else "关"
-        kw_filter = "开" if flags.get("keywords_enabled") else "关"
-        preserve = "是" if flags.get("preserve_source") else "否"
-        result += f"   提取模式: {extract} | 过滤器: {kw_filter} | 保留来源: {preserve}\n"
-        
-        # Show filter counts
-        kw_count = len(filters.get("keywords", []))
-        pattern_count = len(filters.get("patterns", []))
-        if kw_count > 0 or pattern_count > 0:
-            result += f"   关键词: {kw_count} 个 | 正则: {pattern_count} 个\n"
-        
-        result += "\n"
-    
-    result += f"**总计：** {len(user_watches)} 个监控任务\n\n"
-    result += "💡 **提示：** 使用 `/watch set <ID>` 修改设置"
-    
-    bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
+    bot.send_message(
+        message.chat.id,
+        result_text,
+        reply_markup=keyboard,
+        reply_to_message_id=message.id
+    )
 
 
 def watch_add_command(message, args_str):
-    """Add a new watch"""
+    """Add a new watch (v3 format)"""
     args = args_str.split()[1:]  # Remove 'add' subcommand
     
     if len(args) < 2:
@@ -283,12 +277,12 @@ def watch_add_command(message, args_str):
             "**❌ 用法错误**\n\n"
             "正确格式：`/watch add <来源> <目标> [选项]`\n\n"
             "选项：\n"
-            "• `--extract on|off` - 提取模式\n"
-            "• `--kw on|off` - 关键词过滤\n"
-            "• `--preserve on|off` - 保留来源\n\n"
+            "• `--mode full|extract` - 转发模式（默认：full）\n"
+            "• `--preserve on|off` - 保留来源（默认：off）\n\n"
             "示例：\n"
             "• `/watch add @channel me`\n"
-            "• `/watch add @channel me --kw on --extract on`",
+            "• `/watch add @channel me --mode extract`\n"
+            "• `/watch add @group me --mode full --preserve on`",
             reply_to_message_id=message.id)
         return
     
@@ -296,19 +290,17 @@ def watch_add_command(message, args_str):
     dest_chat = args[1].strip()
     user_id = str(message.from_user.id)
     
-    # Parse options
-    extract_mode = False
-    keywords_enabled = False
+    # Parse options (v3)
+    forward_mode = "full"
     preserve_source = False
     
     i = 2
     while i < len(args):
         arg = args[i].lower()
-        if arg == "--extract" and i + 1 < len(args):
-            extract_mode = args[i + 1].lower() in ['on', 'true', '1']
-            i += 2
-        elif arg == "--kw" and i + 1 < len(args):
-            keywords_enabled = args[i + 1].lower() in ['on', 'true', '1']
+        if arg == "--mode" and i + 1 < len(args):
+            mode_val = args[i + 1].lower()
+            if mode_val in ['full', 'extract']:
+                forward_mode = mode_val
             i += 2
         elif arg == "--preserve" and i + 1 < len(args):
             preserve_source = args[i + 1].lower() in ['on', 'true', '1']
@@ -317,13 +309,22 @@ def watch_add_command(message, args_str):
             i += 1
     
     try:
-        # Resolve source chat ID
+        # Resolve source chat ID and get info
         if source_chat.startswith('@'):
             source_info = acc.get_chat(source_chat)
             source_id = str(source_info.id)
         else:
             source_id = source_chat
             source_info = acc.get_chat(int(source_chat))
+        
+        # Get source type and title
+        source_type = "channel"
+        if source_info.type.name == "SUPERGROUP":
+            source_type = "supergroup"
+        elif source_info.type.name == "GROUP":
+            source_type = "group"
+        
+        source_title = source_info.title or source_info.username or "Unknown"
         
         # Resolve destination chat ID
         if dest_chat.lower() == "me":
@@ -335,12 +336,13 @@ def watch_add_command(message, args_str):
             dest_id = dest_chat
             dest_info = acc.get_chat(int(dest_chat))
         
-        # Add watch
+        # Add watch (v3)
         watch_config = load_watch_config()
         success, msg, watch_id = add_watch_entry(
             watch_config, user_id, source_id, dest_id,
-            extract_mode=extract_mode,
-            keywords_enabled=keywords_enabled,
+            source_type=source_type,
+            source_title=source_title,
+            forward_mode=forward_mode,
             preserve_source=preserve_source
         )
         
@@ -349,16 +351,13 @@ def watch_add_command(message, args_str):
             return
         
         result_msg = f"**✅ {msg}！**\n\n"
-        result_msg += f"来源：`{source_chat}`\n"
-        result_msg += f"目标：`{dest_chat}`\n"
-        result_msg += f"任务ID：`{watch_id[:8]}...`\n\n"
+        result_msg += f"**来源：** {source_title} ({source_type})\n"
+        result_msg += f"**目标：** {dest_chat}\n"
+        result_msg += f"**任务ID：** `{watch_id[:8]}...`\n\n"
         result_msg += "**设置：**\n"
-        result_msg += f"• 提取模式：{'开启' if extract_mode else '关闭'}\n"
-        result_msg += f"• 关键词过滤：{'开启' if keywords_enabled else '关闭'}\n"
+        result_msg += f"• 转发模式：{forward_mode}\n"
         result_msg += f"• 保留来源：{'是' if preserve_source else '否'}\n\n"
-        
-        if keywords_enabled:
-            result_msg += "💡 使用 `/watch keywords add <ID> <关键词>` 添加过滤关键词"
+        result_msg += "💡 使用 `/watch list` 打开管理界面配置过滤器"
         
         bot.send_message(message.chat.id, result_msg, reply_to_message_id=message.id)
     
@@ -1036,6 +1035,10 @@ def preview_command(client: pyrogram.client.Client, message: pyrogram.types.mess
 @bot.on_message(filters.text)
 def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
     print(message.text)
+    
+    # Check if this is user input for inline UI
+    if handle_user_input(bot, message, acc):
+        return  # Message was handled by inline UI
 
     # joining chats
     if "https://t.me/+" in message.text or "https://t.me/joinchat/" in message.text:
@@ -1243,7 +1246,7 @@ https://t.me/c/xxxx/101 - 120
 __注意：中间的空格无关紧要__
 """
 
-# Auto-forward handler for watched channels (per-watch filters)
+# Auto-forward handler for watched channels and groups (v3 with separate monitor/extract filters)
 if acc is not None:
     @acc.on_message(filters.channel | filters.group)
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
@@ -1251,7 +1254,7 @@ if acc is not None:
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
             
-            # Find all watches for this source
+            # Find watch for this source
             result = get_watch_by_source(watch_config, source_chat_id)
             if not result:
                 return
@@ -1262,19 +1265,51 @@ if acc is not None:
             if not watch_data.get("enabled", True):
                 return
             
-            # Get watch configuration
-            dest_chat_id = watch_data.get("dest")
-            flags = watch_data.get("flags", {})
-            filters_data = watch_data.get("filters", {})
+            # Update source info if needed (for migrated watches)
+            source = watch_data.get("source", {})
+            if isinstance(source, dict) and source.get("type") == "channel" and source.get("title") == "Unknown":
+                # Update with actual chat info
+                chat_type = "channel"
+                if message.chat.type.name == "SUPERGROUP":
+                    chat_type = "supergroup"
+                elif message.chat.type.name == "GROUP":
+                    chat_type = "group"
+                
+                chat_title = message.chat.title or message.chat.username or "Unknown"
+                update_watch_source_info(watch_config, user_id, watch_id, chat_type, chat_title)
+                watch_config = load_watch_config()
+                watch_data = get_watch_by_id(watch_config, user_id, watch_id)
             
-            extract_mode = flags.get("extract_mode", False)
-            keywords_enabled = flags.get("keywords_enabled", False)
-            preserve_source = flags.get("preserve_source", False)
+            # Get v3 config
+            target_chat_id = watch_data.get("target_chat_id", watch_data.get("dest", "me"))
+            forward_mode = watch_data.get("forward_mode", "full")
+            preserve_source = watch_data.get("preserve_source", False)
             
-            keywords = filters_data.get("keywords", [])
-            patterns = filters_data.get("patterns", [])
+            monitor_filters = watch_data.get("monitor_filters", {})
+            extract_filters = watch_data.get("extract_filters", {})
             
-            # Handle legacy whitelist/blacklist if present
+            # Handle legacy format (v2) if present
+            if "flags" in watch_data:
+                # v2 format: convert on the fly
+                flags = watch_data.get("flags", {})
+                filters_data = watch_data.get("filters", {})
+                
+                forward_mode = "extract" if flags.get("extract_mode", False) else "full"
+                preserve_source = flags.get("preserve_source", False)
+                keywords_enabled = flags.get("keywords_enabled", False)
+                
+                if keywords_enabled:
+                    monitor_filters = {
+                        "keywords": filters_data.get("keywords", []),
+                        "patterns": filters_data.get("patterns", [])
+                    }
+                if flags.get("extract_mode", False):
+                    extract_filters = {
+                        "keywords": filters_data.get("keywords", []),
+                        "patterns": filters_data.get("patterns", [])
+                    }
+            
+            # Handle legacy whitelist/blacklist (v1 compatibility)
             legacy_whitelist = watch_data.get("_legacy_whitelist", [])
             legacy_blacklist = watch_data.get("_legacy_blacklist", [])
             
@@ -1294,78 +1329,97 @@ if acc is not None:
                 if any(keyword.lower() in message_text.lower() for keyword in legacy_blacklist):
                     return
             
-            # Apply per-watch filters if keywords_enabled
-            if keywords_enabled and (keywords or patterns):
-                # Compile this watch's patterns
-                compiled = compile_pattern_list(patterns)
+            # V3 logic: separate monitor and extract filters
+            if forward_mode == "full":
+                # Full mode: check monitor_filters to decide whether to forward
+                monitor_kw = monitor_filters.get("keywords", [])
+                monitor_patterns = monitor_filters.get("patterns", [])
                 
-                # Check for matches
-                has_matches, snippets = extract_matches(message_text, keywords, compiled)
+                if monitor_kw or monitor_patterns:
+                    # Filters exist: must match at least one
+                    compiled_monitor = compile_pattern_list(monitor_patterns)
+                    has_match, _ = extract_matches(message_text, monitor_kw, compiled_monitor)
+                    
+                    if not has_match:
+                        return  # No match, don't forward
                 
-                # If filters are enabled but no match, skip
-                if not has_matches:
-                    return
-                
-                # If extract mode is on, send extracted snippets
-                if extract_mode:
-                    try:
-                        # Build metadata for snippets
-                        metadata = {}
-                        
-                        # Get author name
-                        if message.from_user:
-                            if message.from_user.first_name:
-                                author = message.from_user.first_name
-                                if message.from_user.last_name:
-                                    author += " " + message.from_user.last_name
-                                metadata["author"] = author
-                            elif message.from_user.username:
-                                metadata["author"] = "@" + message.from_user.username
-                        
-                        # Get chat title
-                        if message.chat:
-                            if message.chat.title:
-                                metadata["chat_title"] = message.chat.title
-                            elif message.chat.username:
-                                metadata["chat_title"] = "@" + message.chat.username
-                        
-                        # Generate message link
-                        if message.chat.username:
-                            metadata["link"] = f"https://t.me/{message.chat.username}/{message.id}"
+                # Forward full message
+                try:
+                    if preserve_source:
+                        if target_chat_id == "me":
+                            acc.forward_messages("me", message.chat.id, message.id)
                         else:
-                            # Private channel/group
-                            chat_id_str = str(message.chat.id).replace("-100", "")
-                            metadata["link"] = f"https://t.me/c/{chat_id_str}/{message.id}"
-                        
-                        # Format snippets for telegram
-                        formatted_messages = format_snippets_for_telegram(snippets, metadata, include_metadata=True)
-                        
-                        # Send formatted messages
-                        for formatted_msg in formatted_messages:
-                            if dest_chat_id == "me":
-                                acc.send_message("me", formatted_msg, parse_mode="html")
-                            else:
-                                acc.send_message(int(dest_chat_id), formatted_msg, parse_mode="html")
-                    except Exception as e:
-                        print(f"Error sending extracted snippets: {e}")
-                    return
+                            acc.forward_messages(int(target_chat_id), message.chat.id, message.id)
+                    else:
+                        if target_chat_id == "me":
+                            acc.copy_message("me", message.chat.id, message.id)
+                        else:
+                            acc.copy_message(int(target_chat_id), message.chat.id, message.id)
+                except Exception as e:
+                    print(f"Error forwarding full message: {e}")
             
-            # Forward the full message (either filters disabled or extract mode off)
-            try:
-                if preserve_source:
-                    if dest_chat_id == "me":
-                        acc.forward_messages("me", message.chat.id, message.id)
+            elif forward_mode == "extract":
+                # Extract mode: use extract_filters to find snippets
+                extract_kw = extract_filters.get("keywords", [])
+                extract_patterns = extract_filters.get("patterns", [])
+                
+                if not extract_kw and not extract_patterns:
+                    # No extract filters defined, don't forward anything
+                    return
+                
+                # Check for matches and extract snippets
+                compiled_extract = compile_pattern_list(extract_patterns)
+                has_matches, snippets = extract_matches(message_text, extract_kw, compiled_extract)
+                
+                if not has_matches:
+                    return  # No matches in extract filters
+                
+                # Send extracted snippets
+                try:
+                    # Build metadata for snippets
+                    metadata = {}
+                    
+                    # Get author name
+                    if message.from_user:
+                        if message.from_user.first_name:
+                            author = message.from_user.first_name
+                            if message.from_user.last_name:
+                                author += " " + message.from_user.last_name
+                            metadata["author"] = author
+                        elif message.from_user.username:
+                            metadata["author"] = "@" + message.from_user.username
+                    
+                    # Get chat title
+                    if message.chat:
+                        if message.chat.title:
+                            metadata["chat_title"] = message.chat.title
+                        elif message.chat.username:
+                            metadata["chat_title"] = "@" + message.chat.username
+                    
+                    # Generate message link
+                    if message.chat.username:
+                        metadata["link"] = f"https://t.me/{message.chat.username}/{message.id}"
                     else:
-                        acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
-                else:
-                    if dest_chat_id == "me":
-                        acc.copy_message("me", message.chat.id, message.id)
-                    else:
-                        acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
-            except Exception as e:
-                print(f"Error forwarding message: {e}")
+                        # Private channel/group
+                        chat_id_str = str(message.chat.id).replace("-100", "")
+                        metadata["link"] = f"https://t.me/c/{chat_id_str}/{message.id}"
+                    
+                    # Format snippets for telegram
+                    formatted_messages = format_snippets_for_telegram(snippets, metadata, include_metadata=True)
+                    
+                    # Send formatted messages
+                    for formatted_msg in formatted_messages:
+                        if target_chat_id == "me":
+                            acc.send_message("me", formatted_msg, parse_mode="html")
+                        else:
+                            acc.send_message(int(target_chat_id), formatted_msg, parse_mode="html")
+                except Exception as e:
+                    print(f"Error sending extracted snippets: {e}")
+        
         except Exception as e:
             print(f"Error in auto_forward: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 # infinty polling
