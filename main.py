@@ -17,6 +17,8 @@ from regex_filters import (
     compile_patterns, 
     safe_regex_match, 
     matches_filters,
+    extract_matches,
+    format_snippets_for_telegram,
     MAX_PATTERN_LENGTH,
     MAX_PATTERN_COUNT
 )
@@ -136,6 +138,12 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 • 默认为不区分大小写匹配
 • 示例：`/addre /urgent|important/i` - 匹配"urgent"或"important"
 
+**提取模式：**
+/mode show - 查看当前提取模式状态
+/mode extract on - 开启提取模式（仅转发匹配片段）
+/mode extract off - 关闭提取模式（转发完整消息）
+/preview <text> - 测试提取效果
+
 **转发选项：**
 • preserve_source（保留转发来源）- true 保留原始转发来源信息，false 不保留（默认：false）
 
@@ -150,6 +158,8 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 • `/watch remove 1` - 删除第1个监控任务
 • `/addre /bitcoin|crypto/i` - 添加匹配"bitcoin"或"crypto"的正则
 • `/testre /\\d{3}-\\d{4}/ 123-4567` - 测试电话号码模式
+• `/mode extract on` - 开启提取模式，仅转发匹配的文本片段
+• `/preview 这是一条重要的消息` - 预览提取效果
 
 {USAGE}
 """
@@ -478,6 +488,109 @@ def test_regex(client: pyrogram.client.Client, message: pyrogram.types.messages_
     bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
 
 
+# mode command - manage extraction mode
+@bot.on_message(filters.command(["mode"]))
+def mode_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    text = message.text.strip()
+    parts = text.split(maxsplit=2)
+    
+    if len(parts) == 1 or (len(parts) == 2 and parts[1].lower() == "show"):
+        filter_config = load_filter_config()
+        extract_mode = filter_config.get("extract_mode", False)
+        status = "✅ 开启" if extract_mode else "❌ 关闭"
+        
+        result = f"**📊 提取模式状态**\n\n"
+        result += f"提取模式: {status}\n\n"
+        result += "**说明:**\n"
+        result += "• 开启时: 仅转发匹配的文本片段\n"
+        result += "• 关闭时: 转发完整消息（默认行为）\n\n"
+        result += "使用 `/mode extract on` 或 `/mode extract off` 来切换"
+        
+        bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
+    
+    elif len(parts) >= 3 and parts[1].lower() == "extract":
+        action = parts[2].lower()
+        
+        if action not in ["on", "off"]:
+            bot.send_message(message.chat.id, "**❌ 无效参数**\n\n使用 `on` 或 `off`", reply_to_message_id=message.id)
+            return
+        
+        filter_config = load_filter_config()
+        new_value = (action == "on")
+        filter_config["extract_mode"] = new_value
+        save_filter_config(filter_config)
+        
+        status = "✅ 已开启" if new_value else "❌ 已关闭"
+        result = f"**{status} 提取模式**\n\n"
+        
+        if new_value:
+            result += "现在监控的消息将只转发匹配的文本片段。\n\n"
+            result += "**提示:** 使用 `/preview <text>` 测试提取效果"
+        else:
+            result += "现在监控的消息将转发完整内容（默认行为）。"
+        
+        bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
+    
+    else:
+        bot.send_message(message.chat.id, "**❌ 用法错误**\n\n可用命令：\n• `/mode show` - 查看当前模式\n• `/mode extract on` - 开启提取模式\n• `/mode extract off` - 关闭提取模式", reply_to_message_id=message.id)
+
+
+# preview command - test extraction
+@bot.on_message(filters.command(["preview"]))
+def preview_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+    text = message.text.strip()
+    parts = text.split(maxsplit=1)
+    
+    if len(parts) < 2:
+        bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/preview <text>`\n\n示例：\n• `/preview This is an urgent message about bitcoin`", reply_to_message_id=message.id)
+        return
+    
+    test_text = parts[1].strip()
+    
+    # Load filters
+    filter_config = load_filter_config()
+    global_keywords = filter_config.get("keywords", [])
+    
+    # Check for matches and extract snippets
+    has_matches, snippets = extract_matches(test_text, global_keywords, compiled_patterns)
+    
+    if not has_matches:
+        result = "**❌ 没有匹配**\n\n"
+        result += f"测试文本: `{test_text}`\n\n"
+        result += "该文本不匹配任何全局关键词或正则表达式模式。\n\n"
+        result += "**提示:**\n"
+        result += "• 使用 `/listre` 查看正则表达式模式\n"
+        result += "• 注意：监控任务的白名单/黑名单单独检查"
+        bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
+        return
+    
+    # Format snippets with metadata
+    metadata = {
+        "author": "预览测试",
+        "chat_title": "测试频道",
+        "link": "https://t.me/test/123"
+    }
+    
+    formatted_messages = format_snippets_for_telegram(snippets, metadata, include_metadata=True)
+    
+    if not formatted_messages:
+        bot.send_message(message.chat.id, "**⚠️ 提取失败**\n\n无法从文本中提取片段", reply_to_message_id=message.id)
+        return
+    
+    # Send preview header
+    header = "**✅ 预览结果**\n\n"
+    header += f"原始文本长度: {len(test_text)} 字符\n"
+    header += f"找到匹配: {len(snippets)} 个\n"
+    header += f"生成消息: {len(formatted_messages)} 条\n\n"
+    header += "─" * 30 + "\n\n"
+    
+    bot.send_message(message.chat.id, header, reply_to_message_id=message.id)
+    
+    # Send formatted messages
+    for msg in formatted_messages:
+        bot.send_message(message.chat.id, msg, parse_mode="html")
+
+
 @bot.on_message(filters.text)
 def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
     print(message.text)
@@ -732,23 +845,59 @@ if acc is not None:
                     # Only apply if there are global filters defined
                     filter_config = load_filter_config()
                     global_keywords = filter_config.get("keywords", [])
+                    extract_mode = filter_config.get("extract_mode", False)
                     has_global_filters = bool(global_keywords or compiled_patterns)
                     
                     if has_global_filters:
-                        # Check if message matches global keywords
-                        keyword_match = any(keyword.lower() in message_text.lower() for keyword in global_keywords)
-                        
-                        # Check if message matches regex patterns
-                        pattern_match = False
-                        for pattern_str, compiled_pattern, error in compiled_patterns:
-                            if compiled_pattern is None:
-                                continue
-                            if safe_regex_match(compiled_pattern, message_text):
-                                pattern_match = True
-                                break
+                        # Check if message matches global keywords/patterns and extract if needed
+                        has_matches, snippets = extract_matches(message_text, global_keywords, compiled_patterns)
                         
                         # If global filters exist but no match, skip this message
-                        if not keyword_match and not pattern_match:
+                        if not has_matches:
+                            continue
+                        
+                        # If extract mode is on, send extracted snippets instead of full message
+                        if extract_mode:
+                            try:
+                                # Build metadata for snippets
+                                metadata = {}
+                                
+                                # Get author name
+                                if message.from_user:
+                                    if message.from_user.first_name:
+                                        author = message.from_user.first_name
+                                        if message.from_user.last_name:
+                                            author += " " + message.from_user.last_name
+                                        metadata["author"] = author
+                                    elif message.from_user.username:
+                                        metadata["author"] = "@" + message.from_user.username
+                                
+                                # Get chat title
+                                if message.chat:
+                                    if message.chat.title:
+                                        metadata["chat_title"] = message.chat.title
+                                    elif message.chat.username:
+                                        metadata["chat_title"] = "@" + message.chat.username
+                                
+                                # Generate message link
+                                if message.chat.username:
+                                    metadata["link"] = f"https://t.me/{message.chat.username}/{message.id}"
+                                else:
+                                    # Private channel/group
+                                    chat_id_str = str(message.chat.id).replace("-100", "")
+                                    metadata["link"] = f"https://t.me/c/{chat_id_str}/{message.id}"
+                                
+                                # Format snippets for telegram
+                                formatted_messages = format_snippets_for_telegram(snippets, metadata, include_metadata=True)
+                                
+                                # Send formatted messages
+                                for formatted_msg in formatted_messages:
+                                    if dest_chat_id == "me":
+                                        acc.send_message("me", formatted_msg, parse_mode="html")
+                                    else:
+                                        acc.send_message(int(dest_chat_id), formatted_msg, parse_mode="html")
+                            except Exception as e:
+                                print(f"Error sending extracted snippets: {e}")
                             continue
                     
                     try:
