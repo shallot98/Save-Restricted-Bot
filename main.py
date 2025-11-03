@@ -26,7 +26,10 @@ from regex_filters import (
     compile_pattern_list, 
     safe_regex_match, 
     matches_filters,
+    matches_regex_only,
+    matches_keywords_only,
     extract_matches,
+    extract_regex_only,
     format_snippets_for_telegram,
     MAX_PATTERN_LENGTH,
     MAX_PATTERN_COUNT
@@ -237,24 +240,29 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 **转发模式（互斥）：**
 • **Full 模式** - 转发完整消息
   - 使用监控过滤器决定是否转发
+  - 如果有正则表达式，仅使用正则匹配
+  - 如果没有正则但有关键词，使用关键词匹配
   - 如果监控过滤器为空，则转发所有消息
+  - 支持保留原始来源设置
   
 • **Extract 模式** - 仅转发提取的匹配片段
-  - 使用提取过滤器查找匹配内容
-  - 如果提取过滤器为空，则不转发任何内容
+  - 仅使用提取过滤器中的正则表达式
+  - 不支持关键词匹配
+  - 如果没有正则表达式，则不转发任何内容
+  - 自动忽略保留来源设置
 
 **监控任务选项：**
 • `--mode full|extract` - 转发模式（默认：full）
-• `--preserve on|off` - 保留原始转发来源（默认：off）
+• `--preserve on|off` - 保留原始转发来源（默认：off，仅在 full 模式有效）
 
 **过滤器管理：**
 使用 `/watch list` 打开交互式界面管理过滤器：
-• 监控过滤器 - 用于 full 模式，决定是否转发
-• 提取过滤器 - 用于 extract 模式，选择要提取的内容
-
-每个过滤器类型支持：
-• 关键词匹配（不区分大小写）
-• 正则表达式模式（支持高级匹配）
+• **监控过滤器** - 用于 full 模式，决定是否转发
+  - 支持关键词和正则表达式
+  - 正则表达式优先级高于关键词
+• **提取过滤器** - 用于 extract 模式，选择要提取的内容
+  - 仅支持正则表达式
+  - 不支持关键词
 
 **正则表达式说明：**
 • 支持标准 Python 正则表达式语法
@@ -262,6 +270,7 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 • 支持的标志：i（忽略大小写）、m（多行）、s（点匹配所有）、x（详细）
 • 默认为不区分大小写匹配
 • 示例：`/urgent|important/i`
+• 最大长度：500 字符，每个过滤器最多 100 个模式
 
 **使用示例：**
 1. 基础监控（转发所有消息）：
@@ -1448,16 +1457,26 @@ if acc is not None:
             # V3 logic: separate monitor and extract filters
             if forward_mode == "full":
                 # Full mode: check monitor_filters to decide whether to forward
+                # Priority: if regex patterns exist, use only regex; else use keywords
                 monitor_kw = monitor_filters.get("keywords", [])
                 monitor_patterns = monitor_filters.get("patterns", [])
                 
-                if monitor_kw or monitor_patterns:
-                    # Filters exist: must match at least one
+                if monitor_patterns:
+                    # Regex patterns exist: use ONLY regex (ignore keywords)
                     compiled_monitor = compile_pattern_list(monitor_patterns)
-                    has_match, _ = extract_matches(message_text, monitor_kw, compiled_monitor)
+                    has_match = matches_regex_only(message_text, compiled_monitor)
                     
                     if not has_match:
+                        logger.debug(f"Full mode: No regex match for watch {watch_id}, skipping")
                         return  # No match, don't forward
+                elif monitor_kw:
+                    # No regex, but keywords exist: use keywords
+                    has_match = matches_keywords_only(message_text, monitor_kw)
+                    
+                    if not has_match:
+                        logger.debug(f"Full mode: No keyword match for watch {watch_id}, skipping")
+                        return  # No match, don't forward
+                # else: no filters at all, forward everything
                 
                 # Forward full message
                 try:
@@ -1471,26 +1490,29 @@ if acc is not None:
                             acc.copy_message("me", message.chat.id, message.id)
                         else:
                             acc.copy_message(int(target_chat_id), message.chat.id, message.id)
+                    logger.info(f"Full mode: Forwarded message from {source_chat_id} to {target_chat_id}")
                 except Exception as e:
-                    print(f"Error forwarding full message: {e}")
+                    logger.error(f"Error forwarding full message: {e}", exc_info=True)
             
             elif forward_mode == "extract":
-                # Extract mode: use extract_filters to find snippets
-                extract_kw = extract_filters.get("keywords", [])
+                # Extract mode: use ONLY regex patterns (ignore keywords)
+                # preserve_source setting is ignored in extract mode
                 extract_patterns = extract_filters.get("patterns", [])
                 
-                if not extract_kw and not extract_patterns:
-                    # No extract filters defined, don't forward anything
+                if not extract_patterns:
+                    # No extract regex patterns defined, don't forward anything
+                    logger.debug(f"Extract mode: No regex patterns for watch {watch_id}, skipping")
                     return
                 
-                # Check for matches and extract snippets
+                # Check for matches and extract snippets using ONLY regex
                 compiled_extract = compile_pattern_list(extract_patterns)
-                has_matches, snippets = extract_matches(message_text, extract_kw, compiled_extract)
+                has_matches, snippets = extract_regex_only(message_text, compiled_extract)
                 
                 if not has_matches:
+                    logger.debug(f"Extract mode: No regex matches for watch {watch_id}, skipping")
                     return  # No matches in extract filters
                 
-                # Send extracted snippets
+                # Send extracted snippets (without source attribution)
                 try:
                     # Build metadata for snippets
                     metadata = {}
@@ -1529,8 +1551,9 @@ if acc is not None:
                             acc.send_message("me", formatted_msg, parse_mode="html")
                         else:
                             acc.send_message(int(target_chat_id), formatted_msg, parse_mode="html")
+                    logger.info(f"Extract mode: Sent {len(snippets)} snippets from {source_chat_id} to {target_chat_id}")
                 except Exception as e:
-                    print(f"Error sending extracted snippets: {e}")
+                    logger.error(f"Error sending extracted snippets: {e}", exc_info=True)
         
         except Exception as e:
             print(f"Error in auto_forward: {e}")
