@@ -188,40 +188,6 @@ def matches_filters(text: str, keywords: List[str], patterns: List[Tuple[str, Op
     return False
 
 
-def matches_regex_only(text: str, patterns: List[Tuple[str, Optional[re.Pattern], Optional[str]]]) -> bool:
-    """
-    Check if text matches any regex pattern (keywords ignored).
-    Returns True if any pattern matches.
-    """
-    if not text:
-        return False
-    
-    # Check regex patterns only
-    for pattern_str, compiled_pattern, error in patterns:
-        if compiled_pattern is None:
-            continue
-        if safe_regex_match(compiled_pattern, text):
-            return True
-    
-    return False
-
-
-def matches_keywords_only(text: str, keywords: List[str]) -> bool:
-    """
-    Check if text matches any keyword (patterns ignored).
-    Returns True if any keyword matches.
-    """
-    if not text or not keywords:
-        return False
-    
-    # Check plain keywords only
-    for keyword in keywords:
-        if keyword.lower() in text.lower():
-            return True
-    
-    return False
-
-
 def extract_sentence(text: str, start: int, end: int) -> Tuple[int, int]:
     """
     Extract sentence boundaries around the given position.
@@ -480,38 +446,6 @@ def extract_matches(
     
     # Merge overlapping spans
     merged_spans = merge_overlapping_spans(all_snippets)
-    
-    # Extract text for each span
-    extracted_texts = []
-    for start, end, sources in merged_spans:
-        snippet_text = text[start:end].strip()
-        if snippet_text:
-            extracted_texts.append(snippet_text)
-    
-    return True, extracted_texts
-
-
-def extract_regex_only(
-    text: str,
-    patterns: List[Tuple[str, Optional[re.Pattern], Optional[str]]]
-) -> Tuple[bool, List[str]]:
-    """
-    Extract matched snippets from text using ONLY regex patterns (keywords ignored).
-    Returns (has_matches, [snippet_strings]) tuple.
-    
-    This is used for extract mode where only regex patterns should be considered.
-    """
-    if not text:
-        return False, []
-    
-    # Extract regex snippets only
-    regex_snippets = extract_regex_snippets(text, patterns)
-    
-    if not regex_snippets:
-        return False, []
-    
-    # Merge overlapping spans
-    merged_spans = merge_overlapping_spans(regex_snippets)
     
     # Extract text for each span
     extracted_texts = []

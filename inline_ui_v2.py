@@ -100,7 +100,7 @@ def get_watch_detail_keyboard(watch_id: str, watch_data: Dict) -> InlineKeyboard
     
     monitor_kw_count = len(monitor_filters.get("keywords", []))
     monitor_re_count = len(monitor_filters.get("patterns", []))
-    # Extract filters only use regex (no keywords)
+    extract_kw_count = len(extract_filters.get("keywords", []))
     extract_re_count = len(extract_filters.get("patterns", []))
     
     # Use short watch_id for callback data
@@ -128,10 +128,10 @@ def get_watch_detail_keyboard(watch_id: str, watch_data: Dict) -> InlineKeyboard
         )
     ])
     
-    # Extract filters section (only shows regex count)
+    # Extract filters section
     keyboard.append([
         InlineKeyboardButton(
-            f"✂️ 提取过滤器 ({extract_re_count} 正则)",
+            f"✂️ 提取过滤器 ({extract_kw_count}+{extract_re_count})",
             callback_data=build_callback_data(short_id, sec="e", act="menu")
         )
     ])
@@ -186,72 +186,44 @@ def get_filter_menu_keyboard(watch_id: str, section: str) -> InlineKeyboardMarku
     short_id = watch_id[:8]
     filter_name = "监控" if section == "m" else "提取"
     
-    keyboard = []
-    
-    # For extract filters, only show regex options (no keywords)
-    if section == "e":
-        keyboard.extend([
-            [
-                InlineKeyboardButton(
-                    "➕ 添加正则",
-                    callback_data=build_callback_data(short_id, sec=section, act="add_re")
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "📋 查看/删除正则",
-                    callback_data=build_callback_data(short_id, sec=section, act="list_re", p=1)
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    f"🗑️ 清空所有{filter_name}过滤器",
-                    callback_data=build_callback_data(short_id, sec=section, act="clear_conf")
-                )
-            ]
-        ])
-    else:
-        # For monitor filters, show both keywords and regex
-        keyboard.extend([
-            [
-                InlineKeyboardButton(
-                    "➕ 添加关键词",
-                    callback_data=build_callback_data(short_id, sec=section, act="add_kw")
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "➕ 添加正则",
-                    callback_data=build_callback_data(short_id, sec=section, act="add_re")
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "📋 查看/删除关键词",
-                    callback_data=build_callback_data(short_id, sec=section, act="list_kw", p=1)
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "📋 查看/删除正则",
-                    callback_data=build_callback_data(short_id, sec=section, act="list_re", p=1)
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    f"🗑️ 清空所有{filter_name}过滤器",
-                    callback_data=build_callback_data(short_id, sec=section, act="clear_conf")
-                )
-            ]
-        ])
-    
-    # Add back button
-    keyboard.append([
-        InlineKeyboardButton(
-            "⬅️ 返回",
-            callback_data=build_callback_data(short_id, sec="d", act="show")
-        )
-    ])
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "➕ 添加关键词",
+                callback_data=build_callback_data(short_id, sec=section, act="add_kw")
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "➕ 添加正则",
+                callback_data=build_callback_data(short_id, sec=section, act="add_re")
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📋 查看/删除关键词",
+                callback_data=build_callback_data(short_id, sec=section, act="list_kw", p=1)
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📋 查看/删除正则",
+                callback_data=build_callback_data(short_id, sec=section, act="list_re", p=1)
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"🗑️ 清空所有{filter_name}过滤器",
+                callback_data=build_callback_data(short_id, sec=section, act="clear_conf")
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "⬅️ 返回",
+                callback_data=build_callback_data(short_id, sec="d", act="show")
+            )
+        ]
+    ]
     
     return InlineKeyboardMarkup(keyboard)
 
@@ -729,22 +701,15 @@ def handle_filter_menu(bot, callback_query: CallbackQuery, parsed: Dict, watch_c
     re_count = len(filters.get("patterns", []))
     
     menu_text = f"**{filter_name}管理**\n\n"
+    menu_text += f"关键词: {kw_count} 个\n"
+    menu_text += f"正则表达式: {re_count} 个\n\n"
     
     if section == "m":
-        menu_text += f"关键词: {kw_count} 个\n"
-        menu_text += f"正则表达式: {re_count} 个\n\n"
-        menu_text += "**作用:** 决定是否转发消息（full模式）\n\n"
-        menu_text += "**匹配规则:**\n"
-        menu_text += "• 如果有正则表达式，仅使用正则匹配\n"
-        menu_text += "• 如果没有正则但有关键词，使用关键词匹配\n"
-        menu_text += "• 如果为空，转发所有消息"
+        menu_text += "**作用:** 决定是否转发消息（full模式）\n"
+        menu_text += "如果为空则转发所有消息"
     else:
-        menu_text += f"正则表达式: {re_count} 个\n\n"
-        menu_text += "**作用:** 从消息中提取匹配片段（extract模式）\n\n"
-        menu_text += "**重要:**\n"
-        menu_text += "• 提取模式仅使用正则表达式\n"
-        menu_text += "• 不支持关键词匹配\n"
-        menu_text += "• 如果为空则不提取任何内容"
+        menu_text += "**作用:** 从消息中提取匹配片段（extract模式）\n"
+        menu_text += "如果为空则不提取任何内容"
     
     keyboard = get_filter_menu_keyboard(watch_id, section)
     bot.edit_message_text(
@@ -1205,23 +1170,9 @@ def handle_user_input(bot, message, acc):
                 return True
             
             # Validate regex pattern
-            from regex_filters import parse_regex_pattern, MAX_PATTERN_LENGTH
-            import re
-            
-            # Check length
-            if len(pattern) > MAX_PATTERN_LENGTH:
-                bot.send_message(message.chat.id, f"❌ 正则表达式过长（最大 {MAX_PATTERN_LENGTH} 字符）")
-                del user_input_states[user_id]
-                return True
-            
-            # Try to compile the pattern
+            from regex_filters import parse_regex_pattern
             try:
-                pattern_str, flags = parse_regex_pattern(pattern)
-                compiled = re.compile(pattern_str, flags)
-            except re.error as e:
-                bot.send_message(message.chat.id, f"❌ 正则表达式语法错误: {str(e)}")
-                del user_input_states[user_id]
-                return True
+                parse_regex_pattern(pattern)
             except Exception as e:
                 bot.send_message(message.chat.id, f"❌ 正则表达式无效: {str(e)}")
                 del user_input_states[user_id]
