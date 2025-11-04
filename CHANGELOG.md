@@ -1,165 +1,153 @@
-# 更新日志 | Changelog
+# 更新日志 / Changelog
 
-所有重要的项目变更都会记录在此文件中。
+## [v2.0.0] - 2024
 
-All notable changes to this project will be documented in this file.
+### 新增功能 / Added
+
+#### 1. 正则表达式过滤 (Regex Filtering)
+- ✨ 添加正则表达式白名单功能
+- ✨ 添加正则表达式黑名单功能
+- ✨ 支持完整的 Python re 模块语法
+- ✨ 添加正则表达式验证，防止无效表达式
+
+#### 2. 提取模式 (Extract Mode)
+- ✨ 新增提取模式 - 使用正则表达式从消息中提取特定内容
+- ✨ 支持多个提取模式
+- ✨ 自动去重提取结果
+- ✨ 提取的内容以独立消息发送
+
+#### 3. 监控任务编辑 (Monitor Editing)
+- ✨ 监控列表改为可点击的按钮界面
+- ✨ 点击任务查看详细配置
+- ✨ 支持编辑所有过滤规则（关键词、正则）
+- ✨ 支持切换转发模式（完整/提取）
+- ✨ 支持切换保留来源选项
+- ✨ 支持清空单个规则
+- ✨ 支持删除监控任务
+
+#### 4. UI/UX 改进
+- 🎨 优化监控列表显示，使用按钮代替纯文本
+- 🎨 添加更详细的任务信息显示
+- 🎨 改进添加监控的流程，支持设置所有新功能
+- 🎨 优化错误提示信息
+- 🎨 添加正则表达式示例和提示
+
+### 改进 / Improved
+
+- 🔧 重构过滤逻辑，支持多种过滤规则组合
+- 🔧 优化配置文件结构，添加新字段
+- 🔧 改进用户状态管理
+- 🔧 增强错误处理和验证
+- 📝 更新帮助文档，添加新功能说明
+- 📝 添加 FEATURES.md 详细功能说明文档
+
+### 技术更新 / Technical
+
+- 📦 添加 re 模块用于正则表达式处理
+- 📦 扩展 watch_config 数据结构
+- 📦 新增字段：whitelist_regex, blacklist_regex, forward_mode, extract_patterns
+- 🧪 添加 test_regex_extract.py 测试脚本
+- 📄 添加 watch_config_example.json 示例配置
+
+### 向后兼容 / Backward Compatibility
+
+- ✅ 完全兼容旧版配置文件
+- ✅ 缺失的新字段自动使用默认值
+- ✅ 保持所有原有功能不变
 
 ---
 
-## [Unreleased]
+## [v1.0.0] - 之前
 
-### Added | 新增
+### 核心功能
+- 📥 消息转发（链接方式）
+- 👁 频道/群组监控
+- 🔍 关键词过滤（白名单/黑名单）
+- 📤 保留转发来源选项
+- 🎨 内联键盘界面
+- 📦 批量下载
+- 🔒 私有频道支持
+- 🌐 中文界面
 
-#### 🚀 自动配置脚本 | Auto Setup Script
+---
 
-- **新增 `setup.py` 自动配置脚本** - 用户无需手动生成 Session String
-  - 交互式命令行界面，引导用户输入凭据
-  - 自动登录 Telegram 并生成 Session String
-  - 自动保存配置到 `.env` 和 `config.json` 文件
-  - 支持跳过 Session String 生成（仅转发公开内容）
-  - 中英文双语提示和错误处理
+## 配置文件变化 / Config Changes
 
-- **Added `setup.py` auto-configuration script** - Users no longer need to manually generate Session String
-  - Interactive CLI guiding users through credential input
-  - Automatic Telegram login and Session String generation
-  - Auto-save configuration to `.env` and `config.json` files
-  - Option to skip Session String generation (public content only)
-  - Bilingual prompts and error handling (Chinese & English)
-
-#### 📚 新文档 | New Documentation
-
-- **SETUP_GUIDE.md** - 详细的设置指南，包含自动配置和手动配置两种方式
-- **QUICKSTART.md** - 3分钟快速开始指南
-- **USAGE_EXAMPLES.md** - 各种使用场景的详细示例
-- **CHANGELOG.md** - 项目更新日志
-
-- **SETUP_GUIDE.md** - Detailed setup guide with both auto and manual configuration
-- **QUICKSTART.md** - 3-minute quick start guide
-- **USAGE_EXAMPLES.md** - Detailed examples for various usage scenarios
-- **CHANGELOG.md** - Project changelog
-
-#### 🔧 改进 | Improvements
-
-- **更新 README.md** - 添加自动配置功能说明和文档导航
-- **更新 .gitignore** - 添加临时会话文件忽略规则
-- **改进用户体验** - 从"手动生成 Session String"改为"一键自动配置"
-
-- **Updated README.md** - Added auto-configuration feature description and documentation navigation
-- **Updated .gitignore** - Added temporary session file ignore rules
-- **Improved UX** - Changed from "manual Session String generation" to "one-click auto-configuration"
-
-### Changed | 变更
-
-- **部署流程简化** - 从多个步骤简化为运行单个脚本
-- **降低使用门槛** - 新手用户无需了解 Pyrogram 会话生成
-
-- **Simplified deployment** - From multiple steps to running a single script
-- **Lower barrier to entry** - New users don't need to understand Pyrogram session generation
-
-### Features Comparison | 功能对比
-
-#### 之前 | Before
-
-```bash
-# 需要手动生成 Session String
-1. 访问在线工具或运行脚本
-2. 输入 API ID、API Hash、手机号
-3. 复制生成的 Session String
-4. 手动创建 .env 文件
-5. 粘贴所有凭据
-6. 启动机器人
+### v2.0.0 配置结构
+```json
+{
+  "user_id": {
+    "source_chat_id": {
+      "dest": "dest_chat_id",
+      "whitelist": [],
+      "blacklist": [],
+      "whitelist_regex": [],          // NEW
+      "blacklist_regex": [],          // NEW
+      "preserve_forward_source": false,
+      "forward_mode": "full",         // NEW: "full" or "extract"
+      "extract_patterns": []          // NEW
+    }
+  }
+}
 ```
 
-#### 现在 | Now
-
-```bash
-# 一键自动配置
-python setup.py
-# 按提示输入信息，自动完成所有配置
-python main.py
-```
-
----
-
-## 技术细节 | Technical Details
-
-### setup.py 功能特性 | Features
-
-1. **交互式输入验证** | Interactive input validation
-   - 必填项非空检查
-   - 友好的错误提示
-   - 支持默认值
-
-2. **自动 Telegram 登录** | Automatic Telegram login
-   - 使用 Pyrogram Client
-   - 处理验证码输入
-   - 支持两步验证密码
-   - 自动导出 Session String
-
-3. **多格式配置保存** | Multiple config format support
-   - `.env` 文件（环境变量）
-   - `config.json`（JSON 格式）
-   - 同时生成两种格式，确保兼容性
-
-4. **错误处理** | Error handling
-   - 网络错误提示
-   - 登录失败重试
-   - 键盘中断友好退出
-   - 详细的错误信息
-
-5. **临时文件清理** | Temporary file cleanup
-   - 自动删除临时会话文件
-   - 避免敏感文件残留
-
-### 安全性改进 | Security Improvements
-
-- ✅ 临时会话文件自动清理
-- ✅ .gitignore 防止敏感文件提交
-- ✅ 本地生成 Session String，无需第三方工具
-- ✅ 明确的安全提示和警告
-
----
-
-## 迁移指南 | Migration Guide
-
-### 对现有用户 | For Existing Users
-
-如果你已经手动配置了机器人，**无需任何更改**。现有的配置文件会继续工作。
-
-If you've already manually configured the bot, **no changes needed**. Existing config files will continue to work.
-
-### 新用户推荐 | For New Users
-
-建议使用新的自动配置脚本：
-
-Recommended to use the new auto-configuration script:
-
-```bash
-python setup.py
+### v1.0.0 配置结构（仍然支持）
+```json
+{
+  "user_id": {
+    "source_chat_id": {
+      "dest": "dest_chat_id",
+      "whitelist": [],
+      "blacklist": [],
+      "preserve_forward_source": false
+    }
+  }
+}
 ```
 
 ---
 
-## 未来计划 | Future Plans
+## 升级说明 / Upgrade Guide
 
-- [ ] Web UI 配置界面
-- [ ] Docker 一键部署脚本
-- [ ] 配置文件加密
-- [ ] 多账号 Session String 支持
-- [ ] GUI 配置工具
+### 从 v1.0.0 升级到 v2.0.0
 
----
+1. **无需手动操作** - 配置文件会自动兼容
+2. **新功能** - 使用监控编辑功能可以为现有任务添加新规则
+3. **测试建议** - 建议在正式使用前测试正则表达式和提取模式
 
-## 贡献者 | Contributors
-
-感谢所有为这个项目做出贡献的人！
-
-Thanks to all contributors to this project!
+### 注意事项
+- 现有监控任务会继续正常工作
+- 新添加的字段使用默认值
+- 可以随时编辑现有任务添加新功能
 
 ---
 
-## 许可证 | License
+## 已知问题 / Known Issues
 
-本项目遵循原项目的许可证。
+- 提取模式仅支持文本提取，不支持媒体文件
+- 复杂的正则表达式可能影响性能
+- 提取模式忽略 preserve_forward_source 设置
 
-This project follows the original project's license.
+---
+
+## 计划功能 / Planned Features
+
+- [ ] 提取模式支持捕获组命名
+- [ ] 提取结果格式化选项
+- [ ] 批量编辑监控任务
+- [ ] 导入/导出配置
+- [ ] 统计和日志功能
+
+---
+
+## 贡献者 / Contributors
+
+感谢所有为此项目做出贡献的人！
+
+---
+
+## 支持 / Support
+
+- 📖 文档: [FEATURES.md](FEATURES.md)
+- 🐛 问题反馈: GitHub Issues
+- 💬 讨论: GitHub Discussions
