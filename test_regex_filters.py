@@ -177,7 +177,7 @@ def test_filter_config_persistence():
         os.remove(FILTER_FILE)
     
     config = load_filter_config()
-    assert config == {"keywords": [], "patterns": [], "extract_mode": False}
+    assert config == {"keywords": [], "patterns": []}
     print("✓ Default config works")
     
     # Test saving and loading
