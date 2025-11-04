@@ -7,6 +7,7 @@ import time
 import os
 import threading
 import json
+import re
 
 with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
@@ -91,7 +92,8 @@ def send_start(client: pyrogram.client.Client, message: pyrogram.types.messages_
     welcome_text += "我是受限内容保存机器人，可以帮你：\n\n"
     welcome_text += "📥 **转发消息** - 直接发送 Telegram 链接\n"
     welcome_text += "👁 **监控频道/群组** - 自动转发新消息\n"
-    welcome_text += "🔍 **关键词过滤** - 只转发你关心的内容\n\n"
+    welcome_text += "🔍 **智能过滤** - 关键词、正则表达式过滤\n"
+    welcome_text += "🎯 **提取模式** - 提取特定内容转发\n\n"
     welcome_text += "点击下方按钮开始使用 👇"
     
     bot.send_message(message.chat.id, welcome_text, reply_markup=keyboard, reply_to_message_id=message.id)
@@ -113,7 +115,10 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 • 点击"监控管理"按钮设置自动转发
 • 支持监控频道和群组
 • 支持关键词过滤（白名单/黑名单）
+• 支持正则表达式过滤
+• 支持提取模式（正则提取特定内容）
 • 可选择是否保留转发来源
+• 可随时编辑监控设置
 
 **🔗 链接格式**
 
@@ -133,6 +138,8 @@ def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_a
 • 私有频道需要配置 String Session
 • 可以使用"me"作为目标保存到收藏夹
 • 关键词过滤不区分大小写
+• 正则表达式支持完整的 Python re 语法
+• 提取模式会将匹配的内容单独发送
 • 所有操作都可通过按钮完成，无需记忆复杂命令
 """
     bot.send_message(message.chat.id, help_text, reply_markup=keyboard, reply_to_message_id=message.id)
@@ -189,7 +196,8 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             welcome_text += "我是受限内容保存机器人，可以帮你：\n\n"
             welcome_text += "📥 **转发消息** - 直接发送 Telegram 链接\n"
             welcome_text += "👁 **监控频道/群组** - 自动转发新消息\n"
-            welcome_text += "🔍 **关键词过滤** - 只转发你关心的内容\n\n"
+            welcome_text += "🔍 **智能过滤** - 关键词、正则表达式过滤\n"
+            welcome_text += "🎯 **提取模式** - 提取特定内容转发\n\n"
             welcome_text += "点击下方按钮开始使用 👇"
             
             bot.edit_message_text(chat_id, message_id, welcome_text, reply_markup=keyboard)
@@ -210,7 +218,10 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
 • 点击"监控管理"按钮设置自动转发
 • 支持监控频道和群组
 • 支持关键词过滤（白名单/黑名单）
+• 支持正则表达式过滤
+• 支持提取模式（正则提取特定内容）
 • 可选择是否保留转发来源
+• 可随时编辑监控设置
 
 **🔗 链接格式**
 
@@ -230,6 +241,8 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
 • 私有频道需要配置 String Session
 • 可以使用"me"作为目标保存到收藏夹
 • 关键词过滤不区分大小写
+• 正则表达式支持完整的 Python re 语法
+• 提取模式会将匹配的内容单独发送
 • 所有操作都可通过按钮完成，无需记忆复杂命令
 """
             bot.edit_message_text(chat_id, message_id, help_text, reply_markup=keyboard)
@@ -287,29 +300,27 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("暂无监控任务")
                 return
             
-            result = "**📋 监控任务列表**\n\n"
+            buttons = []
             for idx, (source, watch_data) in enumerate(watch_config[user_id].items(), 1):
                 if isinstance(watch_data, dict):
                     dest = watch_data.get("dest", "unknown")
-                    whitelist = watch_data.get("whitelist", [])
-                    blacklist = watch_data.get("blacklist", [])
-                    preserve_source = watch_data.get("preserve_forward_source", False)
-                    
-                    result += f"**{idx}.** `{source}` ➡️ `{dest}`\n"
-                    if whitelist:
-                        result += f"   🟢 白名单: `{', '.join(whitelist)}`\n"
-                    if blacklist:
-                        result += f"   🔴 黑名单: `{', '.join(blacklist)}`\n"
-                    if preserve_source:
-                        result += f"   📤 保留来源\n"
-                    result += "\n"
                 else:
-                    result += f"**{idx}.** `{source}` ➡️ `{watch_data}`\n\n"
+                    dest = watch_data
+                
+                # Truncate source and dest for button display
+                source_display = source if len(source) <= 15 else source[:12] + "..."
+                dest_display = dest if len(dest) <= 15 else dest[:12] + "..."
+                
+                buttons.append([InlineKeyboardButton(f"{idx}. {source_display} ➡️ {dest_display}", callback_data=f"watch_view_{idx}")])
             
-            result += f"**总计：** {len(watch_config[user_id])} 个监控任务"
+            buttons.append([InlineKeyboardButton("🔙 返回", callback_data="menu_watch")])
+            keyboard = InlineKeyboardMarkup(buttons)
             
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
-            bot.edit_message_text(chat_id, message_id, result, reply_markup=keyboard)
+            text = "**📋 监控任务列表**\n\n"
+            text += f"共 **{len(watch_config[user_id])}** 个监控任务\n\n"
+            text += "点击任务查看详情和编辑 👇"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
             callback_query.answer()
         
         elif data == "watch_remove_start":
@@ -334,6 +345,78 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             
             text = "**🗑 删除监控**\n\n"
             text += "选择要删除的监控任务："
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data.startswith("watch_view_"):
+            task_id = int(data.split("_")[2])
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                callback_query.answer("❌ 监控任务不存在", show_alert=True)
+                return
+            
+            if task_id < 1 or task_id > len(watch_config[user_id]):
+                callback_query.answer("❌ 任务编号无效", show_alert=True)
+                return
+            
+            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            watch_data = watch_config[user_id][source_id]
+            
+            if isinstance(watch_data, dict):
+                dest = watch_data.get("dest", "unknown")
+                whitelist = watch_data.get("whitelist", [])
+                blacklist = watch_data.get("blacklist", [])
+                whitelist_regex = watch_data.get("whitelist_regex", [])
+                blacklist_regex = watch_data.get("blacklist_regex", [])
+                preserve_source = watch_data.get("preserve_forward_source", False)
+                forward_mode = watch_data.get("forward_mode", "full")
+                extract_patterns = watch_data.get("extract_patterns", [])
+            else:
+                dest = watch_data
+                whitelist = []
+                blacklist = []
+                whitelist_regex = []
+                blacklist_regex = []
+                preserve_source = False
+                forward_mode = "full"
+                extract_patterns = []
+            
+            text = f"**📋 监控任务详情**\n\n"
+            text += f"**来源：** `{source_id}`\n"
+            text += f"**目标：** `{dest}`\n\n"
+            
+            text += f"**转发模式：** {'🎯 提取模式' if forward_mode == 'extract' else '📦 完整转发'}\n"
+            if preserve_source:
+                text += f"**保留来源：** ✅ 是\n"
+            else:
+                text += f"**保留来源：** ❌ 否\n"
+            
+            text += "\n**过滤规则：**\n"
+            if whitelist:
+                text += f"🟢 关键词白名单: `{', '.join(whitelist)}`\n"
+            if blacklist:
+                text += f"🔴 关键词黑名单: `{', '.join(blacklist)}`\n"
+            if whitelist_regex:
+                text += f"🟢 正则白名单: `{', '.join(whitelist_regex)}`\n"
+            if blacklist_regex:
+                text += f"🔴 正则黑名单: `{', '.join(blacklist_regex)}`\n"
+            if not (whitelist or blacklist or whitelist_regex or blacklist_regex):
+                text += "⏭ 无过滤（转发所有消息）\n"
+            
+            if forward_mode == "extract" and extract_patterns:
+                text += f"\n**提取规则：**\n"
+                for pattern in extract_patterns:
+                    text += f"• `{pattern}`\n"
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✏️ 编辑过滤规则", callback_data=f"edit_filter_{task_id}")],
+                [InlineKeyboardButton("🔄 切换转发模式", callback_data=f"edit_mode_{task_id}")],
+                [InlineKeyboardButton("📤 切换保留来源", callback_data=f"edit_preserve_{task_id}")],
+                [InlineKeyboardButton("🗑 删除此监控", callback_data=f"watch_remove_{task_id}")],
+                [InlineKeyboardButton("🔙 返回列表", callback_data="watch_list")]
+            ])
             
             bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
             callback_query.answer()
@@ -406,8 +489,62 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("❌ 会话已过期", show_alert=True)
                 return
             
-            complete_watch_setup(chat_id, message_id, user_id, [], [], False)
-            callback_query.answer("✅ 监控已添加")
+            user_states[user_id]["whitelist"] = []
+            user_states[user_id]["blacklist"] = []
+            user_states[user_id]["whitelist_regex"] = []
+            user_states[user_id]["blacklist_regex"] = []
+            show_preserve_source_options(chat_id, message_id, user_id)
+            callback_query.answer()
+        
+        elif data == "filter_regex_whitelist":
+            user_states[user_id]["action"] = "add_regex_whitelist"
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ 跳过", callback_data="skip_regex_whitelist")],
+                [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+            ])
+            
+            text = "**➕ 添加监控任务**\n\n"
+            text += "**步骤 3：设置正则白名单**\n\n"
+            text += "请发送正则表达式，用逗号分隔\n\n"
+            text += "示例：`https?://[^\\s]+,\\d{6,}`\n\n"
+            text += "💡 只有匹配这些正则的消息才会被转发"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "filter_regex_blacklist":
+            user_states[user_id]["action"] = "add_regex_blacklist"
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ 跳过", callback_data="skip_regex_blacklist")],
+                [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+            ])
+            
+            text = "**➕ 添加监控任务**\n\n"
+            text += "**步骤 3：设置正则黑名单**\n\n"
+            text += "请发送正则表达式，用逗号分隔\n\n"
+            text += "示例：`广告|推广|垃圾`\n\n"
+            text += "💡 匹配这些正则的消息不会被转发"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "skip_regex_whitelist":
+            if user_id in user_states:
+                user_states[user_id]["whitelist_regex"] = []
+                msg = bot.send_message(chat_id, "⏳ 继续设置...")
+                show_filter_options(chat_id, msg.id, user_id)
+                bot.delete_messages(chat_id, [message_id])
+                callback_query.answer("已跳过正则白名单")
+        
+        elif data == "skip_regex_blacklist":
+            if user_id in user_states:
+                user_states[user_id]["blacklist_regex"] = []
+                msg = bot.send_message(chat_id, "⏳ 继续设置...")
+                show_filter_options(chat_id, msg.id, user_id)
+                bot.delete_messages(chat_id, [message_id])
+                callback_query.answer("已跳过正则黑名单")
         
         elif data == "filter_whitelist":
             user_states[user_id]["action"] = "add_whitelist"
@@ -446,27 +583,18 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
         elif data == "skip_whitelist":
             if user_id in user_states:
                 user_states[user_id]["whitelist"] = []
-                user_states[user_id]["action"] = "add_blacklist"
-                
-                keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("⏭ 跳过", callback_data="skip_blacklist")],
-                    [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
-                ])
-                
-                text = "**➕ 添加监控任务**\n\n"
-                text += "**步骤 4：设置黑名单**\n\n"
-                text += "请发送黑名单关键词，用逗号分隔\n\n"
-                text += "示例：`广告,推广,垃圾`\n\n"
-                text += "💡 包含这些关键词的消息不会被转发"
-                
-                bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
-                callback_query.answer("已跳过白名单设置")
+                msg = bot.send_message(chat_id, "⏳ 继续设置...")
+                show_filter_options(chat_id, msg.id, user_id)
+                bot.delete_messages(chat_id, [message_id])
+                callback_query.answer("已跳过关键词白名单")
         
         elif data == "skip_blacklist":
             if user_id in user_states:
                 user_states[user_id]["blacklist"] = []
-                show_preserve_source_options(chat_id, message_id, user_id)
-                callback_query.answer("已跳过黑名单设置")
+                msg = bot.send_message(chat_id, "⏳ 继续设置...")
+                show_filter_options(chat_id, msg.id, user_id)
+                bot.delete_messages(chat_id, [message_id])
+                callback_query.answer("已跳过关键词黑名单")
         
         elif data.startswith("preserve_"):
             preserve = data.split("_")[1] == "yes"
@@ -477,9 +605,265 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             
             whitelist = user_states[user_id].get("whitelist", [])
             blacklist = user_states[user_id].get("blacklist", [])
+            whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+            blacklist_regex = user_states[user_id].get("blacklist_regex", [])
             
-            complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, preserve)
-            callback_query.answer("✅ 监控已添加")
+            # Show forward mode selection
+            show_forward_mode_options(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve)
+            callback_query.answer()
+        
+        elif data.startswith("edit_preserve_"):
+            task_id = int(data.split("_")[2])
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                callback_query.answer("❌ 监控任务不存在", show_alert=True)
+                return
+            
+            if task_id < 1 or task_id > len(watch_config[user_id]):
+                callback_query.answer("❌ 任务编号无效", show_alert=True)
+                return
+            
+            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            
+            if isinstance(watch_config[user_id][source_id], dict):
+                current_preserve = watch_config[user_id][source_id].get("preserve_forward_source", False)
+                watch_config[user_id][source_id]["preserve_forward_source"] = not current_preserve
+            else:
+                old_dest = watch_config[user_id][source_id]
+                watch_config[user_id][source_id] = {
+                    "dest": old_dest,
+                    "whitelist": [],
+                    "blacklist": [],
+                    "preserve_forward_source": True
+                }
+            
+            save_watch_config(watch_config)
+            
+            # Refresh the view
+            callback_query.data = f"watch_view_{task_id}"
+            callback_handler(client, callback_query)
+            return
+        
+        elif data.startswith("edit_mode_"):
+            task_id = int(data.split("_")[2])
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                callback_query.answer("❌ 监控任务不存在", show_alert=True)
+                return
+            
+            if task_id < 1 or task_id > len(watch_config[user_id]):
+                callback_query.answer("❌ 任务编号无效", show_alert=True)
+                return
+            
+            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            
+            if isinstance(watch_config[user_id][source_id], dict):
+                current_mode = watch_config[user_id][source_id].get("forward_mode", "full")
+            else:
+                current_mode = "full"
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📦 完整转发", callback_data=f"setmode_full_{task_id}")],
+                [InlineKeyboardButton("🎯 提取模式", callback_data=f"setmode_extract_{task_id}")],
+                [InlineKeyboardButton("🔙 返回", callback_data=f"watch_view_{task_id}")]
+            ])
+            
+            text = f"**🔄 选择转发模式**\n\n"
+            text += f"当前模式：**{'🎯 提取模式' if current_mode == 'extract' else '📦 完整转发'}**\n\n"
+            text += "📦 **完整转发** - 转发整条消息\n"
+            text += "🎯 **提取模式** - 使用正则提取特定内容后转发"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data.startswith("setmode_"):
+            parts = data.split("_")
+            mode = parts[1]
+            task_id = int(parts[2])
+            
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                callback_query.answer("❌ 监控任务不存在", show_alert=True)
+                return
+            
+            if task_id < 1 or task_id > len(watch_config[user_id]):
+                callback_query.answer("❌ 任务编号无效", show_alert=True)
+                return
+            
+            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            
+            if isinstance(watch_config[user_id][source_id], dict):
+                watch_config[user_id][source_id]["forward_mode"] = mode
+                if mode == "extract" and not watch_config[user_id][source_id].get("extract_patterns"):
+                    user_states[user_id] = {
+                        "action": "edit_extract_patterns",
+                        "task_id": task_id,
+                        "source_id": source_id
+                    }
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("❌ 取消", callback_data=f"watch_view_{task_id}")]
+                    ])
+                    
+                    text = "**🎯 设置提取规则**\n\n"
+                    text += "请发送提取用的正则表达式，用逗号分隔\n\n"
+                    text += "示例：`https?://[^\\s]+,\\d{6,}`\n\n"
+                    text += "💡 消息匹配过滤规则后，将使用这些正则提取内容并转发"
+                    
+                    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+                    callback_query.answer("请输入提取规则")
+                    save_watch_config(watch_config)
+                    return
+            else:
+                old_dest = watch_config[user_id][source_id]
+                watch_config[user_id][source_id] = {
+                    "dest": old_dest,
+                    "whitelist": [],
+                    "blacklist": [],
+                    "preserve_forward_source": False,
+                    "forward_mode": mode,
+                    "extract_patterns": []
+                }
+            
+            save_watch_config(watch_config)
+            
+            # Refresh the view
+            callback_query.data = f"watch_view_{task_id}"
+            callback_handler(client, callback_query)
+            return
+        
+        elif data.startswith("edit_filter_"):
+            task_id = int(data.split("_")[2])
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🟢 修改关键词白名单", callback_data=f"editf_kw_white_{task_id}")],
+                [InlineKeyboardButton("🔴 修改关键词黑名单", callback_data=f"editf_kw_black_{task_id}")],
+                [InlineKeyboardButton("🟢 修改正则白名单", callback_data=f"editf_re_white_{task_id}")],
+                [InlineKeyboardButton("🔴 修改正则黑名单", callback_data=f"editf_re_black_{task_id}")],
+                [InlineKeyboardButton("🎯 修改提取规则", callback_data=f"editf_extract_{task_id}")],
+                [InlineKeyboardButton("🔙 返回", callback_data=f"watch_view_{task_id}")]
+            ])
+            
+            text = "**✏️ 编辑过滤规则**\n\n"
+            text += "选择要修改的规则：\n\n"
+            text += "🟢 **关键词白名单** - 包含关键词才转发\n"
+            text += "🔴 **关键词黑名单** - 包含关键词不转发\n"
+            text += "🟢 **正则白名单** - 匹配正则才转发\n"
+            text += "🔴 **正则黑名单** - 匹配正则不转发\n"
+            text += "🎯 **提取规则** - 提取模式的正则表达式"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data.startswith("editf_"):
+            parts = data.split("_")
+            filter_type = parts[1]
+            color = parts[2]
+            task_id = int(parts[3])
+            
+            user_states[user_id] = {
+                "action": f"edit_filter_{filter_type}_{color}",
+                "task_id": task_id
+            }
+            
+            watch_config = load_watch_config()
+            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            user_states[user_id]["source_id"] = source_id
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🗑 清空", callback_data=f"clear_filter_{filter_type}_{color}_{task_id}")],
+                [InlineKeyboardButton("❌ 取消", callback_data=f"watch_view_{task_id}")]
+            ])
+            
+            if filter_type == "kw":
+                filter_name = "关键词白名单" if color == "white" else "关键词黑名单"
+                example = "重要,紧急,通知" if color == "white" else "广告,推广,垃圾"
+            elif filter_type == "re":
+                filter_name = "正则白名单" if color == "white" else "正则黑名单"
+                example = "https?://[^\\s]+,\\d{6,}" if color == "white" else "广告|推广"
+            else:  # extract
+                filter_name = "提取规则"
+                example = "https?://[^\\s]+,\\d{6,}"
+            
+            text = f"**✏️ 修改{filter_name}**\n\n"
+            text += f"请发送新的规则，用逗号分隔\n\n"
+            text += f"示例：`{example}`\n\n"
+            text += "💡 发送新规则将覆盖原有规则\n"
+            text += "💡 点击\"清空\"可删除所有规则"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer("请输入新规则")
+        
+        elif data.startswith("clear_filter_"):
+            parts = data.split("_")
+            filter_type = parts[2]
+            color = parts[3]
+            task_id = int(parts[4])
+            
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                callback_query.answer("❌ 监控任务不存在", show_alert=True)
+                return
+            
+            if task_id < 1 or task_id > len(watch_config[user_id]):
+                callback_query.answer("❌ 任务编号无效", show_alert=True)
+                return
+            
+            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            
+            if isinstance(watch_config[user_id][source_id], dict):
+                if filter_type == "kw":
+                    key = "whitelist" if color == "white" else "blacklist"
+                elif filter_type == "re":
+                    key = "whitelist_regex" if color == "white" else "blacklist_regex"
+                else:  # extract
+                    key = "extract_patterns"
+                
+                watch_config[user_id][source_id][key] = []
+                save_watch_config(watch_config)
+                
+                callback_query.answer("✅ 已清空")
+            
+            # Refresh the view
+            callback_query.data = f"watch_view_{task_id}"
+            callback_handler(client, callback_query)
+            return
+        
+        elif data.startswith("fwdmode_"):
+            mode = data.split("_")[1]
+            
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+            
+            if mode == "extract":
+                user_states[user_id]["action"] = "add_extract_patterns"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+                ])
+                
+                text = "**➕ 添加监控任务**\n\n"
+                text += "**设置提取规则**\n\n"
+                text += "请发送提取用的正则表达式，用逗号分隔\n\n"
+                text += "示例：`https?://[^\\s]+,\\d{6,}`\n\n"
+                text += "💡 消息匹配过滤规则后，将使用这些正则提取内容并转发"
+                
+                bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+                callback_query.answer("请输入提取规则")
+            else:
+                whitelist = user_states[user_id].get("whitelist", [])
+                blacklist = user_states[user_id].get("blacklist", [])
+                whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+                blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+                preserve_source = user_states[user_id].get("preserve_source", False)
+                
+                complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, "full", [])
+                callback_query.answer("✅ 监控已添加")
         
     except Exception as e:
         print(f"Callback error: {e}")
@@ -490,8 +874,10 @@ def show_filter_options(chat_id, message_id, user_id):
     dest_name = user_states[user_id].get("dest_name", "未知")
     
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 设置白名单", callback_data="filter_whitelist")],
-        [InlineKeyboardButton("🔴 设置黑名单", callback_data="filter_blacklist")],
+        [InlineKeyboardButton("🟢 关键词白名单", callback_data="filter_whitelist")],
+        [InlineKeyboardButton("🔴 关键词黑名单", callback_data="filter_blacklist")],
+        [InlineKeyboardButton("🟢 正则白名单", callback_data="filter_regex_whitelist")],
+        [InlineKeyboardButton("🔴 正则黑名单", callback_data="filter_regex_blacklist")],
         [InlineKeyboardButton("⏭ 不设置过滤", callback_data="filter_none")],
         [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
     ])
@@ -499,10 +885,13 @@ def show_filter_options(chat_id, message_id, user_id):
     text = "**➕ 添加监控任务**\n\n"
     text += f"来源：`{source_name}`\n"
     text += f"目标：`{dest_name}`\n\n"
-    text += "**步骤 3：** 是否需要关键词过滤？\n\n"
-    text += "🟢 **白名单** - 只转发包含关键词的消息\n"
-    text += "🔴 **黑名单** - 不转发包含关键词的消息\n"
-    text += "⏭ **不设置** - 转发所有消息"
+    text += "**步骤 3：** 是否需要过滤规则？\n\n"
+    text += "🟢 **关键词白名单** - 包含关键词才转发\n"
+    text += "🔴 **关键词黑名单** - 包含关键词不转发\n"
+    text += "🟢 **正则白名单** - 匹配正则才转发\n"
+    text += "🔴 **正则黑名单** - 匹配正则不转发\n"
+    text += "⏭ **不设置** - 转发所有消息\n\n"
+    text += "💡 可以设置多种规则，按顺序生效"
     
     bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
 
@@ -531,7 +920,33 @@ def show_preserve_source_options(chat_id, message_id, user_id):
     
     bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
 
-def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, preserve_source):
+def show_forward_mode_options(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source):
+    source_name = user_states[user_id].get("source_name", "未知")
+    dest_name = user_states[user_id].get("dest_name", "未知")
+    
+    user_states[user_id]["whitelist"] = whitelist
+    user_states[user_id]["blacklist"] = blacklist
+    user_states[user_id]["whitelist_regex"] = whitelist_regex
+    user_states[user_id]["blacklist_regex"] = blacklist_regex
+    user_states[user_id]["preserve_source"] = preserve_source
+    
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📦 完整转发", callback_data="fwdmode_full")],
+        [InlineKeyboardButton("🎯 提取模式", callback_data="fwdmode_extract")],
+        [InlineKeyboardButton("🔙 取消", callback_data="menu_watch")]
+    ])
+    
+    text = "**➕ 添加监控任务**\n\n"
+    text += f"来源：`{source_name}`\n"
+    text += f"目标：`{dest_name}`\n\n"
+    text += "**选择转发模式：**\n\n"
+    text += "📦 **完整转发** - 转发整条消息（默认）\n"
+    text += "🎯 **提取模式** - 使用正则提取特定内容后转发\n\n"
+    text += "💡 提取模式需要设置提取规则"
+    
+    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+
+def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, forward_mode, extract_patterns):
     try:
         source_id = user_states[user_id]["source_id"]
         source_name = user_states[user_id]["source_name"]
@@ -553,7 +968,11 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, pre
             "dest": dest_id,
             "whitelist": whitelist,
             "blacklist": blacklist,
-            "preserve_forward_source": preserve_source
+            "whitelist_regex": whitelist_regex,
+            "blacklist_regex": blacklist_regex,
+            "preserve_forward_source": preserve_source,
+            "forward_mode": forward_mode,
+            "extract_patterns": extract_patterns
         }
         save_watch_config(watch_config)
         
@@ -562,10 +981,17 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, pre
         result_msg = f"**✅ 监控任务添加成功！**\n\n"
         result_msg += f"来源：`{source_name}`\n"
         result_msg += f"目标：`{dest_name}`\n"
+        result_msg += f"转发模式：{'🎯 提取模式' if forward_mode == 'extract' else '📦 完整转发'}\n"
         if whitelist:
-            result_msg += f"白名单：`{', '.join(whitelist)}`\n"
+            result_msg += f"关键词白名单：`{', '.join(whitelist)}`\n"
         if blacklist:
-            result_msg += f"黑名单：`{', '.join(blacklist)}`\n"
+            result_msg += f"关键词黑名单：`{', '.join(blacklist)}`\n"
+        if whitelist_regex:
+            result_msg += f"正则白名单：`{', '.join(whitelist_regex)}`\n"
+        if blacklist_regex:
+            result_msg += f"正则黑名单：`{', '.join(blacklist_regex)}`\n"
+        if extract_patterns:
+            result_msg += f"提取规则：`{', '.join(extract_patterns)}`\n"
         if preserve_source:
             result_msg += f"保留来源：`是`\n"
         result_msg += "\n从现在开始，新消息将自动转发 🎉"
@@ -683,21 +1109,8 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
             if keywords:
                 user_states[user_id]["whitelist"] = keywords
-                user_states[user_id]["action"] = "add_blacklist"
-                
-                keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("⏭ 跳过", callback_data="skip_blacklist")],
-                    [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
-                ])
-                
-                text = "**➕ 添加监控任务**\n\n"
-                text += f"✅ 白名单已设置：`{', '.join(keywords)}`\n\n"
-                text += "**步骤 4：设置黑名单**\n\n"
-                text += "请发送黑名单关键词，用逗号分隔\n\n"
-                text += "示例：`广告,推广,垃圾`\n\n"
-                text += "💡 包含这些关键词的消息不会被转发"
-                
-                bot.send_message(message.chat.id, text, reply_markup=keyboard)
+                msg = bot.send_message(message.chat.id, f"✅ 关键词白名单已设置：`{', '.join(keywords)}`\n\n⏳ 继续设置...")
+                show_filter_options(message.chat.id, msg.id, user_id)
             else:
                 bot.send_message(message.chat.id, "**❌ 请输入至少一个关键词**")
             return
@@ -706,11 +1119,122 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
             if keywords:
                 user_states[user_id]["blacklist"] = keywords
+                msg = bot.send_message(message.chat.id, f"✅ 关键词黑名单已设置：`{', '.join(keywords)}`\n\n⏳ 继续设置...")
             else:
                 user_states[user_id]["blacklist"] = []
+                msg = bot.send_message(message.chat.id, "⏳ 继续设置...")
+            show_filter_options(message.chat.id, msg.id, user_id)
+            return
+        
+        elif action == "add_regex_whitelist":
+            patterns = [p.strip() for p in message.text.split(',') if p.strip()]
+            if patterns:
+                try:
+                    for pattern in patterns:
+                        re.compile(pattern)
+                    user_states[user_id]["whitelist_regex"] = patterns
+                    msg = bot.send_message(message.chat.id, f"✅ 正则白名单已设置：`{', '.join(patterns)}`\n\n⏳ 继续设置...")
+                    show_filter_options(message.chat.id, msg.id, user_id)
+                except re.error as e:
+                    bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
+            else:
+                bot.send_message(message.chat.id, "**❌ 请输入至少一个正则表达式**")
+            return
+        
+        elif action == "add_regex_blacklist":
+            patterns = [p.strip() for p in message.text.split(',') if p.strip()]
+            if patterns:
+                try:
+                    for pattern in patterns:
+                        re.compile(pattern)
+                    user_states[user_id]["blacklist_regex"] = patterns
+                    msg = bot.send_message(message.chat.id, f"✅ 正则黑名单已设置：`{', '.join(patterns)}`\n\n⏳ 继续设置...")
+                    show_filter_options(message.chat.id, msg.id, user_id)
+                except re.error as e:
+                    bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
+            else:
+                bot.send_message(message.chat.id, "**❌ 请输入至少一个正则表达式**")
+            return
+        
+        elif action == "add_extract_patterns":
+            patterns = [p.strip() for p in message.text.split(',') if p.strip()]
+            if patterns:
+                try:
+                    for pattern in patterns:
+                        re.compile(pattern)
+                    
+                    whitelist = user_states[user_id].get("whitelist", [])
+                    blacklist = user_states[user_id].get("blacklist", [])
+                    whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+                    blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+                    preserve_source = user_states[user_id].get("preserve_source", False)
+                    
+                    msg = bot.send_message(message.chat.id, "⏳ 正在完成设置...")
+                    complete_watch_setup(message.chat.id, msg.id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, "extract", patterns)
+                except re.error as e:
+                    bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
+            else:
+                bot.send_message(message.chat.id, "**❌ 请输入至少一个正则表达式**")
+            return
+        
+        elif action.startswith("edit_filter_"):
+            parts = action.split("_")
+            filter_type = parts[2]
+            color = parts[3]
+            task_id = user_states[user_id].get("task_id")
+            source_id = user_states[user_id].get("source_id")
             
-            msg = bot.send_message(message.chat.id, "⏳ 正在完成设置...")
-            show_preserve_source_options(message.chat.id, msg.id, user_id)
+            watch_config = load_watch_config()
+            user_id_str = str(message.from_user.id)
+            
+            if filter_type == "kw":
+                keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
+                key = "whitelist" if color == "white" else "blacklist"
+                watch_config[user_id_str][source_id][key] = keywords
+            elif filter_type == "re":
+                patterns = [p.strip() for p in message.text.split(',') if p.strip()]
+                try:
+                    for pattern in patterns:
+                        re.compile(pattern)
+                    key = "whitelist_regex" if color == "white" else "blacklist_regex"
+                    watch_config[user_id_str][source_id][key] = patterns
+                except re.error as e:
+                    bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
+                    return
+            
+            save_watch_config(watch_config)
+            
+            del user_states[user_id]
+            
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回详情", callback_data=f"watch_view_{task_id}")]])
+            bot.send_message(message.chat.id, "**✅ 规则已更新**", reply_markup=keyboard)
+            return
+        
+        elif action == "edit_extract_patterns":
+            patterns = [p.strip() for p in message.text.split(',') if p.strip()]
+            task_id = user_states[user_id].get("task_id")
+            source_id = user_states[user_id].get("source_id")
+            
+            if patterns:
+                try:
+                    for pattern in patterns:
+                        re.compile(pattern)
+                    
+                    watch_config = load_watch_config()
+                    user_id_str = str(message.from_user.id)
+                    
+                    if isinstance(watch_config[user_id_str][source_id], dict):
+                        watch_config[user_id_str][source_id]["extract_patterns"] = patterns
+                    
+                    save_watch_config(watch_config)
+                    del user_states[user_id]
+                    
+                    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回详情", callback_data=f"watch_view_{task_id}")]])
+                    bot.send_message(message.chat.id, "**✅ 提取规则已设置**", reply_markup=keyboard)
+                except re.error as e:
+                    bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
+            else:
+                bot.send_message(message.chat.id, "**❌ 请输入至少一个正则表达式**")
             return
 
     # joining chats
@@ -935,34 +1459,94 @@ if acc is not None:
                         dest_chat_id = watch_data.get("dest")
                         whitelist = watch_data.get("whitelist", [])
                         blacklist = watch_data.get("blacklist", [])
+                        whitelist_regex = watch_data.get("whitelist_regex", [])
+                        blacklist_regex = watch_data.get("blacklist_regex", [])
                         preserve_forward_source = watch_data.get("preserve_forward_source", False)
+                        forward_mode = watch_data.get("forward_mode", "full")
+                        extract_patterns = watch_data.get("extract_patterns", [])
                     else:
                         dest_chat_id = watch_data
                         whitelist = []
                         blacklist = []
+                        whitelist_regex = []
+                        blacklist_regex = []
                         preserve_forward_source = False
+                        forward_mode = "full"
+                        extract_patterns = []
                     
                     message_text = message.text or message.caption or ""
                     
+                    # Check keyword whitelist
                     if whitelist:
                         if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
                             continue
                     
+                    # Check keyword blacklist
                     if blacklist:
                         if any(keyword.lower() in message_text.lower() for keyword in blacklist):
                             continue
                     
+                    # Check regex whitelist
+                    if whitelist_regex:
+                        match_found = False
+                        for pattern in whitelist_regex:
+                            try:
+                                if re.search(pattern, message_text):
+                                    match_found = True
+                                    break
+                            except re.error:
+                                pass
+                        if not match_found:
+                            continue
+                    
+                    # Check regex blacklist
+                    if blacklist_regex:
+                        skip_message = False
+                        for pattern in blacklist_regex:
+                            try:
+                                if re.search(pattern, message_text):
+                                    skip_message = True
+                                    break
+                            except re.error:
+                                pass
+                        if skip_message:
+                            continue
+                    
                     try:
-                        if preserve_forward_source:
-                            if dest_chat_id == "me":
-                                acc.forward_messages("me", message.chat.id, message.id)
-                            else:
-                                acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
+                        # Extract mode
+                        if forward_mode == "extract" and extract_patterns:
+                            extracted_content = []
+                            for pattern in extract_patterns:
+                                try:
+                                    matches = re.findall(pattern, message_text)
+                                    if matches:
+                                        if isinstance(matches[0], tuple):
+                                            for match_group in matches:
+                                                extracted_content.extend(match_group)
+                                        else:
+                                            extracted_content.extend(matches)
+                                except re.error:
+                                    pass
+                            
+                            if extracted_content:
+                                extracted_text = "\n".join(set(extracted_content))
+                                if dest_chat_id == "me":
+                                    acc.send_message("me", extracted_text)
+                                else:
+                                    acc.send_message(int(dest_chat_id), extracted_text)
+                        
+                        # Full forward mode
                         else:
-                            if dest_chat_id == "me":
-                                acc.copy_message("me", message.chat.id, message.id)
+                            if preserve_forward_source:
+                                if dest_chat_id == "me":
+                                    acc.forward_messages("me", message.chat.id, message.id)
+                                else:
+                                    acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
                             else:
-                                acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+                                if dest_chat_id == "me":
+                                    acc.copy_message("me", message.chat.id, message.id)
+                                else:
+                                    acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                     except Exception as e:
                         pass
         except Exception as e:
