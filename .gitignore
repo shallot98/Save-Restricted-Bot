@@ -66,7 +66,3 @@ config.json
 
 # Watch configuration (user-specific data)
 watch_config.json
-
-# Filter configuration (user-specific regex patterns and keywords)
-filter_config.json
-filter_config.json.backup
