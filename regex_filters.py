@@ -104,28 +104,6 @@ def compile_patterns() -> List[Tuple[str, Optional[re.Pattern], Optional[str]]]:
     
     return compiled
 
-
-def compile_pattern_list(patterns: List[str]) -> List[Tuple[str, Optional[re.Pattern], Optional[str]]]:
-    """
-    Compile a list of regex patterns (for per-watch use).
-    Returns list of tuples: (original_pattern_string, compiled_pattern, error_message)
-    """
-    compiled = []
-    
-    for pattern_str in patterns:
-        if len(pattern_str) > MAX_PATTERN_LENGTH:
-            compiled.append((pattern_str, None, f"Pattern too long (max {MAX_PATTERN_LENGTH} chars)"))
-            continue
-            
-        try:
-            pattern, flags = parse_regex_pattern(pattern_str)
-            compiled_re = re.compile(pattern, flags)
-            compiled.append((pattern_str, compiled_re, None))
-        except re.error as e:
-            compiled.append((pattern_str, None, f"Invalid regex: {str(e)}"))
-    
-    return compiled
-
 @contextmanager
 def timeout_context(seconds):
     """Context manager for timeout (Unix-like systems)"""
