@@ -1,7 +1,7 @@
 import pyrogram
 from pyrogram import Client, filters
 from pyrogram.errors import UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied, ChannelPrivate, UsernameInvalid
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 import time
 import os
@@ -13,6 +13,9 @@ def getenv(var): return os.environ.get(var) or DATA.get(var, None)
 
 # Watch configurations file
 WATCH_FILE = 'watch_config.json'
+
+# User state management for multi-step interactions
+user_states = {}
 
 def load_watch_config():
     if os.path.exists(WATCH_FILE):
@@ -78,211 +81,637 @@ def progress(current, total, message, type):
 # start command
 @bot.on_message(filters.command(["start"]))
 def send_start(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
-    bot.send_message(message.chat.id, f"__👋 你好 **{message.from_user.mention}**，我是受限内容保存机器人，我可以通过帖子链接发送受限内容给你__\n\n{USAGE}",
-    reply_markup=InlineKeyboardMarkup([[ InlineKeyboardButton("🌐 源代码", url="https://github.com/bipinkrish/Save-Restricted-Bot")]]), reply_to_message_id=message.id)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 监控管理", callback_data="menu_watch")],
+        [InlineKeyboardButton("❓ 帮助说明", callback_data="menu_help")],
+        [InlineKeyboardButton("🌐 源代码", url="https://github.com/bipinkrish/Save-Restricted-Bot")]
+    ])
+    
+    welcome_text = f"👋 你好 **{message.from_user.mention}**！\n\n"
+    welcome_text += "我是受限内容保存机器人，可以帮你：\n\n"
+    welcome_text += "📥 **转发消息** - 直接发送 Telegram 链接\n"
+    welcome_text += "👁 **监控频道/群组** - 自动转发新消息\n"
+    welcome_text += "🔍 **关键词过滤** - 只转发你关心的内容\n\n"
+    welcome_text += "点击下方按钮开始使用 👇"
+    
+    bot.send_message(message.chat.id, welcome_text, reply_markup=keyboard, reply_to_message_id=message.id)
 
 # help command
 @bot.on_message(filters.command(["help"]))
 def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
-    help_text = """**📖 命令帮助**
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 监控管理", callback_data="menu_watch")],
+        [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]
+    ])
+    
+    help_text = """**📖 使用帮助**
 
-**基本命令：**
-/start - 启动机器人并查看使用说明
-/help - 显示此帮助信息
-/watch - 监控频道/群组并自动转发消息
+**📥 转发消息**
+直接发送 Telegram 消息链接即可转发内容
 
-**消息转发功能：**
-直接发送 Telegram 消息链接，机器人会帮你获取内容
+**📋 监控功能**
+• 点击"监控管理"按钮设置自动转发
+• 支持监控频道和群组
+• 支持关键词过滤（白名单/黑名单）
+• 可选择是否保留转发来源
 
-**监控功能 (/watch)：**
-/watch list - 查看所有监控任务
-/watch add <来源频道> <目标位置> [whitelist:关键词1,关键词2] [blacklist:关键词3,关键词4] [preserve_source:true/false] - 添加监控任务
-/watch remove <任务ID> - 删除监控任务
+**🔗 链接格式**
 
-**关键词过滤：**
-• whitelist（白名单）- 只转发包含这些关键词的消息
-• blacklist（黑名单）- 不转发包含这些关键词的消息
-• 关键词用逗号分隔，不区分大小写
+公开频道/群组：
+`https://t.me/username/123`
 
-**转发选项：**
-• preserve_source（保留转发来源）- true 保留原始转发来源信息，false 不保留（默认：false）
+私有频道/群组（需要先加入）：
+`https://t.me/c/123456789/123`
 
-**示例：**
-• `/watch add @source_channel @dest_channel` - 将来源频道消息转发到目标频道
-• `/watch add @source_channel me` - 将消息保存到个人收藏
-• `/watch add @source me whitelist:重要,紧急` - 只转发包含"重要"或"紧急"的消息
-• `/watch add @source me blacklist:广告,推广` - 不转发包含"广告"或"推广"的消息
-• `/watch add @source me whitelist:新闻 blacklist:娱乐` - 转发包含"新闻"但不包含"娱乐"的消息
-• `/watch add @source me preserve_source:true` - 转发时保留原始来源信息
-• `/watch list` - 查看所有活动的监控任务
-• `/watch remove 1` - 删除第1个监控任务
+批量下载（范围）：
+`https://t.me/username/100-120`
 
-{USAGE}
+机器人消息：
+`https://t.me/b/botusername/123`
+
+**💡 提示**
+• 私有频道需要配置 String Session
+• 可以使用"me"作为目标保存到收藏夹
+• 关键词过滤不区分大小写
+• 所有操作都可通过按钮完成，无需记忆复杂命令
 """
-    bot.send_message(message.chat.id, help_text, reply_to_message_id=message.id)
+    bot.send_message(message.chat.id, help_text, reply_markup=keyboard, reply_to_message_id=message.id)
 
-# watch command
+# watch command - now with inline keyboard
 @bot.on_message(filters.command(["watch"]))
 def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
     if acc is None:
-        bot.send_message(message.chat.id, "**❌ 需要配置 String Session 才能使用监控功能**", reply_to_message_id=message.id)
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]])
+        bot.send_message(message.chat.id, "**❌ 需要配置 String Session 才能使用监控功能**", reply_markup=keyboard, reply_to_message_id=message.id)
         return
     
-    text = message.text.strip()
-    parts = text.split(maxsplit=2)
+    show_watch_menu(message.chat.id, message.id)
+
+def show_watch_menu(chat_id, reply_to_message_id=None):
+    watch_config = load_watch_config()
+    user_id = str(chat_id)
     
-    if len(parts) == 1 or (len(parts) == 2 and parts[1].lower() == "list"):
-        watch_config = load_watch_config()
-        user_id = str(message.from_user.id)
-        
-        if user_id not in watch_config or not watch_config[user_id]:
-            bot.send_message(message.chat.id, "**📋 你还没有设置任何监控任务**\n\n使用 `/watch add <来源> <目标>` 来添加监控", reply_to_message_id=message.id)
-            return
-        
-        result = "**📋 你的监控任务列表：**\n\n"
-        for idx, (source, watch_data) in enumerate(watch_config[user_id].items(), 1):
-            if isinstance(watch_data, dict):
-                dest = watch_data.get("dest", "unknown")
-                whitelist = watch_data.get("whitelist", [])
-                blacklist = watch_data.get("blacklist", [])
-                preserve_source = watch_data.get("preserve_forward_source", False)
-                result += f"{idx}. `{source}` ➡️ `{dest}`\n"
-                if whitelist:
-                    result += f"   白名单: `{', '.join(whitelist)}`\n"
-                if blacklist:
-                    result += f"   黑名单: `{', '.join(blacklist)}`\n"
-                if preserve_source:
-                    result += f"   保留转发来源: `是`\n"
-            else:
-                result += f"{idx}. `{source}` ➡️ `{watch_data}`\n"
-        
-        result += f"\n**总计：** {len(watch_config[user_id])} 个监控任务"
-        bot.send_message(message.chat.id, result, reply_to_message_id=message.id)
+    watch_count = len(watch_config.get(user_id, {}))
     
-    elif len(parts) >= 2 and parts[1].lower() == "add":
-        if len(parts) < 3:
-            bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/watch add <来源频道> <目标位置> [whitelist:关键词1,关键词2] [blacklist:关键词3,关键词4] [preserve_source:true/false]`\n\n示例：\n• `/watch add @channel @dest`\n• `/watch add @channel me whitelist:重要,紧急`\n• `/watch add @channel me blacklist:广告,垃圾`\n• `/watch add @channel me preserve_source:true`", reply_to_message_id=message.id)
-            return
-        
-        args = parts[2].split()
-        if len(args) < 2:
-            bot.send_message(message.chat.id, "**❌ 用法错误**\n\n需要指定来源和目标\n\n示例：`/watch add @source_channel @dest_channel`", reply_to_message_id=message.id)
-            return
-        
-        source_chat = args[0].strip()
-        dest_chat = args[1].strip()
-        user_id = str(message.from_user.id)
-        
-        whitelist = []
-        blacklist = []
-        preserve_forward_source = False
-        
-        for arg in args[2:]:
-            if arg.startswith('whitelist:'):
-                whitelist = [kw.strip() for kw in arg[10:].split(',') if kw.strip()]
-            elif arg.startswith('blacklist:'):
-                blacklist = [kw.strip() for kw in arg[10:].split(',') if kw.strip()]
-            elif arg.startswith('preserve_source:'):
-                preserve_forward_source = arg[16:].lower() in ['true', '1', 'yes']
-        
-        try:
-            if source_chat.startswith('@'):
-                source_info = acc.get_chat(source_chat)
-                source_id = str(source_info.id)
-            else:
-                source_id = source_chat
-                source_info = acc.get_chat(int(source_chat))
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ 添加监控", callback_data="watch_add_start")],
+        [InlineKeyboardButton(f"📋 查看列表 ({watch_count})", callback_data="watch_list")],
+        [InlineKeyboardButton("🗑 删除监控", callback_data="watch_remove_start")],
+        [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]
+    ])
+    
+    text = "**📋 监控管理**\n\n"
+    text += "选择操作：\n\n"
+    text += "➕ **添加监控** - 设置新的自动转发任务\n"
+    text += "📋 **查看列表** - 查看所有监控任务\n"
+    text += "🗑 **删除监控** - 移除现有监控任务\n\n"
+    text += f"当前监控任务数：**{watch_count}** 个"
+    
+    bot.send_message(chat_id, text, reply_markup=keyboard, reply_to_message_id=reply_to_message_id)
+
+# Callback query handler
+@bot.on_callback_query()
+def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQuery):
+    data = callback_query.data
+    chat_id = callback_query.message.chat.id
+    message_id = callback_query.message.id
+    user_id = str(callback_query.from_user.id)
+    
+    try:
+        if data == "menu_main":
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📋 监控管理", callback_data="menu_watch")],
+                [InlineKeyboardButton("❓ 帮助说明", callback_data="menu_help")],
+                [InlineKeyboardButton("🌐 源代码", url="https://github.com/bipinkrish/Save-Restricted-Bot")]
+            ])
             
-            if dest_chat.lower() == "me":
-                dest_id = "me"
-            elif dest_chat.startswith('@'):
-                dest_info = acc.get_chat(dest_chat)
-                dest_id = str(dest_info.id)
-            else:
-                dest_id = dest_chat
-                dest_info = acc.get_chat(int(dest_chat))
+            welcome_text = f"👋 你好 **{callback_query.from_user.mention}**！\n\n"
+            welcome_text += "我是受限内容保存机器人，可以帮你：\n\n"
+            welcome_text += "📥 **转发消息** - 直接发送 Telegram 链接\n"
+            welcome_text += "👁 **监控频道/群组** - 自动转发新消息\n"
+            welcome_text += "🔍 **关键词过滤** - 只转发你关心的内容\n\n"
+            welcome_text += "点击下方按钮开始使用 👇"
             
-            watch_config = load_watch_config()
+            bot.edit_message_text(chat_id, message_id, welcome_text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "menu_help":
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📋 监控管理", callback_data="menu_watch")],
+                [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]
+            ])
             
-            if user_id not in watch_config:
-                watch_config[user_id] = {}
-            
-            if source_id in watch_config[user_id]:
-                bot.send_message(message.chat.id, f"**⚠️ 该来源频道已经在监控中**\n\n来源：`{source_chat}`", reply_to_message_id=message.id)
+            help_text = """**📖 使用帮助**
+
+**📥 转发消息**
+直接发送 Telegram 消息链接即可转发内容
+
+**📋 监控功能**
+• 点击"监控管理"按钮设置自动转发
+• 支持监控频道和群组
+• 支持关键词过滤（白名单/黑名单）
+• 可选择是否保留转发来源
+
+**🔗 链接格式**
+
+公开频道/群组：
+`https://t.me/username/123`
+
+私有频道/群组（需要先加入）：
+`https://t.me/c/123456789/123`
+
+批量下载（范围）：
+`https://t.me/username/100-120`
+
+机器人消息：
+`https://t.me/b/botusername/123`
+
+**💡 提示**
+• 私有频道需要配置 String Session
+• 可以使用"me"作为目标保存到收藏夹
+• 关键词过滤不区分大小写
+• 所有操作都可通过按钮完成，无需记忆复杂命令
+"""
+            bot.edit_message_text(chat_id, message_id, help_text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "menu_watch":
+            if acc is None:
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]])
+                bot.edit_message_text(chat_id, message_id, "**❌ 需要配置 String Session 才能使用监控功能**", reply_markup=keyboard)
+                callback_query.answer("❌ 需要配置 String Session", show_alert=True)
                 return
             
-            watch_config[user_id][source_id] = {
-                "dest": dest_id,
-                "whitelist": whitelist,
-                "blacklist": blacklist,
-                "preserve_forward_source": preserve_forward_source
-            }
+            watch_config = load_watch_config()
+            watch_count = len(watch_config.get(user_id, {}))
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ 添加监控", callback_data="watch_add_start")],
+                [InlineKeyboardButton(f"📋 查看列表 ({watch_count})", callback_data="watch_list")],
+                [InlineKeyboardButton("🗑 删除监控", callback_data="watch_remove_start")],
+                [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]
+            ])
+            
+            text = "**📋 监控管理**\n\n"
+            text += "选择操作：\n\n"
+            text += "➕ **添加监控** - 设置新的自动转发任务\n"
+            text += "📋 **查看列表** - 查看所有监控任务\n"
+            text += "🗑 **删除监控** - 移除现有监控任务\n\n"
+            text += f"当前监控任务数：**{watch_count}** 个"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "watch_add_start":
+            user_states[user_id] = {"action": "add_source"}
+            
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]])
+            
+            text = "**➕ 添加监控任务**\n\n"
+            text += "**步骤 1/2：** 请发送来源频道/群组\n\n"
+            text += "可以发送：\n"
+            text += "• 频道/群组用户名（如 `@channel_name`）\n"
+            text += "• 频道/群组ID（如 `-1001234567890`）\n"
+            text += "• 转发一条来自该频道/群组的消息\n\n"
+            text += "💡 机器人需要能够访问该频道/群组"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "watch_list":
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
+                bot.edit_message_text(chat_id, message_id, "**📋 监控列表**\n\n暂无监控任务\n\n点击\"添加监控\"开始设置", reply_markup=keyboard)
+                callback_query.answer("暂无监控任务")
+                return
+            
+            result = "**📋 监控任务列表**\n\n"
+            for idx, (source, watch_data) in enumerate(watch_config[user_id].items(), 1):
+                if isinstance(watch_data, dict):
+                    dest = watch_data.get("dest", "unknown")
+                    whitelist = watch_data.get("whitelist", [])
+                    blacklist = watch_data.get("blacklist", [])
+                    preserve_source = watch_data.get("preserve_forward_source", False)
+                    
+                    result += f"**{idx}.** `{source}` ➡️ `{dest}`\n"
+                    if whitelist:
+                        result += f"   🟢 白名单: `{', '.join(whitelist)}`\n"
+                    if blacklist:
+                        result += f"   🔴 黑名单: `{', '.join(blacklist)}`\n"
+                    if preserve_source:
+                        result += f"   📤 保留来源\n"
+                    result += "\n"
+                else:
+                    result += f"**{idx}.** `{source}` ➡️ `{watch_data}`\n\n"
+            
+            result += f"**总计：** {len(watch_config[user_id])} 个监控任务"
+            
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
+            bot.edit_message_text(chat_id, message_id, result, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "watch_remove_start":
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
+                bot.edit_message_text(chat_id, message_id, "**🗑 删除监控**\n\n暂无监控任务可删除", reply_markup=keyboard)
+                callback_query.answer("暂无监控任务")
+                return
+            
+            buttons = []
+            for idx, (source, watch_data) in enumerate(watch_config[user_id].items(), 1):
+                if isinstance(watch_data, dict):
+                    dest = watch_data.get("dest", "unknown")
+                else:
+                    dest = watch_data
+                buttons.append([InlineKeyboardButton(f"🗑 {idx}. {source} ➡️ {dest}", callback_data=f"watch_remove_{idx}")])
+            
+            buttons.append([InlineKeyboardButton("❌ 取消", callback_data="menu_watch")])
+            keyboard = InlineKeyboardMarkup(buttons)
+            
+            text = "**🗑 删除监控**\n\n"
+            text += "选择要删除的监控任务："
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data.startswith("watch_remove_"):
+            task_id = int(data.split("_")[2])
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                callback_query.answer("❌ 监控任务不存在", show_alert=True)
+                return
+            
+            if task_id < 1 or task_id > len(watch_config[user_id]):
+                callback_query.answer("❌ 任务编号无效", show_alert=True)
+                return
+            
+            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            watch_data = watch_config[user_id][source_id]
+            
+            if isinstance(watch_data, dict):
+                dest_id = watch_data.get("dest", "unknown")
+            else:
+                dest_id = watch_data
+            
+            del watch_config[user_id][source_id]
+            
+            if not watch_config[user_id]:
+                del watch_config[user_id]
+            
             save_watch_config(watch_config)
             
-            result_msg = f"**✅ 监控任务添加成功！**\n\n来源：`{source_chat}`\n目标：`{dest_chat}`"
-            if whitelist:
-                result_msg += f"\n白名单关键词：`{', '.join(whitelist)}`"
-            if blacklist:
-                result_msg += f"\n黑名单关键词：`{', '.join(blacklist)}`"
-            if preserve_forward_source:
-                result_msg += f"\n保留转发来源：`是`"
-            result_msg += "\n\n从现在开始，该频道的新消息将自动转发"
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
+            text = f"**✅ 监控任务已删除**\n\n来源：`{source_id}`\n目标：`{dest_id}`"
             
-            bot.send_message(message.chat.id, result_msg, reply_to_message_id=message.id)
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer("✅ 删除成功")
         
-        except ChannelPrivate:
-            bot.send_message(message.chat.id, "**❌ 无法访问该频道**\n\n请确保：\n1. 账号已加入该频道\n2. 频道ID/用户名正确", reply_to_message_id=message.id)
-        except UsernameInvalid:
-            bot.send_message(message.chat.id, "**❌ 频道用户名无效**\n\n请检查用户名是否正确", reply_to_message_id=message.id)
-        except Exception as e:
-            bot.send_message(message.chat.id, f"**❌ 错误：** `{str(e)}`", reply_to_message_id=message.id)
+        elif data.startswith("set_dest_"):
+            dest_choice = data.split("_")[2]
+            
+            if user_id not in user_states or "source_id" not in user_states[user_id]:
+                callback_query.answer("❌ 会话已过期，请重新开始", show_alert=True)
+                return
+            
+            if dest_choice == "me":
+                user_states[user_id]["dest_id"] = "me"
+                user_states[user_id]["dest_name"] = "个人收藏"
+            
+            show_filter_options(chat_id, message_id, user_id)
+            callback_query.answer()
+        
+        elif data == "dest_custom":
+            user_states[user_id]["action"] = "add_dest"
+            
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]])
+            
+            text = "**➕ 添加监控任务**\n\n"
+            text += "**步骤 2/2：** 请发送目标频道/群组\n\n"
+            text += "可以发送：\n"
+            text += "• 频道/群组用户名（如 `@channel_name`）\n"
+            text += "• 频道/群组ID（如 `-1001234567890`）\n"
+            text += "• 转发一条来自该频道/群组的消息\n\n"
+            text += "💡 机器人需要有发送消息的权限"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "filter_none":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+            
+            complete_watch_setup(chat_id, message_id, user_id, [], [], False)
+            callback_query.answer("✅ 监控已添加")
+        
+        elif data == "filter_whitelist":
+            user_states[user_id]["action"] = "add_whitelist"
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ 跳过", callback_data="skip_whitelist")],
+                [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+            ])
+            
+            text = "**➕ 添加监控任务**\n\n"
+            text += "**步骤 3：设置白名单**\n\n"
+            text += "请发送白名单关键词，用逗号分隔\n\n"
+            text += "示例：`重要,紧急,通知`\n\n"
+            text += "💡 只有包含这些关键词的消息才会被转发"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "filter_blacklist":
+            user_states[user_id]["action"] = "add_blacklist"
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⏭ 跳过", callback_data="skip_blacklist")],
+                [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+            ])
+            
+            text = "**➕ 添加监控任务**\n\n"
+            text += "**步骤 3：设置黑名单**\n\n"
+            text += "请发送黑名单关键词，用逗号分隔\n\n"
+            text += "示例：`广告,推广,垃圾`\n\n"
+            text += "💡 包含这些关键词的消息不会被转发"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
+        elif data == "skip_whitelist":
+            if user_id in user_states:
+                user_states[user_id]["whitelist"] = []
+                user_states[user_id]["action"] = "add_blacklist"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⏭ 跳过", callback_data="skip_blacklist")],
+                    [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+                ])
+                
+                text = "**➕ 添加监控任务**\n\n"
+                text += "**步骤 4：设置黑名单**\n\n"
+                text += "请发送黑名单关键词，用逗号分隔\n\n"
+                text += "示例：`广告,推广,垃圾`\n\n"
+                text += "💡 包含这些关键词的消息不会被转发"
+                
+                bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+                callback_query.answer("已跳过白名单设置")
+        
+        elif data == "skip_blacklist":
+            if user_id in user_states:
+                user_states[user_id]["blacklist"] = []
+                show_preserve_source_options(chat_id, message_id, user_id)
+                callback_query.answer("已跳过黑名单设置")
+        
+        elif data.startswith("preserve_"):
+            preserve = data.split("_")[1] == "yes"
+            
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+            
+            whitelist = user_states[user_id].get("whitelist", [])
+            blacklist = user_states[user_id].get("blacklist", [])
+            
+            complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, preserve)
+            callback_query.answer("✅ 监控已添加")
+        
+    except Exception as e:
+        print(f"Callback error: {e}")
+        callback_query.answer(f"❌ 错误: {str(e)}", show_alert=True)
+
+def show_filter_options(chat_id, message_id, user_id):
+    source_name = user_states[user_id].get("source_name", "未知")
+    dest_name = user_states[user_id].get("dest_name", "未知")
     
-    elif len(parts) >= 2 and parts[1].lower() == "remove":
-        if len(parts) < 3:
-            bot.send_message(message.chat.id, "**❌ 用法错误**\n\n正确格式：`/watch remove <任务编号>`\n\n使用 `/watch list` 查看任务编号", reply_to_message_id=message.id)
-            return
-        
-        try:
-            task_id = int(parts[2].strip())
-        except ValueError:
-            bot.send_message(message.chat.id, "**❌ 任务编号必须是数字**", reply_to_message_id=message.id)
-            return
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 设置白名单", callback_data="filter_whitelist")],
+        [InlineKeyboardButton("🔴 设置黑名单", callback_data="filter_blacklist")],
+        [InlineKeyboardButton("⏭ 不设置过滤", callback_data="filter_none")],
+        [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+    ])
+    
+    text = "**➕ 添加监控任务**\n\n"
+    text += f"来源：`{source_name}`\n"
+    text += f"目标：`{dest_name}`\n\n"
+    text += "**步骤 3：** 是否需要关键词过滤？\n\n"
+    text += "🟢 **白名单** - 只转发包含关键词的消息\n"
+    text += "🔴 **黑名单** - 不转发包含关键词的消息\n"
+    text += "⏭ **不设置** - 转发所有消息"
+    
+    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+
+def show_preserve_source_options(chat_id, message_id, user_id):
+    source_name = user_states[user_id].get("source_name", "未知")
+    dest_name = user_states[user_id].get("dest_name", "未知")
+    whitelist = user_states[user_id].get("whitelist", [])
+    blacklist = user_states[user_id].get("blacklist", [])
+    
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("❌ 否（推荐）", callback_data="preserve_no")],
+        [InlineKeyboardButton("✅ 是", callback_data="preserve_yes")],
+        [InlineKeyboardButton("🔙 取消", callback_data="menu_watch")]
+    ])
+    
+    text = "**➕ 添加监控任务**\n\n"
+    text += f"来源：`{source_name}`\n"
+    text += f"目标：`{dest_name}`\n"
+    if whitelist:
+        text += f"白名单：`{', '.join(whitelist)}`\n"
+    if blacklist:
+        text += f"黑名单：`{', '.join(blacklist)}`\n"
+    text += "\n**最后一步：** 是否保留转发来源信息？\n\n"
+    text += "✅ **是** - 显示 \"Forwarded from...\"\n"
+    text += "❌ **否** - 不显示来源（推荐）"
+    
+    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+
+def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, preserve_source):
+    try:
+        source_id = user_states[user_id]["source_id"]
+        source_name = user_states[user_id]["source_name"]
+        dest_id = user_states[user_id]["dest_id"]
+        dest_name = user_states[user_id]["dest_name"]
         
         watch_config = load_watch_config()
-        user_id = str(message.from_user.id)
         
-        if user_id not in watch_config or not watch_config[user_id]:
-            bot.send_message(message.chat.id, "**❌ 你没有任何监控任务**", reply_to_message_id=message.id)
+        if user_id not in watch_config:
+            watch_config[user_id] = {}
+        
+        if source_id in watch_config[user_id]:
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
+            bot.edit_message_text(chat_id, message_id, f"**⚠️ 该来源已在监控中**\n\n来源：`{source_name}`", reply_markup=keyboard)
+            del user_states[user_id]
             return
         
-        if task_id < 1 or task_id > len(watch_config[user_id]):
-            bot.send_message(message.chat.id, f"**❌ 任务编号无效**\n\n请输入 1 到 {len(watch_config[user_id])} 之间的数字", reply_to_message_id=message.id)
-            return
-        
-        source_id = list(watch_config[user_id].keys())[task_id - 1]
-        watch_data = watch_config[user_id][source_id]
-        
-        if isinstance(watch_data, dict):
-            dest_id = watch_data.get("dest", "unknown")
-        else:
-            dest_id = watch_data
-        
-        del watch_config[user_id][source_id]
-        
-        if not watch_config[user_id]:
-            del watch_config[user_id]
-        
+        watch_config[user_id][source_id] = {
+            "dest": dest_id,
+            "whitelist": whitelist,
+            "blacklist": blacklist,
+            "preserve_forward_source": preserve_source
+        }
         save_watch_config(watch_config)
         
-        bot.send_message(message.chat.id, f"**✅ 监控任务已删除**\n\n来源：`{source_id}`\n目标：`{dest_id}`", reply_to_message_id=message.id)
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
+        
+        result_msg = f"**✅ 监控任务添加成功！**\n\n"
+        result_msg += f"来源：`{source_name}`\n"
+        result_msg += f"目标：`{dest_name}`\n"
+        if whitelist:
+            result_msg += f"白名单：`{', '.join(whitelist)}`\n"
+        if blacklist:
+            result_msg += f"黑名单：`{', '.join(blacklist)}`\n"
+        if preserve_source:
+            result_msg += f"保留来源：`是`\n"
+        result_msg += "\n从现在开始，新消息将自动转发 🎉"
+        
+        bot.edit_message_text(chat_id, message_id, result_msg, reply_markup=keyboard)
+        del user_states[user_id]
+        
+    except Exception as e:
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
+        bot.edit_message_text(chat_id, message_id, f"**❌ 错误：** `{str(e)}`", reply_markup=keyboard)
+        if user_id in user_states:
+            del user_states[user_id]
+
+def handle_add_source(message, user_id):
+    try:
+        if message.forward_from_chat:
+            source_id = str(message.forward_from_chat.id)
+            source_name = message.forward_from_chat.title or message.forward_from_chat.username or source_id
+        else:
+            text = message.text.strip()
+            if text.startswith('@'):
+                source_info = acc.get_chat(text)
+                source_id = str(source_info.id)
+                source_name = source_info.title or source_info.username or source_id
+            else:
+                try:
+                    source_chat_id = int(text)
+                    source_info = acc.get_chat(source_chat_id)
+                    source_id = str(source_info.id)
+                    source_name = source_info.title or source_info.username or source_id
+                except ValueError:
+                    bot.send_message(message.chat.id, "**❌ 无效的频道/群组ID**\n\n请输入正确的格式")
+                    return
+        
+        user_states[user_id]["source_id"] = source_id
+        user_states[user_id]["source_name"] = source_name
+        user_states[user_id]["action"] = "choose_dest"
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💾 保存到收藏夹", callback_data="set_dest_me")],
+            [InlineKeyboardButton("📤 自定义目标", callback_data="dest_custom")],
+            [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+        ])
+        
+        text = "**➕ 添加监控任务**\n\n"
+        text += f"✅ 来源已设置：`{source_name}`\n\n"
+        text += "**步骤 2/2：** 选择转发目标\n\n"
+        text += "💾 **保存到收藏夹** - 转发到你的个人收藏\n"
+        text += "📤 **自定义目标** - 转发到其他频道/群组"
+        
+        bot.send_message(message.chat.id, text, reply_markup=keyboard)
     
-    else:
-        bot.send_message(message.chat.id, "**❌ 未知命令**\n\n可用命令：\n• `/watch list` - 查看监控列表\n• `/watch add <来源> <目标>` - 添加监控\n• `/watch remove <编号>` - 删除监控", reply_to_message_id=message.id)
+    except ChannelPrivate:
+        bot.send_message(message.chat.id, "**❌ 无法访问该频道/群组**\n\n请确保账号已加入")
+    except UsernameInvalid:
+        bot.send_message(message.chat.id, "**❌ 频道/群组用户名无效**\n\n请检查输入")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"**❌ 错误：** `{str(e)}`")
 
+def handle_add_dest(message, user_id):
+    try:
+        if message.forward_from_chat:
+            dest_id = str(message.forward_from_chat.id)
+            dest_name = message.forward_from_chat.title or message.forward_from_chat.username or dest_id
+        else:
+            text = message.text.strip()
+            if text.lower() == "me":
+                dest_id = "me"
+                dest_name = "个人收藏"
+            elif text.startswith('@'):
+                dest_info = acc.get_chat(text)
+                dest_id = str(dest_info.id)
+                dest_name = dest_info.title or dest_info.username or dest_id
+            else:
+                try:
+                    dest_chat_id = int(text)
+                    dest_info = acc.get_chat(dest_chat_id)
+                    dest_id = str(dest_info.id)
+                    dest_name = dest_info.title or dest_info.username or dest_id
+                except ValueError:
+                    bot.send_message(message.chat.id, "**❌ 无效的频道/群组ID**\n\n请输入正确的格式")
+                    return
+        
+        user_states[user_id]["dest_id"] = dest_id
+        user_states[user_id]["dest_name"] = dest_name
+        
+        msg = bot.send_message(message.chat.id, "⏳ 正在设置...")
+        show_filter_options(message.chat.id, msg.id, user_id)
+    
+    except ChannelPrivate:
+        bot.send_message(message.chat.id, "**❌ 无法访问该频道/群组**\n\n请确保机器人有发送权限")
+    except UsernameInvalid:
+        bot.send_message(message.chat.id, "**❌ 频道/群组用户名无效**\n\n请检查输入")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"**❌ 错误：** `{str(e)}`")
 
-@bot.on_message(filters.text)
+# Handle user text input during multi-step interactions
+@bot.on_message(filters.text & filters.private & ~filters.command(["start", "help", "watch"]))
 def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
     print(message.text)
+    user_id = str(message.from_user.id)
+    
+    if user_id in user_states:
+        action = user_states[user_id].get("action")
+        
+        if action == "add_source":
+            handle_add_source(message, user_id)
+            return
+        
+        elif action == "add_dest":
+            handle_add_dest(message, user_id)
+            return
+        
+        elif action == "add_whitelist":
+            keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
+            if keywords:
+                user_states[user_id]["whitelist"] = keywords
+                user_states[user_id]["action"] = "add_blacklist"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⏭ 跳过", callback_data="skip_blacklist")],
+                    [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+                ])
+                
+                text = "**➕ 添加监控任务**\n\n"
+                text += f"✅ 白名单已设置：`{', '.join(keywords)}`\n\n"
+                text += "**步骤 4：设置黑名单**\n\n"
+                text += "请发送黑名单关键词，用逗号分隔\n\n"
+                text += "示例：`广告,推广,垃圾`\n\n"
+                text += "💡 包含这些关键词的消息不会被转发"
+                
+                bot.send_message(message.chat.id, text, reply_markup=keyboard)
+            else:
+                bot.send_message(message.chat.id, "**❌ 请输入至少一个关键词**")
+            return
+        
+        elif action == "add_blacklist":
+            keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
+            if keywords:
+                user_states[user_id]["blacklist"] = keywords
+            else:
+                user_states[user_id]["blacklist"] = []
+            
+            msg = bot.send_message(message.chat.id, "⏳ 正在完成设置...")
+            show_preserve_source_options(message.chat.id, msg.id, user_id)
+            return
 
     # joining chats
     if "https://t.me/+" in message.text or "https://t.me/joinchat/" in message.text:
