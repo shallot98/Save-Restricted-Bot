@@ -301,10 +301,14 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 return
             
             buttons = []
-            for idx, (source, watch_data) in enumerate(watch_config[user_id].items(), 1):
+            for idx, (watch_key, watch_data) in enumerate(watch_config[user_id].items(), 1):
                 if isinstance(watch_data, dict):
-                    dest = watch_data.get("dest", "unknown")
+                    # New format with source|dest key
+                    source = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                    dest = watch_data.get("dest", watch_key.split("|")[1] if "|" in watch_key else "unknown")
                 else:
+                    # Old format compatibility
+                    source = watch_key
                     dest = watch_data
                 
                 # Truncate source and dest for button display
@@ -333,10 +337,14 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 return
             
             buttons = []
-            for idx, (source, watch_data) in enumerate(watch_config[user_id].items(), 1):
+            for idx, (watch_key, watch_data) in enumerate(watch_config[user_id].items(), 1):
                 if isinstance(watch_data, dict):
-                    dest = watch_data.get("dest", "unknown")
+                    # New format with source|dest key
+                    source = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                    dest = watch_data.get("dest", watch_key.split("|")[1] if "|" in watch_key else "unknown")
                 else:
+                    # Old format compatibility
+                    source = watch_key
                     dest = watch_data
                 buttons.append([InlineKeyboardButton(f"🗑 {idx}. {source} ➡️ {dest}", callback_data=f"watch_remove_{idx}")])
             
@@ -361,11 +369,13 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("❌ 任务编号无效", show_alert=True)
                 return
             
-            source_id = list(watch_config[user_id].keys())[task_id - 1]
-            watch_data = watch_config[user_id][source_id]
+            watch_key = list(watch_config[user_id].keys())[task_id - 1]
+            watch_data = watch_config[user_id][watch_key]
             
             if isinstance(watch_data, dict):
-                dest = watch_data.get("dest", "unknown")
+                # New format with source|dest key
+                source_id = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                dest = watch_data.get("dest", watch_key.split("|")[1] if "|" in watch_key else "unknown")
                 whitelist = watch_data.get("whitelist", [])
                 blacklist = watch_data.get("blacklist", [])
                 whitelist_regex = watch_data.get("whitelist_regex", [])
@@ -374,6 +384,8 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 forward_mode = watch_data.get("forward_mode", "full")
                 extract_patterns = watch_data.get("extract_patterns", [])
             else:
+                # Old format compatibility
+                source_id = watch_key
                 dest = watch_data
                 whitelist = []
                 blacklist = []
@@ -433,15 +445,19 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("❌ 任务编号无效", show_alert=True)
                 return
             
-            source_id = list(watch_config[user_id].keys())[task_id - 1]
-            watch_data = watch_config[user_id][source_id]
+            watch_key = list(watch_config[user_id].keys())[task_id - 1]
+            watch_data = watch_config[user_id][watch_key]
             
             if isinstance(watch_data, dict):
-                dest_id = watch_data.get("dest", "unknown")
+                # New format with source|dest key
+                source_id = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                dest_id = watch_data.get("dest", watch_key.split("|")[1] if "|" in watch_key else "unknown")
             else:
+                # Old format compatibility
+                source_id = watch_key
                 dest_id = watch_data
             
-            del watch_config[user_id][source_id]
+            del watch_config[user_id][watch_key]
             
             if not watch_config[user_id]:
                 del watch_config[user_id]
@@ -624,14 +640,17 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("❌ 任务编号无效", show_alert=True)
                 return
             
-            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            watch_key = list(watch_config[user_id].keys())[task_id - 1]
             
-            if isinstance(watch_config[user_id][source_id], dict):
-                current_preserve = watch_config[user_id][source_id].get("preserve_forward_source", False)
-                watch_config[user_id][source_id]["preserve_forward_source"] = not current_preserve
+            if isinstance(watch_config[user_id][watch_key], dict):
+                current_preserve = watch_config[user_id][watch_key].get("preserve_forward_source", False)
+                watch_config[user_id][watch_key]["preserve_forward_source"] = not current_preserve
             else:
-                old_dest = watch_config[user_id][source_id]
-                watch_config[user_id][source_id] = {
+                # Old format compatibility - convert to new format
+                old_dest = watch_config[user_id][watch_key]
+                source_id = watch_key
+                watch_config[user_id][watch_key] = {
+                    "source": source_id,
                     "dest": old_dest,
                     "whitelist": [],
                     "blacklist": [],
@@ -657,10 +676,10 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("❌ 任务编号无效", show_alert=True)
                 return
             
-            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            watch_key = list(watch_config[user_id].keys())[task_id - 1]
             
-            if isinstance(watch_config[user_id][source_id], dict):
-                current_mode = watch_config[user_id][source_id].get("forward_mode", "full")
+            if isinstance(watch_config[user_id][watch_key], dict):
+                current_mode = watch_config[user_id][watch_key].get("forward_mode", "full")
             else:
                 current_mode = "full"
             
@@ -693,15 +712,18 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("❌ 任务编号无效", show_alert=True)
                 return
             
-            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            watch_key = list(watch_config[user_id].keys())[task_id - 1]
             
-            if isinstance(watch_config[user_id][source_id], dict):
-                watch_config[user_id][source_id]["forward_mode"] = mode
-                if mode == "extract" and not watch_config[user_id][source_id].get("extract_patterns"):
+            if isinstance(watch_config[user_id][watch_key], dict):
+                watch_config[user_id][watch_key]["forward_mode"] = mode
+                if mode == "extract" and not watch_config[user_id][watch_key].get("extract_patterns"):
+                    # Extract source_id for user_states
+                    source_id = watch_config[user_id][watch_key].get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                    
                     user_states[user_id] = {
                         "action": "edit_extract_patterns",
                         "task_id": task_id,
-                        "source_id": source_id
+                        "watch_key": watch_key
                     }
                     
                     keyboard = InlineKeyboardMarkup([
@@ -718,8 +740,11 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                     save_watch_config(watch_config)
                     return
             else:
-                old_dest = watch_config[user_id][source_id]
-                watch_config[user_id][source_id] = {
+                # Old format compatibility - convert to new format
+                old_dest = watch_config[user_id][watch_key]
+                source_id = watch_key
+                watch_config[user_id][watch_key] = {
+                    "source": source_id,
                     "dest": old_dest,
                     "whitelist": [],
                     "blacklist": [],
@@ -770,8 +795,8 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             }
             
             watch_config = load_watch_config()
-            source_id = list(watch_config[user_id].keys())[task_id - 1]
-            user_states[user_id]["source_id"] = source_id
+            watch_key = list(watch_config[user_id].keys())[task_id - 1]
+            user_states[user_id]["watch_key"] = watch_key
             
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🗑 清空", callback_data=f"clear_filter_{filter_type}_{color}_{task_id}")],
@@ -813,9 +838,9 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("❌ 任务编号无效", show_alert=True)
                 return
             
-            source_id = list(watch_config[user_id].keys())[task_id - 1]
+            watch_key = list(watch_config[user_id].keys())[task_id - 1]
             
-            if isinstance(watch_config[user_id][source_id], dict):
+            if isinstance(watch_config[user_id][watch_key], dict):
                 if filter_type == "kw":
                     key = "whitelist" if color == "white" else "blacklist"
                 elif filter_type == "re":
@@ -823,7 +848,7 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 else:  # extract
                     key = "extract_patterns"
                 
-                watch_config[user_id][source_id][key] = []
+                watch_config[user_id][watch_key][key] = []
                 save_watch_config(watch_config)
                 
                 callback_query.answer("✅ 已清空")
@@ -958,13 +983,17 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
         if user_id not in watch_config:
             watch_config[user_id] = {}
         
-        if source_id in watch_config[user_id]:
+        # Use composite key: source_id|dest_id to allow one source to multiple targets
+        watch_key = f"{source_id}|{dest_id}"
+        
+        if watch_key in watch_config[user_id]:
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
-            bot.edit_message_text(chat_id, message_id, f"**⚠️ 该来源已在监控中**\n\n来源：`{source_name}`", reply_markup=keyboard)
+            bot.edit_message_text(chat_id, message_id, f"**⚠️ 该监控任务已存在**\n\n来源：`{source_name}`\n目标：`{dest_name}`", reply_markup=keyboard)
             del user_states[user_id]
             return
         
-        watch_config[user_id][source_id] = {
+        watch_config[user_id][watch_key] = {
+            "source": source_id,
             "dest": dest_id,
             "whitelist": whitelist,
             "blacklist": blacklist,
@@ -1182,7 +1211,7 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             filter_type = parts[2]
             color = parts[3]
             task_id = user_states[user_id].get("task_id")
-            source_id = user_states[user_id].get("source_id")
+            watch_key = user_states[user_id].get("watch_key")
             
             watch_config = load_watch_config()
             user_id_str = str(message.from_user.id)
@@ -1190,14 +1219,14 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             if filter_type == "kw":
                 keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
                 key = "whitelist" if color == "white" else "blacklist"
-                watch_config[user_id_str][source_id][key] = keywords
+                watch_config[user_id_str][watch_key][key] = keywords
             elif filter_type == "re":
                 patterns = [p.strip() for p in message.text.split(',') if p.strip()]
                 try:
                     for pattern in patterns:
                         re.compile(pattern)
                     key = "whitelist_regex" if color == "white" else "blacklist_regex"
-                    watch_config[user_id_str][source_id][key] = patterns
+                    watch_config[user_id_str][watch_key][key] = patterns
                 except re.error as e:
                     bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
                     return
@@ -1213,7 +1242,7 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
         elif action == "edit_extract_patterns":
             patterns = [p.strip() for p in message.text.split(',') if p.strip()]
             task_id = user_states[user_id].get("task_id")
-            source_id = user_states[user_id].get("source_id")
+            watch_key = user_states[user_id].get("watch_key")
             
             if patterns:
                 try:
@@ -1223,8 +1252,8 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                     watch_config = load_watch_config()
                     user_id_str = str(message.from_user.id)
                     
-                    if isinstance(watch_config[user_id_str][source_id], dict):
-                        watch_config[user_id_str][source_id]["extract_patterns"] = patterns
+                    if isinstance(watch_config[user_id_str][watch_key], dict):
+                        watch_config[user_id_str][watch_key]["extract_patterns"] = patterns
                     
                     save_watch_config(watch_config)
                     del user_states[user_id]
@@ -1452,10 +1481,15 @@ if acc is not None:
             source_chat_id = str(message.chat.id)
             
             for user_id, watches in watch_config.items():
-                if source_chat_id in watches:
-                    watch_data = watches[source_chat_id]
-                    
+                # Iterate through all watch tasks for this user
+                for watch_key, watch_data in watches.items():
+                    # Check if this task matches the source
                     if isinstance(watch_data, dict):
+                        # New format: check if source matches
+                        task_source = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                        if task_source != source_chat_id:
+                            continue
+                        
                         dest_chat_id = watch_data.get("dest")
                         whitelist = watch_data.get("whitelist", [])
                         blacklist = watch_data.get("blacklist", [])
@@ -1465,6 +1499,10 @@ if acc is not None:
                         forward_mode = watch_data.get("forward_mode", "full")
                         extract_patterns = watch_data.get("extract_patterns", [])
                     else:
+                        # Old format compatibility: key is source
+                        if watch_key != source_chat_id:
+                            continue
+                        
                         dest_chat_id = watch_data
                         whitelist = []
                         blacklist = []
