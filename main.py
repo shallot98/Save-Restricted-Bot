@@ -504,13 +504,50 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             show_filter_options(chat_id, message_id, user_id)
             callback_query.answer()
         
+        elif data == "mode_single":
+            if user_id not in user_states or "source_id" not in user_states[user_id]:
+                callback_query.answer("❌ 会话已过期，请重新开始", show_alert=True)
+                return
+            
+            user_states[user_id]["dest_id"] = None
+            user_states[user_id]["dest_name"] = "记录模式"
+            user_states[user_id]["record_mode"] = True
+            
+            show_filter_options_single(chat_id, message_id, user_id)
+            callback_query.answer()
+        
+        elif data == "mode_forward":
+            if user_id not in user_states or "source_id" not in user_states[user_id]:
+                callback_query.answer("❌ 会话已过期，请重新开始", show_alert=True)
+                return
+            
+            user_states[user_id]["action"] = "choose_dest"
+            user_states[user_id]["record_mode"] = False
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💾 保存到收藏夹", callback_data="set_dest_me")],
+                [InlineKeyboardButton("📤 自定义目标", callback_data="dest_custom")],
+                [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+            ])
+            
+            source_name = user_states[user_id].get("source_name", "未知")
+            
+            text = "**➕ 添加监控任务**\n\n"
+            text += f"✅ 来源已设置：`{source_name}`\n\n"
+            text += "**步骤 3：** 选择转发目标\n\n"
+            text += "💾 **保存到收藏夹** - 转发到你的个人收藏\n"
+            text += "📤 **自定义目标** - 转发到其他频道/群组"
+            
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+        
         elif data == "dest_custom":
             user_states[user_id]["action"] = "add_dest"
             
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]])
             
             text = "**➕ 添加监控任务**\n\n"
-            text += "**步骤 2/2：** 请发送目标频道/群组\n\n"
+            text += "**步骤 3：** 请发送目标频道/群组\n\n"
             text += "可以发送：\n"
             text += "• 频道/群组用户名（如 `@channel_name`）\n"
             text += "• 频道/群组ID（如 `-1001234567890`）\n"
@@ -530,6 +567,21 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             user_states[user_id]["whitelist_regex"] = []
             user_states[user_id]["blacklist_regex"] = []
             show_preserve_source_options(chat_id, message_id, user_id)
+            callback_query.answer()
+        
+        elif data == "filter_none_single":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+            
+            user_states[user_id]["whitelist"] = []
+            user_states[user_id]["blacklist"] = []
+            user_states[user_id]["whitelist_regex"] = []
+            user_states[user_id]["blacklist_regex"] = []
+            
+            msg = bot.send_message(chat_id, "⏳ 正在完成设置...")
+            bot.delete_messages(chat_id, [message_id])
+            complete_watch_setup_single(msg.chat.id, msg.id, user_id, [], [], [], [])
             callback_query.answer()
         
         elif data == "filter_regex_whitelist":
@@ -979,6 +1031,31 @@ def show_filter_options(chat_id, message_id, user_id):
     
     bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
 
+def show_filter_options_single(chat_id, message_id, user_id):
+    source_name = user_states[user_id].get("source_name", "未知")
+    
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 关键词白名单", callback_data="filter_whitelist")],
+        [InlineKeyboardButton("🔴 关键词黑名单", callback_data="filter_blacklist")],
+        [InlineKeyboardButton("🟢 正则白名单", callback_data="filter_regex_whitelist")],
+        [InlineKeyboardButton("🔴 正则黑名单", callback_data="filter_regex_blacklist")],
+        [InlineKeyboardButton("⏭ 不设置过滤", callback_data="filter_none_single")],
+        [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+    ])
+    
+    text = "**➕ 添加监控任务（记录模式）**\n\n"
+    text += f"来源：`{source_name}`\n"
+    text += f"模式：📝 **记录模式**（保存到网页笔记）\n\n"
+    text += "**步骤 3：** 是否需要过滤规则？\n\n"
+    text += "🟢 **关键词白名单** - 包含关键词才记录\n"
+    text += "🔴 **关键词黑名单** - 包含关键词不记录\n"
+    text += "🟢 **正则白名单** - 匹配正则才记录\n"
+    text += "🔴 **正则黑名单** - 匹配正则不记录\n"
+    text += "⏭ **不设置** - 记录所有消息\n\n"
+    text += "💡 可以设置多种规则，按顺序生效"
+    
+    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+
 def show_preserve_source_options(chat_id, message_id, user_id):
     source_name = user_states[user_id].get("source_name", "未知")
     dest_name = user_states[user_id].get("dest_name", "未知")
@@ -1094,6 +1171,63 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
         if user_id in user_states:
             del user_states[user_id]
 
+def complete_watch_setup_single(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex):
+    try:
+        source_id = user_states[user_id]["source_id"]
+        source_name = user_states[user_id]["source_name"]
+        
+        watch_config = load_watch_config()
+        
+        if user_id not in watch_config:
+            watch_config[user_id] = {}
+        
+        # Use composite key with "record" as dest for record mode
+        watch_key = f"{source_id}|record"
+        
+        if watch_key in watch_config[user_id]:
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
+            bot.edit_message_text(chat_id, message_id, f"**⚠️ 该监控任务已存在**\n\n来源：`{source_name}`\n模式：记录模式", reply_markup=keyboard)
+            del user_states[user_id]
+            return
+        
+        watch_config[user_id][watch_key] = {
+            "source": source_id,
+            "dest": None,
+            "whitelist": whitelist,
+            "blacklist": blacklist,
+            "whitelist_regex": whitelist_regex,
+            "blacklist_regex": blacklist_regex,
+            "preserve_forward_source": False,
+            "forward_mode": "full",
+            "extract_patterns": [],
+            "record_mode": True
+        }
+        save_watch_config(watch_config)
+        
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
+        
+        result_msg = f"**✅ 监控任务添加成功！**\n\n"
+        result_msg += f"来源：`{source_name}`\n"
+        result_msg += f"模式：📝 **记录模式**\n"
+        if whitelist:
+            result_msg += f"关键词白名单：`{', '.join(whitelist)}`\n"
+        if blacklist:
+            result_msg += f"关键词黑名单：`{', '.join(blacklist)}`\n"
+        if whitelist_regex:
+            result_msg += f"正则白名单：`{', '.join(whitelist_regex)}`\n"
+        if blacklist_regex:
+            result_msg += f"正则黑名单：`{', '.join(blacklist_regex)}`\n"
+        result_msg += "\n从现在开始，新消息将自动记录到网页笔记 📝"
+        
+        bot.edit_message_text(chat_id, message_id, result_msg, reply_markup=keyboard)
+        del user_states[user_id]
+        
+    except Exception as e:
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
+        bot.edit_message_text(chat_id, message_id, f"**❌ 错误：** `{str(e)}`", reply_markup=keyboard)
+        if user_id in user_states:
+            del user_states[user_id]
+
 def handle_add_source(message, user_id):
     try:
         if message.forward_from_chat:
@@ -1117,19 +1251,19 @@ def handle_add_source(message, user_id):
         
         user_states[user_id]["source_id"] = source_id
         user_states[user_id]["source_name"] = source_name
-        user_states[user_id]["action"] = "choose_dest"
+        user_states[user_id]["action"] = "choose_mode"
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💾 保存到收藏夹", callback_data="set_dest_me")],
-            [InlineKeyboardButton("📤 自定义目标", callback_data="dest_custom")],
+            [InlineKeyboardButton("📝 单一监控（记录模式）", callback_data="mode_single")],
+            [InlineKeyboardButton("➡️ 转发到另一个", callback_data="mode_forward")],
             [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
         ])
         
         text = "**➕ 添加监控任务**\n\n"
         text += f"✅ 来源已设置：`{source_name}`\n\n"
-        text += "**步骤 2/2：** 选择转发目标\n\n"
-        text += "💾 **保存到收藏夹** - 转发到你的个人收藏\n"
-        text += "📤 **自定义目标** - 转发到其他频道/群组"
+        text += "**步骤 2：** 选择监控模式\n\n"
+        text += "📝 **单一监控（记录模式）** - 只监控这一个频道，消息保存到网页笔记\n"
+        text += "➡️ **转发到另一个** - 从这个频道转发消息到另一个频道/群组"
         
         bot.send_message(message.chat.id, text, reply_markup=keyboard)
     
@@ -1199,7 +1333,10 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             if keywords:
                 user_states[user_id]["whitelist"] = keywords
                 msg = bot.send_message(message.chat.id, f"✅ 关键词白名单已设置：`{', '.join(keywords)}`\n\n⏳ 继续设置...")
-                show_filter_options(message.chat.id, msg.id, user_id)
+                if user_states[user_id].get("record_mode"):
+                    show_filter_options_single(message.chat.id, msg.id, user_id)
+                else:
+                    show_filter_options(message.chat.id, msg.id, user_id)
             else:
                 bot.send_message(message.chat.id, "**❌ 请输入至少一个关键词**")
             return
@@ -1212,7 +1349,10 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             else:
                 user_states[user_id]["blacklist"] = []
                 msg = bot.send_message(message.chat.id, "⏳ 继续设置...")
-            show_filter_options(message.chat.id, msg.id, user_id)
+            if user_states[user_id].get("record_mode"):
+                show_filter_options_single(message.chat.id, msg.id, user_id)
+            else:
+                show_filter_options(message.chat.id, msg.id, user_id)
             return
         
         elif action == "add_regex_whitelist":
@@ -1223,7 +1363,10 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                         re.compile(pattern)
                     user_states[user_id]["whitelist_regex"] = patterns
                     msg = bot.send_message(message.chat.id, f"✅ 正则白名单已设置：`{', '.join(patterns)}`\n\n⏳ 继续设置...")
-                    show_filter_options(message.chat.id, msg.id, user_id)
+                    if user_states[user_id].get("record_mode"):
+                        show_filter_options_single(message.chat.id, msg.id, user_id)
+                    else:
+                        show_filter_options(message.chat.id, msg.id, user_id)
                 except re.error as e:
                     bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
             else:
@@ -1238,7 +1381,10 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                         re.compile(pattern)
                     user_states[user_id]["blacklist_regex"] = patterns
                     msg = bot.send_message(message.chat.id, f"✅ 正则黑名单已设置：`{', '.join(patterns)}`\n\n⏳ 继续设置...")
-                    show_filter_options(message.chat.id, msg.id, user_id)
+                    if user_states[user_id].get("record_mode"):
+                        show_filter_options_single(message.chat.id, msg.id, user_id)
+                    else:
+                        show_filter_options(message.chat.id, msg.id, user_id)
                 except re.error as e:
                     bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
             else:
@@ -1537,6 +1683,14 @@ if acc is not None:
     @acc.on_message(filters.channel | filters.group)
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         try:
+            # Ensure the peer is resolved to prevent "Peer id invalid" errors
+            try:
+                if message.chat.id:
+                    acc.get_chat(message.chat.id)
+            except Exception as e:
+                print(f"Warning: Could not resolve peer {message.chat.id}: {e}")
+                return
+            
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
             
