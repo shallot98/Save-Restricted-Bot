@@ -102,9 +102,20 @@
             font-weight: 600;
         }
 
+        .media-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
         .media-preview {
             margin-bottom: 25px;
             text-align: center;
+        }
+
+        .media-preview-grid .media-preview {
+            margin-bottom: 0;
         }
 
         .media-preview img {
@@ -239,7 +250,20 @@
                 {% endif %}
             </div>
 
-            {% if note.media_path %}
+            {# Display multiple media if available #}
+            {% if note.media_list and note.media_list|length > 0 %}
+            <div class="media-preview-grid">
+                {% for media in note.media_list %}
+                <div class="media-preview">
+                    <img src="/media/{{ media.media_path }}" alt="Media preview">
+                    {% if media.media_type == 'video' %}
+                    <div class="media-badge">🎬 视频缩略图</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% elif note.media_path %}
+            {# Backward compatibility - old single media format #}
             <div class="media-preview">
                 <img src="/media/{{ note.media_path }}" alt="Media preview">
                 {% if note.media_type == 'video' %}
