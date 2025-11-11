@@ -1343,8 +1343,7 @@ def handle_add_dest(message, user_id):
         bot.send_message(message.chat.id, f"**❌ 错误：** `{str(e)}`")
 
 # Handle user text input during multi-step interactions
-# Allow private messages or group messages that mention the bot or reply to the bot
-@bot.on_message(filters.text & (filters.private | filters.mentioned | filters.reply) & ~filters.command(["start", "help", "watch"]))
+@bot.on_message(filters.text & filters.private & ~filters.command(["start", "help", "watch"]))
 def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
     print(message.text)
     user_id = str(message.from_user.id)

@@ -2,17 +2,6 @@
 
 *A Telegram Bot, Which can send you restricted content by it's post link*
 
-## 🎉 What's New in v2.3.2
-
-### 🐛 Critical Bug Fixes
-- **Search Panel**: Fixed auto-popup issue - search panel now stays hidden until search icon is clicked
-- **Group Support**: Bot now works in groups/channels when mentioned (@bot) or replied to
-- **Better UX**: More intuitive search behavior and expanded usage scenarios
-
-📖 **See Full Details**: [BUG_FIXES.md](BUG_FIXES.md)
-
----
-
 ## 🎉 What's New in v2.3.1
 
 ### ✨ DATA_DIR Enhancement & Mobile Optimization
