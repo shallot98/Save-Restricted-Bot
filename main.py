@@ -333,9 +333,9 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]])
             
             text = "**➕ 添加监控任务**\n\n"
-            text += "**步骤 1/2：** 请发送来源频道/群组\n\n"
+            text += "**步骤 1：** 请发送来源频道/群组\n\n"
             text += "可以发送：\n"
-            text += "• 输入 `me` 监控自己的收藏夹\n"
+            text += "• 输入 `me` 监控自己的收藏夹 (Saved Messages)\n"
             text += "• 频道/群组用户名（如 `@channel_name`）\n"
             text += "• 频道/群组ID（如 `-1001234567890`）\n"
             text += "• 转发一条来自该频道/群组的消息\n\n"
@@ -556,20 +556,6 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
             callback_query.answer("✅ 删除成功")
         
-        elif data.startswith("set_dest_"):
-            dest_choice = data.split("_")[2]
-            
-            if user_id not in user_states or "source_id" not in user_states[user_id]:
-                callback_query.answer("❌ 会话已过期，请重新开始", show_alert=True)
-                return
-            
-            if dest_choice == "me":
-                user_states[user_id]["dest_id"] = "me"
-                user_states[user_id]["dest_name"] = "个人收藏"
-            
-            show_filter_options(chat_id, message_id, user_id)
-            callback_query.answer()
-        
         elif data == "mode_single":
             if user_id not in user_states or "source_id" not in user_states[user_id]:
                 callback_query.answer("❌ 会话已过期，请重新开始", show_alert=True)
@@ -587,34 +573,18 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 callback_query.answer("❌ 会话已过期，请重新开始", show_alert=True)
                 return
             
-            user_states[user_id]["action"] = "choose_dest"
+            user_states[user_id]["action"] = "add_dest"
             user_states[user_id]["record_mode"] = False
             
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💾 保存到收藏夹", callback_data="set_dest_me")],
-                [InlineKeyboardButton("📤 自定义目标", callback_data="dest_custom")],
-                [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
-            ])
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]])
             
             source_name = user_states[user_id].get("source_name", "未知")
             
             text = "**➕ 添加监控任务**\n\n"
             text += f"✅ 来源已设置：`{source_name}`\n\n"
-            text += "**步骤 3：** 选择转发目标\n\n"
-            text += "💾 **保存到收藏夹** - 转发到你的个人收藏\n"
-            text += "📤 **自定义目标** - 转发到其他频道/群组"
-            
-            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
-            callback_query.answer()
-        
-        elif data == "dest_custom":
-            user_states[user_id]["action"] = "add_dest"
-            
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]])
-            
-            text = "**➕ 添加监控任务**\n\n"
             text += "**步骤 3：** 请发送目标频道/群组\n\n"
             text += "可以发送：\n"
+            text += "• 输入 `me` 转发到你的收藏夹\n"
             text += "• 频道/群组用户名（如 `@channel_name`）\n"
             text += "• 频道/群组ID（如 `-1001234567890`）\n"
             text += "• 转发一条来自该频道/群组的消息\n\n"
@@ -1726,6 +1696,9 @@ if acc is not None:
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
             
+            # Debug logging
+            print(f"📨 收到消息 | 来源: {source_chat_id} | 类型: {message.chat.type}")
+            
             for user_id, watches in watch_config.items():
                 # Iterate through all watch tasks for this user
                 for watch_key, watch_data in watches.items():
@@ -1740,6 +1713,9 @@ if acc is not None:
                         
                         if task_source != source_chat_id:
                             continue
+                        
+                        # Debug: matched task
+                        print(f"✅ 匹配到监控任务 | 用户: {user_id} | 来源: {task_source} | 任务键: {watch_key}")
                         
                         dest_chat_id = watch_data.get("dest")
                         whitelist = watch_data.get("whitelist", [])
@@ -1774,11 +1750,13 @@ if acc is not None:
                     # Check keyword whitelist
                     if whitelist:
                         if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
+                            print(f"⏭️ 消息被过滤: 不匹配关键词白名单")
                             continue
                     
                     # Check keyword blacklist
                     if blacklist:
                         if any(keyword.lower() in message_text.lower() for keyword in blacklist):
+                            print(f"⏭️ 消息被过滤: 匹配关键词黑名单")
                             continue
                     
                     # Check regex whitelist
@@ -1792,6 +1770,7 @@ if acc is not None:
                             except re.error:
                                 pass
                         if not match_found:
+                            print(f"⏭️ 消息被过滤: 不匹配正则白名单")
                             continue
                     
                     # Check regex blacklist
@@ -1805,9 +1784,13 @@ if acc is not None:
                             except re.error:
                                 pass
                         if skip_message:
+                            print(f"⏭️ 消息被过滤: 匹配正则黑名单")
                             continue
                     
                     try:
+                        # Debug: passed all filters
+                        print(f"🎯 消息通过所有过滤器 | 模式: {'记录' if record_mode else '转发'}")
+                        
                         # Record mode - save to database
                         if record_mode:
                             source_name = message.chat.title or message.chat.username or source_chat_id
@@ -2028,16 +2011,22 @@ if acc is not None:
                                     # 保留转发来源标签
                                     if dest_chat_id == "me":
                                         acc.forward_messages("me", message.chat.id, message.id)
+                                        print(f"📤 已转发到收藏夹 (保留来源)")
                                     else:
                                         acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
+                                        print(f"📤 已转发到 {dest_chat_id} (保留来源)")
                                 else:
                                     # 不显示转发来源，但保留媒体组完整性（多图片+文字）
                                     if dest_chat_id == "me":
                                         acc.forward_messages("me", message.chat.id, message.id, drop_author=True)
+                                        print(f"📤 已转发到收藏夹 (不保留来源)")
                                     else:
                                         acc.forward_messages(int(dest_chat_id), message.chat.id, message.id, drop_author=True)
+                                        print(f"📤 已转发到 {dest_chat_id} (不保留来源)")
                     except Exception as e:
-                        print(f"Error processing message: {e}")
+                        print(f"❌ 处理消息时出错: {e}")
+                        import traceback
+                        traceback.print_exc()
         except Exception as e:
             print(f"Error in auto_forward: {e}")
 
