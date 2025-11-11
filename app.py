@@ -1,5 +1,7 @@
 import os
+import re
 from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory
+from markupsafe import Markup, escape
 from database import init_database, get_notes, get_note_count, get_sources, verify_user, update_password
 import math
 
@@ -11,6 +13,22 @@ init_database()
 
 # 每页显示的笔记数量
 NOTES_PER_PAGE = 50
+
+# 自定义Jinja2过滤器：高亮搜索关键词
+@app.template_filter('highlight')
+def highlight_filter(text, search_query):
+    if not text or not search_query:
+        return text
+    
+    # 转义HTML特殊字符
+    text = escape(text)
+    search_query = escape(search_query)
+    
+    # 使用正则表达式进行不区分大小写的替换
+    pattern = re.compile(re.escape(str(search_query)), re.IGNORECASE)
+    highlighted = pattern.sub(lambda m: f'<span class="highlight">{m.group()}</span>', str(text))
+    
+    return Markup(highlighted)
 
 @app.route('/')
 def home():
