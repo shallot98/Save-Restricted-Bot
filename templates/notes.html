@@ -205,11 +205,55 @@
             color: #999;
         }
         
-        .search-box {
+        /* Collapsible search box styles */
+        .search-container {
+            position: relative;
             display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .search-icon-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+        
+        .search-icon-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .search-box {
+            display: none;
             gap: 6px;
             align-items: center;
             flex: 1;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .search-box.active {
+            display: flex;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
         
         .search-input {
@@ -649,6 +693,10 @@
                 width: 100%;
                 flex-direction: column;
             }
+            
+            .search-container {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -713,16 +761,20 @@
                         <input type="date" name="date_to" value="{{ date_to or '' }}" placeholder="结束日期">
                     </div>
                     
-                    <div class="search-box">
-                        <label>🔍 搜索：</label>
-                        <input type="text" name="search" class="search-input" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}">
-                        {% if selected_source %}
-                        <input type="hidden" name="source" value="{{ selected_source }}">
-                        {% endif %}
-                        <button type="submit" class="search-btn">搜索</button>
-                        {% if search_query or date_from or date_to %}
-                        <a href="/notes{% if selected_source %}?source={{ selected_source }}{% endif %}" class="clear-search">清除</a>
-                        {% endif %}
+                    <div class="search-container">
+                        <button type="button" class="search-icon-btn" onclick="toggleSearch()" title="搜索">
+                            🔍
+                        </button>
+                        <div class="search-box{% if search_query %} active{% endif %}" id="searchBox">
+                            <input type="text" name="search" class="search-input" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}" id="searchInput">
+                            {% if selected_source %}
+                            <input type="hidden" name="source" value="{{ selected_source }}">
+                            {% endif %}
+                            <button type="submit" class="search-btn">搜索</button>
+                            {% if search_query or date_from or date_to %}
+                            <a href="/notes{% if selected_source %}?source={{ selected_source }}{% endif %}" class="clear-search">清除</a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </form>
@@ -835,13 +887,39 @@
             menu.classList.toggle('active');
         }
 
-        // 点击页面其他地方关闭菜单
+        // 搜索框展开/收起
+        function toggleSearch() {
+            const searchBox = document.getElementById('searchBox');
+            const searchInput = document.getElementById('searchInput');
+            
+            if (searchBox.classList.contains('active')) {
+                searchBox.classList.remove('active');
+            } else {
+                searchBox.classList.add('active');
+                // 聚焦到搜索输入框
+                setTimeout(() => searchInput.focus(), 100);
+            }
+        }
+
+        // 点击页面其他地方关闭菜单和搜索框
         document.addEventListener('click', function(event) {
             const menu = document.getElementById('menuDropdown');
             const toggle = document.querySelector('.menu-toggle');
+            const searchBox = document.getElementById('searchBox');
+            const searchContainer = document.querySelector('.search-container');
             
+            // 关闭菜单
             if (!toggle.contains(event.target) && !menu.contains(event.target)) {
                 menu.classList.remove('active');
+            }
+            
+            // 关闭搜索框（如果点击的不是搜索容器内的元素）
+            if (searchContainer && !searchContainer.contains(event.target)) {
+                // 只在搜索框为空时自动收起
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput && !searchInput.value) {
+                    searchBox.classList.remove('active');
+                }
             }
         });
 

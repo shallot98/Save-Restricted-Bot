@@ -11,16 +11,39 @@ import re
 from datetime import datetime
 from database import add_note
 
-# 数据目录配置
-DATA_DIR = os.environ.get('DATA_DIR', 'data')
+# 数据目录配置 - 独立存储，防止与其他程序冲突
+DATA_DIR = os.environ.get('DATA_DIR', '/data/save_restricted_bot')
 CONFIG_DIR = os.path.join(DATA_DIR, 'config')
 
-# 确保配置目录存在
+# 确保数据目录和子目录存在
 os.makedirs(CONFIG_DIR, exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'media'), exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'logs'), exist_ok=True)
 
-# 配置文件路径（优先使用data/config/目录，其次使用根目录以保持向后兼容）
+# 配置文件路径（优先使用 data/config/ 目录，其次使用根目录以保持向后兼容）
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json') if os.path.exists(os.path.join(CONFIG_DIR, 'config.json')) else 'config.json'
 WATCH_FILE = os.path.join(CONFIG_DIR, 'watch_config.json') if os.path.exists(os.path.join(CONFIG_DIR, 'watch_config.json')) else 'watch_config.json'
+
+# 配置文件初始化：如果不存在则创建默认配置
+if not os.path.exists(CONFIG_FILE):
+    print(f"⚠️ 配置文件 {CONFIG_FILE} 不存在，正在创建默认配置...")
+    default_config = {
+        "TOKEN": "",
+        "ID": "",
+        "HASH": "",
+        "STRING": ""
+    }
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(default_config, f, indent=4, ensure_ascii=False)
+    print(f"✅ 已创建默认配置文件，请编辑 {CONFIG_FILE} 填入您的 bot 凭证")
+
+# 监控配置初始化：如果不存在则创建空配置
+if not os.path.exists(WATCH_FILE):
+    print(f"⚠️ 监控配置文件 {WATCH_FILE} 不存在，正在创建默认配置...")
+    default_watch_config = {}
+    with open(WATCH_FILE, 'w', encoding='utf-8') as f:
+        json.dump(default_watch_config, f, indent=4, ensure_ascii=False)
+    print(f"✅ 已创建空监控配置文件")
 
 with open(CONFIG_FILE, 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
@@ -1824,7 +1847,12 @@ if acc is not None:
                                             all_text = []
                                             media_list = []
                                             
-                                            for msg in messages:
+                                            # 限制最多处理 9 张媒体
+                                            for idx, msg in enumerate(messages):
+                                                # 跳过超过 9 张的媒体
+                                                if idx >= 9:
+                                                    print(f"⚠️ 媒体组包含超过 9 张媒体，已忽略第 {idx + 1} 张及之后的媒体")
+                                                    break
                                                 # Collect text/caption
                                                 msg_text = msg.text or msg.caption or ""
                                                 if msg_text:
