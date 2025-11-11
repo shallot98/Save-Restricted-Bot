@@ -2,21 +2,22 @@
 
 *A Telegram Bot, Which can send you restricted content by it's post link*
 
-## 🎉 What's New in v2.3.0
+## 🎉 What's New in v2.3.1
 
-### ✨ Complete DATA_DIR Support
-- **Environment Variable**: Full support for `DATA_DIR` environment variable
-- **Auto-Initialization**: Automatic directory and config file creation on startup
-- **Docker-Friendly**: Perfect data persistence in Docker containers
-- **Zero Configuration**: Config files auto-created from environment variables
+### ✨ DATA_DIR Enhancement & Mobile Optimization
+- **Unified DATA_DIR**: All file operations now use DATA_DIR environment variable
+- **Auto-Initialization**: Automatic directory and config file creation on first run
+- **Mobile Responsive**: Optimized display for mobile devices (768px, 480px breakpoints)
+- **Compact Stats**: Simplified statistics display on mobile (e.g., "笔记: 42" vs "总计 42 条笔记")
+- **No Line Break**: Title stays on one line on all screen sizes
 
-### 🔍 New Search UI
-- **Search Icon**: Moved to top navigation bar (left of menu)
-- **Search Panel**: Elegant popup with search, filter, and date range
-- **Mobile Optimized**: Full-screen panel on mobile devices
-- **Smooth Animation**: Beautiful expand/collapse animations
+### 📱 Mobile UI Improvements
+- **Responsive Layout**: Multi-level responsive design (desktop, tablet, mobile)
+- **Touch-Friendly**: Optimized button sizes and spacing for touch devices
+- **Compact Display**: Reduced padding and font sizes on small screens
+- **Better Readability**: Improved text hierarchy and spacing
 
-📖 **See Full Details**: [CHANGELOG_v2.3.0.md](CHANGELOG_v2.3.0.md)
+📖 **See Full Details**: [UPDATE_v2.3.1.md](UPDATE_v2.3.1.md) | [IMPROVEMENTS_v2.3.1.md](IMPROVEMENTS_v2.3.1.md)
 
 ---
 
