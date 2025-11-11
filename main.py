@@ -326,6 +326,12 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                     source = watch_key
                     dest = watch_data
                 
+                # Handle None values
+                if source is None:
+                    source = "未知来源"
+                if dest is None:
+                    dest = "未知目标"
+                
                 # Truncate source and dest for button display
                 source_display = source if len(source) <= 15 else source[:12] + "..."
                 dest_display = dest if len(dest) <= 15 else dest[:12] + "..."
@@ -361,6 +367,13 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                     # Old format compatibility
                     source = watch_key
                     dest = watch_data
+                
+                # Handle None values
+                if source is None:
+                    source = "未知来源"
+                if dest is None:
+                    dest = "未知目标"
+                
                 buttons.append([InlineKeyboardButton(f"🗑 {idx}. {source} ➡️ {dest}", callback_data=f"watch_remove_{idx}")])
             
             buttons.append([InlineKeyboardButton("❌ 取消", callback_data="menu_watch")])
@@ -411,6 +424,12 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 forward_mode = "full"
                 extract_patterns = []
                 record_mode = False
+            
+            # Handle None values
+            if source_id is None:
+                source_id = "未知来源"
+            if dest is None:
+                dest = "未知目标"
             
             text = f"**📋 监控任务详情**\n\n"
             text += f"**来源：** `{source_id}`\n"
@@ -480,6 +499,12 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 # Old format compatibility
                 source_id = watch_key
                 dest_id = watch_data
+            
+            # Handle None values
+            if source_id is None:
+                source_id = "未知来源"
+            if dest_id is None:
+                dest_id = "未知目标"
             
             del watch_config[user_id][watch_key]
             
@@ -1709,6 +1734,11 @@ if acc is not None:
                     if isinstance(watch_data, dict):
                         # New format: check if source matches
                         task_source = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                        
+                        # Handle None value for task_source
+                        if task_source is None:
+                            continue
+                        
                         if task_source != source_chat_id:
                             continue
                         
@@ -1735,6 +1765,10 @@ if acc is not None:
                         forward_mode = "full"
                         extract_patterns = []
                         record_mode = False
+                    
+                    # Handle None value for dest_chat_id (skip if not in record mode)
+                    if not record_mode and dest_chat_id is None:
+                        continue
                     
                     message_text = message.text or message.caption or ""
                     
@@ -1903,12 +1937,21 @@ def print_startup_config():
                     dest_id = watch_data.get("dest", "未知")
                     record_mode = watch_data.get("record_mode", False)
                     
+                    # Handle None values
+                    if source_id is None:
+                        source_id = "未知来源"
+                    if dest_id is None:
+                        dest_id = "未知目标"
+                    
                     if record_mode:
                         print(f"   📝 {source_id} → 记录模式")
                     else:
                         print(f"   📤 {source_id} → {dest_id}")
                 else:
-                    print(f"   📤 {watch_key} → {watch_data}")
+                    # Handle None values in old format
+                    source_display = watch_key if watch_key is not None else "未知来源"
+                    dest_display = watch_data if watch_data is not None else "未知目标"
+                    print(f"   📤 {source_display} → {dest_display}")
             print()
     
     print("="*60)
