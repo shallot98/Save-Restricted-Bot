@@ -467,7 +467,6 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 buttons.append([InlineKeyboardButton("🔄 切换转发模式", callback_data=f"edit_mode_{task_id}")])
                 buttons.append([InlineKeyboardButton("📤 切换保留来源", callback_data=f"edit_preserve_{task_id}")])
             
-            buttons.append([InlineKeyboardButton("📝 切换记录模式", callback_data=f"edit_record_{task_id}")])
             buttons.append([InlineKeyboardButton("🗑 删除此监控", callback_data=f"watch_remove_{task_id}")])
             buttons.append([InlineKeyboardButton("🔙 返回列表", callback_data="watch_list")])
             
@@ -797,45 +796,6 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             
             bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
             callback_query.answer()
-        
-        elif data.startswith("edit_record_"):
-            task_id = int(data.split("_")[2])
-            watch_config = load_watch_config()
-            
-            if user_id not in watch_config or not watch_config[user_id]:
-                callback_query.answer("❌ 监控任务不存在", show_alert=True)
-                return
-            
-            if task_id < 1 or task_id > len(watch_config[user_id]):
-                callback_query.answer("❌ 任务编号无效", show_alert=True)
-                return
-            
-            watch_key = list(watch_config[user_id].keys())[task_id - 1]
-            
-            if isinstance(watch_config[user_id][watch_key], dict):
-                current_record = watch_config[user_id][watch_key].get("record_mode", False)
-                watch_config[user_id][watch_key]["record_mode"] = not current_record
-            else:
-                # Old format compatibility - convert to new format
-                old_dest = watch_config[user_id][watch_key]
-                source_id = watch_key
-                watch_config[user_id][watch_key] = {
-                    "source": source_id,
-                    "dest": old_dest,
-                    "whitelist": [],
-                    "blacklist": [],
-                    "preserve_forward_source": False,
-                    "forward_mode": "full",
-                    "extract_patterns": [],
-                    "record_mode": True
-                }
-            
-            save_watch_config(watch_config)
-            
-            # Refresh the view
-            callback_query.data = f"watch_view_{task_id}"
-            callback_handler(client, callback_query)
-            return
         
         elif data.startswith("setmode_"):
             parts = data.split("_")

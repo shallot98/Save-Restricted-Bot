@@ -29,9 +29,6 @@
             padding: 20px 30px;
             margin-bottom: 20px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             position: relative;
         }
 
@@ -39,6 +36,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            padding-right: 60px;
         }
 
         .header-title h1 {
@@ -51,7 +49,9 @@
         }
 
         .header-actions {
-            position: relative;
+            position: absolute;
+            top: 20px;
+            right: 30px;
         }
 
         .menu-toggle {
@@ -180,12 +180,23 @@
         }
 
         .filter-group select,
-        .filter-group input[type="text"] {
+        .filter-group input[type="text"],
+        .filter-group input[type="date"] {
             padding: 8px 15px;
             border: 2px solid #e1e1e1;
             border-radius: 8px;
             font-size: 14px;
             min-width: 200px;
+        }
+        
+        .date-filter {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .date-filter input[type="date"] {
+            min-width: 150px;
         }
         
         .search-box {
@@ -349,9 +360,33 @@
             margin-bottom: 12px;
             word-wrap: break-word;
             white-space: pre-wrap;
+            position: relative;
+        }
+        
+        .note-text.collapsed {
             max-height: 150px;
             overflow: hidden;
-            text-overflow: ellipsis;
+        }
+        
+        .note-text.expanded {
+            max-height: none;
+        }
+        
+        .expand-btn {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .expand-btn:hover {
+            background: #5568d3;
         }
         
         .highlight {
@@ -521,9 +556,17 @@
                 grid-template-columns: 1fr;
             }
 
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
+            .header-title {
+                padding-right: 50px;
+            }
+            
+            .header-title h1 {
+                font-size: 20px;
+            }
+            
+            .header-actions {
+                top: 15px;
+                right: 15px;
             }
 
             .filter-group {
@@ -532,8 +575,21 @@
                 width: 100%;
             }
 
-            .filter-group select {
+            .filter-group select,
+            .filter-group input[type="text"],
+            .filter-group input[type="date"] {
                 width: 100%;
+            }
+            
+            .date-filter {
+                width: 100%;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .search-box {
+                width: 100%;
+                flex-direction: column;
             }
         }
     </style>
@@ -592,6 +648,13 @@
                     </select>
                     {% endif %}
                     
+                    <div class="date-filter">
+                        <label>📅 日期范围：</label>
+                        <input type="date" name="date_from" value="{{ date_from or '' }}" placeholder="开始日期">
+                        <span>至</span>
+                        <input type="date" name="date_to" value="{{ date_to or '' }}" placeholder="结束日期">
+                    </div>
+                    
                     <div class="search-box">
                         <label>🔍 搜索：</label>
                         <input type="text" name="search" class="search-input" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}">
@@ -599,7 +662,7 @@
                         <input type="hidden" name="source" value="{{ selected_source }}">
                         {% endif %}
                         <button type="submit" class="search-btn">搜索</button>
-                        {% if search_query %}
+                        {% if search_query or date_from or date_to %}
                         <a href="/notes{% if selected_source %}?source={{ selected_source }}{% endif %}" class="clear-search">清除</a>
                         {% endif %}
                     </div>
@@ -627,7 +690,8 @@
                     </div>
                     
                     {% if note.message_text %}
-                    <div class="note-text">{{ note.message_text | highlight(search_query) | safe }}</div>
+                    <div class="note-text collapsed" id="text-{{ note.id }}">{{ note.message_text | highlight(search_query) | safe }}</div>
+                    <button class="expand-btn" id="btn-{{ note.id }}" onclick="toggleText({{ note.id }})" style="display: none;">展开</button>
                     {% endif %}
                     
                     <div class="note-footer">
@@ -652,21 +716,21 @@
         {% if total_pages > 1 %}
         <div class="pagination">
             {% if current_page > 1 %}
-                <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">« 上一页</a>
+                <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="page-btn">« 上一页</a>
             {% endif %}
 
             {% for page_num in range(1, total_pages + 1) %}
                 {% if page_num == current_page %}
                     <span class="page-btn active">{{ page_num }}</span>
                 {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
-                    <a href="?page={{ page_num }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">{{ page_num }}</a>
+                    <a href="?page={{ page_num }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="page-btn">{{ page_num }}</a>
                 {% elif page_num == 4 or page_num == total_pages - 3 %}
                     <span class="page-btn" style="border: none; cursor: default;">...</span>
                 {% endif %}
             {% endfor %}
 
             {% if current_page < total_pages %}
-                <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">下一页 »</a>
+                <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="page-btn">下一页 »</a>
             {% endif %}
         </div>
         {% endif %}
@@ -720,6 +784,42 @@
                 alert('删除失败: ' + error);
             });
         }
+
+        // 文本展开/折叠功能
+        function toggleText(noteId) {
+            const textDiv = document.getElementById('text-' + noteId);
+            const btn = document.getElementById('btn-' + noteId);
+            
+            if (textDiv.classList.contains('collapsed')) {
+                textDiv.classList.remove('collapsed');
+                textDiv.classList.add('expanded');
+                btn.textContent = '收起';
+            } else {
+                textDiv.classList.remove('expanded');
+                textDiv.classList.add('collapsed');
+                btn.textContent = '展开';
+            }
+        }
+
+        // 页面加载后检查哪些文本需要展开按钮
+        document.addEventListener('DOMContentLoaded', function() {
+            const noteTexts = document.querySelectorAll('.note-text');
+            
+            noteTexts.forEach(function(textDiv) {
+                // 检查文本高度是否超过150px
+                const scrollHeight = textDiv.scrollHeight;
+                const clientHeight = 150; // 对应CSS中的max-height
+                
+                if (scrollHeight > clientHeight) {
+                    // 显示展开按钮
+                    const noteId = textDiv.id.replace('text-', '');
+                    const btn = document.getElementById('btn-' + noteId);
+                    if (btn) {
+                        btn.style.display = 'inline-block';
+                    }
+                }
+            });
+        });
     </script>
 </body>
 </html>
