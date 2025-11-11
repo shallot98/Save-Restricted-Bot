@@ -11,14 +11,26 @@ import re
 from datetime import datetime
 from database import add_note
 
-with open('config.json', 'r') as f: DATA = json.load(f)
-def getenv(var): return os.environ.get(var) or DATA.get(var, None)
+# 数据目录配置
+DATA_DIR = os.environ.get('DATA_DIR', 'data')
+CONFIG_DIR = os.path.join(DATA_DIR, 'config')
 
-# Watch configurations file
-WATCH_FILE = 'watch_config.json'
+# 确保配置目录存在
+os.makedirs(CONFIG_DIR, exist_ok=True)
+
+# 配置文件路径（优先使用data/config/目录，其次使用根目录以保持向后兼容）
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json') if os.path.exists(os.path.join(CONFIG_DIR, 'config.json')) else 'config.json'
+WATCH_FILE = os.path.join(CONFIG_DIR, 'watch_config.json') if os.path.exists(os.path.join(CONFIG_DIR, 'watch_config.json')) else 'watch_config.json'
+
+with open(CONFIG_FILE, 'r') as f: DATA = json.load(f)
+def getenv(var): return os.environ.get(var) or DATA.get(var, None)
 
 # User state management for multi-step interactions
 user_states = {}
+
+# Media group tracking for handling multiple images in record mode
+# Format: {media_group_id: {'messages': [msg1, msg2, ...], 'timer': timer_obj, 'user_id': uid, 'task_config': {...}}}
+media_groups = {}
 
 def load_watch_config():
     if os.path.exists(WATCH_FILE):
@@ -1773,66 +1785,186 @@ if acc is not None:
                         if record_mode:
                             source_name = message.chat.title or message.chat.username or source_chat_id
                             
-                            # Handle text content with extraction
-                            content_to_save = message_text
-                            if forward_mode == "extract" and extract_patterns:
-                                extracted_content = []
-                                for pattern in extract_patterns:
-                                    try:
-                                        matches = re.findall(pattern, message_text)
-                                        if matches:
-                                            if isinstance(matches[0], tuple):
-                                                for match_group in matches:
-                                                    extracted_content.extend(match_group)
-                                            else:
-                                                extracted_content.extend(matches)
-                                    except re.error:
-                                        pass
+                            # Check if this message is part of a media group
+                            if message.media_group_id:
+                                # This is part of a media group (multiple images/videos)
+                                group_id = message.media_group_id
                                 
-                                if extracted_content:
-                                    content_to_save = "\n".join(set(extracted_content))
-                                else:
-                                    content_to_save = ""
+                                if group_id not in media_groups:
+                                    # Initialize media group tracking
+                                    media_groups[group_id] = {
+                                        'messages': [],
+                                        'timer': None,
+                                        'user_id': user_id,
+                                        'task_config': {
+                                            'source_chat_id': source_chat_id,
+                                            'source_name': source_name,
+                                            'forward_mode': forward_mode,
+                                            'extract_patterns': extract_patterns
+                                        }
+                                    }
+                                
+                                # Add message to group
+                                media_groups[group_id]['messages'].append(message)
+                                
+                                # Cancel existing timer if any
+                                if media_groups[group_id]['timer']:
+                                    media_groups[group_id]['timer'].cancel()
+                                
+                                # Set timer to process group after 2 seconds of no new messages
+                                def process_media_group(gid):
+                                    if gid in media_groups:
+                                        group_data = media_groups[gid]
+                                        messages = group_data['messages']
+                                        uid = group_data['user_id']
+                                        config = group_data['task_config']
+                                        
+                                        try:
+                                            # Collect all media and text from the group
+                                            all_text = []
+                                            media_list = []
+                                            
+                                            for msg in messages:
+                                                # Collect text/caption
+                                                msg_text = msg.text or msg.caption or ""
+                                                if msg_text:
+                                                    all_text.append(msg_text)
+                                                
+                                                # Download and save media
+                                                if msg.photo:
+                                                    photo = msg.photo
+                                                    file_name = f"{msg.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                                    file_path = os.path.join(DATA_DIR, "media", file_name)
+                                                    os.makedirs(os.path.join(DATA_DIR, "media"), exist_ok=True)
+                                                    acc.download_media(photo.file_id, file_name=file_path)
+                                                    media_list.append({'type': 'photo', 'path': file_name})
+                                                
+                                                elif msg.video:
+                                                    try:
+                                                        from PIL import Image
+                                                        import io
+                                                        
+                                                        # Download video thumbnail
+                                                        thumb = msg.video.thumbs[0] if msg.video.thumbs else None
+                                                        if thumb:
+                                                            file_name = f"{msg.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                                                            file_path = os.path.join(DATA_DIR, "media", file_name)
+                                                            os.makedirs(os.path.join(DATA_DIR, "media"), exist_ok=True)
+                                                            acc.download_media(thumb.file_id, file_name=file_path)
+                                                            media_list.append({'type': 'video', 'path': file_name})
+                                                    except Exception as e:
+                                                        print(f"Error downloading video thumbnail: {e}")
+                                            
+                                            # Combine all text
+                                            combined_text = "\n".join(all_text)
+                                            
+                                            # Handle text extraction if needed
+                                            content_to_save = combined_text
+                                            if config['forward_mode'] == "extract" and config['extract_patterns']:
+                                                extracted_content = []
+                                                for pattern in config['extract_patterns']:
+                                                    try:
+                                                        matches = re.findall(pattern, combined_text)
+                                                        if matches:
+                                                            if isinstance(matches[0], tuple):
+                                                                for match_group in matches:
+                                                                    extracted_content.extend(match_group)
+                                                            else:
+                                                                extracted_content.extend(matches)
+                                                    except re.error:
+                                                        pass
+                                                
+                                                if extracted_content:
+                                                    content_to_save = "\n".join(set(extracted_content))
+                                                else:
+                                                    content_to_save = ""
+                                            
+                                            # Save to database with media list
+                                            add_note(
+                                                user_id=int(uid),
+                                                source_chat_id=config['source_chat_id'],
+                                                source_name=config['source_name'],
+                                                message_text=content_to_save if content_to_save else None,
+                                                media_list=media_list if media_list else None
+                                            )
+                                        
+                                        except Exception as e:
+                                            print(f"Error processing media group: {e}")
+                                        
+                                        # Clean up
+                                        del media_groups[gid]
+                                
+                                # Start timer
+                                timer = threading.Timer(2.0, process_media_group, args=[group_id])
+                                timer.start()
+                                media_groups[group_id]['timer'] = timer
                             
-                            # Handle media
-                            media_type = None
-                            media_path = None
-                            
-                            if message.photo:
-                                media_type = "photo"
-                                photo = message.photo
-                                file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                                file_path = os.path.join("data", "media", file_name)
-                                os.makedirs(os.path.join("data", "media"), exist_ok=True)
-                                acc.download_media(photo.file_id, file_name=file_path)
-                                media_path = file_name
-                            
-                            elif message.video:
-                                media_type = "video"
-                                try:
-                                    from PIL import Image
-                                    import io
+                            else:
+                                # Single message (not part of media group)
+                                # Handle text content with extraction
+                                content_to_save = message_text
+                                if forward_mode == "extract" and extract_patterns:
+                                    extracted_content = []
+                                    for pattern in extract_patterns:
+                                        try:
+                                            matches = re.findall(pattern, message_text)
+                                            if matches:
+                                                if isinstance(matches[0], tuple):
+                                                    for match_group in matches:
+                                                        extracted_content.extend(match_group)
+                                                else:
+                                                    extracted_content.extend(matches)
+                                        except re.error:
+                                            pass
                                     
-                                    # Download video thumbnail
-                                    thumb = message.video.thumbs[0] if message.video.thumbs else None
-                                    if thumb:
-                                        file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
-                                        file_path = os.path.join("data", "media", file_name)
-                                        os.makedirs(os.path.join("data", "media"), exist_ok=True)
-                                        acc.download_media(thumb.file_id, file_name=file_path)
-                                        media_path = file_name
-                                except Exception as e:
-                                    print(f"Error downloading video thumbnail: {e}")
-                            
-                            # Save to database
-                            add_note(
-                                user_id=int(user_id),
-                                source_chat_id=source_chat_id,
-                                source_name=source_name,
-                                message_text=content_to_save if content_to_save else None,
-                                media_type=media_type,
-                                media_path=media_path
-                            )
+                                    if extracted_content:
+                                        content_to_save = "\n".join(set(extracted_content))
+                                    else:
+                                        content_to_save = ""
+                                
+                                # Handle single media
+                                media_type = None
+                                media_path = None
+                                media_list = None
+                                
+                                if message.photo:
+                                    media_type = "photo"
+                                    photo = message.photo
+                                    file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                    file_path = os.path.join(DATA_DIR, "media", file_name)
+                                    os.makedirs(os.path.join(DATA_DIR, "media"), exist_ok=True)
+                                    acc.download_media(photo.file_id, file_name=file_path)
+                                    media_path = file_name
+                                    media_list = [{'type': 'photo', 'path': file_name}]
+                                
+                                elif message.video:
+                                    media_type = "video"
+                                    try:
+                                        from PIL import Image
+                                        import io
+                                        
+                                        # Download video thumbnail
+                                        thumb = message.video.thumbs[0] if message.video.thumbs else None
+                                        if thumb:
+                                            file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                                            file_path = os.path.join(DATA_DIR, "media", file_name)
+                                            os.makedirs(os.path.join(DATA_DIR, "media"), exist_ok=True)
+                                            acc.download_media(thumb.file_id, file_name=file_path)
+                                            media_path = file_name
+                                            media_list = [{'type': 'video', 'path': file_name}]
+                                    except Exception as e:
+                                        print(f"Error downloading video thumbnail: {e}")
+                                
+                                # Save to database
+                                add_note(
+                                    user_id=int(user_id),
+                                    source_chat_id=source_chat_id,
+                                    source_name=source_name,
+                                    message_text=content_to_save if content_to_save else None,
+                                    media_type=media_type,
+                                    media_path=media_path,
+                                    media_list=media_list
+                                )
                         
                         # Forward mode
                         else:
