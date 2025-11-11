@@ -3,10 +3,15 @@ import bcrypt
 from datetime import datetime
 import os
 
-DATABASE_FILE = 'notes.db'
+# 数据目录 - 独立存储，防止更新时丢失
+DATA_DIR = 'data'
+DATABASE_FILE = os.path.join(DATA_DIR, 'notes.db')
 
 def init_database():
     """初始化数据库，创建必要的表"""
+    # 确保数据目录存在
+    os.makedirs(DATA_DIR, exist_ok=True)
+    
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     
@@ -157,6 +162,63 @@ def update_password(username, new_password):
     
     conn.commit()
     conn.close()
+
+def get_note_by_id(note_id):
+    """根据ID获取单条笔记"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM notes WHERE id = ?', (note_id,))
+    note = cursor.fetchone()
+    conn.close()
+    
+    if note:
+        return dict(note)
+    return None
+
+def update_note(note_id, message_text):
+    """更新笔记内容"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    
+    cursor.execute('UPDATE notes SET message_text = ? WHERE id = ?', (message_text, note_id))
+    
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    return affected > 0
+
+def delete_note(note_id):
+    """删除笔记"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    
+    # 先获取笔记信息以删除关联的媒体文件
+    cursor.execute('SELECT media_path FROM notes WHERE id = ?', (note_id,))
+    result = cursor.fetchone()
+    
+    media_path = None
+    if result and result[0]:
+        media_path = result[0]
+    
+    # 删除数据库记录
+    cursor.execute('DELETE FROM notes WHERE id = ?', (note_id,))
+    
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    
+    # 删除关联的媒体文件
+    if media_path:
+        try:
+            full_media_path = os.path.join(DATA_DIR, 'media', media_path)
+            if os.path.exists(full_media_path):
+                os.remove(full_media_path)
+        except Exception as e:
+            print(f"Error deleting media file: {e}")
+    
+    return affected > 0
 
 # 初始化数据库（确保表和默认用户存在）
 init_database()

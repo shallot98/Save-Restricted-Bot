@@ -67,6 +67,6 @@ config.json
 # Watch configuration (user-specific data)
 watch_config.json
 
-# Database and media files
-notes.db
-media/
+# Data directory - contains all user data (database and media files)
+# This directory is independent from code updates
+data/

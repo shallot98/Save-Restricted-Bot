@@ -1808,8 +1808,8 @@ if acc is not None:
                                 media_type = "photo"
                                 photo = message.photo
                                 file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                                file_path = os.path.join("media", file_name)
-                                os.makedirs("media", exist_ok=True)
+                                file_path = os.path.join("data", "media", file_name)
+                                os.makedirs(os.path.join("data", "media"), exist_ok=True)
                                 acc.download_media(photo.file_id, file_name=file_path)
                                 media_path = file_name
                             
@@ -1823,8 +1823,8 @@ if acc is not None:
                                     thumb = message.video.thumbs[0] if message.video.thumbs else None
                                     if thumb:
                                         file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
-                                        file_path = os.path.join("media", file_name)
-                                        os.makedirs("media", exist_ok=True)
+                                        file_path = os.path.join("data", "media", file_name)
+                                        os.makedirs(os.path.join("data", "media"), exist_ok=True)
                                         acc.download_media(thumb.file_id, file_name=file_path)
                                         media_path = file_name
                                 except Exception as e:
