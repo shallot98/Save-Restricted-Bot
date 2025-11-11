@@ -218,7 +218,8 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
 
 **📋 监控功能**
 • 点击"监控管理"按钮设置自动转发或记录
-• 支持监控频道和群组
+• 支持监控频道、群组和收藏夹
+• 输入 `me` 可监控自己的收藏夹
 • 支持关键词过滤（白名单/黑名单）
 • 支持正则表达式过滤
 • 支持提取模式（正则提取特定内容）
@@ -233,6 +234,7 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
 • 过滤规则和提取模式仍然生效
 • 通过 Web 界面查看记录（端口 5000）
 • 默认登录账号：admin/admin
+• 搜索功能支持高亮显示
 
 **🔗 链接格式**
 
@@ -250,11 +252,12 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
 
 **💡 提示**
 • 私有频道需要配置 String Session
-• 可以使用"me"作为目标保存到收藏夹
+• 可以使用 `me` 监控收藏夹或作为目标
 • 关键词过滤不区分大小写
 • 正则表达式支持完整的 Python re 语法
 • 提取模式会将匹配的内容单独发送
 • 所有操作都可通过按钮完成，无需记忆复杂命令
+• 机器人重启后会自动加载所有配置
 """
             bot.edit_message_text(chat_id, message_id, help_text, reply_markup=keyboard)
             callback_query.answer()
@@ -294,6 +297,7 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             text = "**➕ 添加监控任务**\n\n"
             text += "**步骤 1/2：** 请发送来源频道/群组\n\n"
             text += "可以发送：\n"
+            text += "• 输入 `me` 监控自己的收藏夹\n"
             text += "• 频道/群组用户名（如 `@channel_name`）\n"
             text += "• 频道/群组ID（如 `-1001234567890`）\n"
             text += "• 转发一条来自该频道/群组的消息\n\n"
@@ -1235,7 +1239,11 @@ def handle_add_source(message, user_id):
             source_name = message.forward_from_chat.title or message.forward_from_chat.username or source_id
         else:
             text = message.text.strip()
-            if text.startswith('@'):
+            # Special handling for "me" - monitor Saved Messages (user's own favorites)
+            if text.lower() == "me":
+                source_id = str(message.from_user.id)
+                source_name = "我的收藏夹 (Saved Messages)"
+            elif text.startswith('@'):
                 source_info = acc.get_chat(text)
                 source_id = str(source_info.id)
                 source_name = source_info.title or source_info.username or source_id
@@ -1680,7 +1688,7 @@ __注意：中间的空格无关紧要__
 
 # Auto-forward handler for watched channels
 if acc is not None:
-    @acc.on_message(filters.channel | filters.group)
+    @acc.on_message(filters.channel | filters.group | filters.private)
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         try:
             # Ensure the peer is resolved to prevent "Peer id invalid" errors
@@ -1873,6 +1881,42 @@ if acc is not None:
         except Exception as e:
             print(f"Error in auto_forward: {e}")
 
+
+# 启动时加载并打印配置信息
+def print_startup_config():
+    print("\n" + "="*60)
+    print("🤖 Telegram Save-Restricted Bot 启动成功")
+    print("="*60)
+    
+    watch_config = load_watch_config()
+    if not watch_config:
+        print("\n📋 当前没有监控任务")
+    else:
+        total_tasks = sum(len(watches) for watches in watch_config.values())
+        print(f"\n📋 已加载 {len(watch_config)} 个用户的 {total_tasks} 个监控任务：\n")
+        
+        for user_id, watches in watch_config.items():
+            print(f"👤 用户 {user_id}:")
+            for watch_key, watch_data in watches.items():
+                if isinstance(watch_data, dict):
+                    source_id = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                    dest_id = watch_data.get("dest", "未知")
+                    record_mode = watch_data.get("record_mode", False)
+                    
+                    if record_mode:
+                        print(f"   📝 {source_id} → 记录模式")
+                    else:
+                        print(f"   📤 {source_id} → {dest_id}")
+                else:
+                    print(f"   📤 {watch_key} → {watch_data}")
+            print()
+    
+    print("="*60)
+    print("✅ 机器人已就绪，正在监听消息...")
+    print("="*60 + "\n")
+
+# 打印启动配置
+print_startup_config()
 
 # infinty polling
 bot.run()
