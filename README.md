@@ -2,6 +2,25 @@
 
 *A Telegram Bot, Which can send you restricted content by it's post link*
 
+## ⚠️ Important: Configuration and Data Protection
+
+**Your configuration and data are now protected from code updates!**
+
+✅ **Auto-protected content**:
+- `config.json` - Bot configuration (TOKEN, ID, HASH, STRING)
+- `watch_config.json` - Watch task configuration  
+- `data/` - All user data (database and media files)
+- `*.session` - Session files
+
+📖 **Details**: See [DATA_PROTECTION.md](DATA_PROTECTION.md)
+
+🔄 **Safe code update**:
+```bash
+git pull  # Your config and data will be preserved automatically
+```
+
+---
+
 ## 📖 文档导航 | Documentation
 
 - [🚀 快速开始 (Quick Start)](QUICKSTART.md) - 3分钟快速部署

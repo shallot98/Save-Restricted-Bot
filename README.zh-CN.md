@@ -3,6 +3,23 @@
 > 一个 Telegram 机器人，可以通过消息链接转发受限内容  
 > 本教程包含从零开始的详细步骤，跟着操作即可完成部署
 
+## ⚠️ 重要：配置和数据保护
+
+**本项目已确保配置文件和用户数据不会在代码更新时丢失！**
+
+✅ **自动保护的内容**：
+- `config.json` - Bot配置（TOKEN, ID, HASH, STRING）
+- `watch_config.json` - 监控任务配置  
+- `data/` - 所有用户数据（数据库和媒体文件）
+- `*.session` - Session文件
+
+📖 **详细说明**：请查看 [DATA_PROTECTION.md](DATA_PROTECTION.md)
+
+🔄 **更新代码时的操作**：
+```bash
+git pull  # 安全操作，你的配置和数据会自动保留
+```
+
 ---
 
 ## 📋 目录

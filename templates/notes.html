@@ -161,15 +161,15 @@
 
         .filters {
             background: white;
-            border-radius: 10px;
-            padding: 15px 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
 
         .filter-group {
             display: flex;
-            gap: 15px;
+            gap: 10px;
             align-items: center;
             flex-wrap: wrap;
         }
@@ -177,67 +177,75 @@
         .filter-group label {
             font-weight: 600;
             color: #555;
+            font-size: 13px;
         }
 
         .filter-group select,
         .filter-group input[type="text"],
         .filter-group input[type="date"] {
-            padding: 8px 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 8px;
-            font-size: 14px;
-            min-width: 200px;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            min-width: 140px;
         }
         
         .date-filter {
             display: flex;
-            gap: 10px;
+            gap: 6px;
             align-items: center;
         }
         
         .date-filter input[type="date"] {
-            min-width: 150px;
+            min-width: 120px;
+        }
+        
+        .date-filter span {
+            font-size: 12px;
+            color: #999;
         }
         
         .search-box {
             display: flex;
-            gap: 10px;
+            gap: 6px;
             align-items: center;
             flex: 1;
         }
         
         .search-input {
             flex: 1;
-            min-width: 250px;
+            min-width: 180px;
         }
         
         .search-btn {
-            padding: 8px 20px;
+            padding: 6px 16px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
+            border-radius: 6px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
+            white-space: nowrap;
         }
         
         .search-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }
         
         .clear-search {
-            padding: 8px 15px;
+            padding: 6px 12px;
             background: #f0f0f0;
             color: #555;
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
+            border-radius: 6px;
+            font-size: 13px;
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
+            white-space: nowrap;
         }
         
         .clear-search:hover {
