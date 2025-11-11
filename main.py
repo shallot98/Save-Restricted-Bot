@@ -8,6 +8,8 @@ import os
 import threading
 import json
 import re
+from datetime import datetime
+from database import add_note
 
 with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
@@ -215,13 +217,22 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
 直接发送 Telegram 消息链接即可转发内容
 
 **📋 监控功能**
-• 点击"监控管理"按钮设置自动转发
+• 点击"监控管理"按钮设置自动转发或记录
 • 支持监控频道和群组
 • 支持关键词过滤（白名单/黑名单）
 • 支持正则表达式过滤
 • 支持提取模式（正则提取特定内容）
 • 可选择是否保留转发来源
+• 📝 支持记录模式（保存到网页笔记）
 • 可随时编辑监控设置
+
+**📝 记录模式**
+• 将监控内容保存到网页而非转发
+• 记录文字、图片和视频封面
+• 包含时间戳信息
+• 过滤规则和提取模式仍然生效
+• 通过 Web 界面查看记录（端口 5000）
+• 默认登录账号：admin/admin
 
 **🔗 链接格式**
 
@@ -383,6 +394,7 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 preserve_source = watch_data.get("preserve_forward_source", False)
                 forward_mode = watch_data.get("forward_mode", "full")
                 extract_patterns = watch_data.get("extract_patterns", [])
+                record_mode = watch_data.get("record_mode", False)
             else:
                 # Old format compatibility
                 source_id = watch_key
@@ -394,16 +406,20 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 preserve_source = False
                 forward_mode = "full"
                 extract_patterns = []
+                record_mode = False
             
             text = f"**📋 监控任务详情**\n\n"
             text += f"**来源：** `{source_id}`\n"
-            text += f"**目标：** `{dest}`\n\n"
             
-            text += f"**转发模式：** {'🎯 提取模式' if forward_mode == 'extract' else '📦 完整转发'}\n"
-            if preserve_source:
-                text += f"**保留来源：** ✅ 是\n"
+            if record_mode:
+                text += f"**模式：** 📝 记录模式（保存到网页）\n\n"
             else:
-                text += f"**保留来源：** ❌ 否\n"
+                text += f"**目标：** `{dest}`\n\n"
+                text += f"**转发模式：** {'🎯 提取模式' if forward_mode == 'extract' else '📦 完整转发'}\n"
+                if preserve_source:
+                    text += f"**保留来源：** ✅ 是\n"
+                else:
+                    text += f"**保留来源：** ❌ 否\n"
             
             text += "\n**过滤规则：**\n"
             if whitelist:
@@ -422,13 +438,17 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 for pattern in extract_patterns:
                     text += f"• `{pattern}`\n"
             
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✏️ 编辑过滤规则", callback_data=f"edit_filter_{task_id}")],
-                [InlineKeyboardButton("🔄 切换转发模式", callback_data=f"edit_mode_{task_id}")],
-                [InlineKeyboardButton("📤 切换保留来源", callback_data=f"edit_preserve_{task_id}")],
-                [InlineKeyboardButton("🗑 删除此监控", callback_data=f"watch_remove_{task_id}")],
-                [InlineKeyboardButton("🔙 返回列表", callback_data="watch_list")]
-            ])
+            buttons = [[InlineKeyboardButton("✏️ 编辑过滤规则", callback_data=f"edit_filter_{task_id}")]]
+            
+            if not record_mode:
+                buttons.append([InlineKeyboardButton("🔄 切换转发模式", callback_data=f"edit_mode_{task_id}")])
+                buttons.append([InlineKeyboardButton("📤 切换保留来源", callback_data=f"edit_preserve_{task_id}")])
+            
+            buttons.append([InlineKeyboardButton("📝 切换记录模式", callback_data=f"edit_record_{task_id}")])
+            buttons.append([InlineKeyboardButton("🗑 删除此监控", callback_data=f"watch_remove_{task_id}")])
+            buttons.append([InlineKeyboardButton("🔙 返回列表", callback_data="watch_list")])
+            
+            keyboard = InlineKeyboardMarkup(buttons)
             
             bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
             callback_query.answer()
@@ -696,6 +716,45 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             
             bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
             callback_query.answer()
+        
+        elif data.startswith("edit_record_"):
+            task_id = int(data.split("_")[2])
+            watch_config = load_watch_config()
+            
+            if user_id not in watch_config or not watch_config[user_id]:
+                callback_query.answer("❌ 监控任务不存在", show_alert=True)
+                return
+            
+            if task_id < 1 or task_id > len(watch_config[user_id]):
+                callback_query.answer("❌ 任务编号无效", show_alert=True)
+                return
+            
+            watch_key = list(watch_config[user_id].keys())[task_id - 1]
+            
+            if isinstance(watch_config[user_id][watch_key], dict):
+                current_record = watch_config[user_id][watch_key].get("record_mode", False)
+                watch_config[user_id][watch_key]["record_mode"] = not current_record
+            else:
+                # Old format compatibility - convert to new format
+                old_dest = watch_config[user_id][watch_key]
+                source_id = watch_key
+                watch_config[user_id][watch_key] = {
+                    "source": source_id,
+                    "dest": old_dest,
+                    "whitelist": [],
+                    "blacklist": [],
+                    "preserve_forward_source": False,
+                    "forward_mode": "full",
+                    "extract_patterns": [],
+                    "record_mode": True
+                }
+            
+            save_watch_config(watch_config)
+            
+            # Refresh the view
+            callback_query.data = f"watch_view_{task_id}"
+            callback_handler(client, callback_query)
+            return
         
         elif data.startswith("setmode_"):
             parts = data.split("_")
@@ -1001,7 +1060,8 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
             "blacklist_regex": blacklist_regex,
             "preserve_forward_source": preserve_source,
             "forward_mode": forward_mode,
-            "extract_patterns": extract_patterns
+            "extract_patterns": extract_patterns,
+            "record_mode": False
         }
         save_watch_config(watch_config)
         
@@ -1498,6 +1558,7 @@ if acc is not None:
                         preserve_forward_source = watch_data.get("preserve_forward_source", False)
                         forward_mode = watch_data.get("forward_mode", "full")
                         extract_patterns = watch_data.get("extract_patterns", [])
+                        record_mode = watch_data.get("record_mode", False)
                     else:
                         # Old format compatibility: key is source
                         if watch_key != source_chat_id:
@@ -1511,6 +1572,7 @@ if acc is not None:
                         preserve_forward_source = False
                         forward_mode = "full"
                         extract_patterns = []
+                        record_mode = False
                     
                     message_text = message.text or message.caption or ""
                     
@@ -1551,42 +1613,109 @@ if acc is not None:
                             continue
                     
                     try:
-                        # Extract mode
-                        if forward_mode == "extract" and extract_patterns:
-                            extracted_content = []
-                            for pattern in extract_patterns:
-                                try:
-                                    matches = re.findall(pattern, message_text)
-                                    if matches:
-                                        if isinstance(matches[0], tuple):
-                                            for match_group in matches:
-                                                extracted_content.extend(match_group)
-                                        else:
-                                            extracted_content.extend(matches)
-                                except re.error:
-                                    pass
+                        # Record mode - save to database
+                        if record_mode:
+                            source_name = message.chat.title or message.chat.username or source_chat_id
                             
-                            if extracted_content:
-                                extracted_text = "\n".join(set(extracted_content))
-                                if dest_chat_id == "me":
-                                    acc.send_message("me", extracted_text)
+                            # Handle text content with extraction
+                            content_to_save = message_text
+                            if forward_mode == "extract" and extract_patterns:
+                                extracted_content = []
+                                for pattern in extract_patterns:
+                                    try:
+                                        matches = re.findall(pattern, message_text)
+                                        if matches:
+                                            if isinstance(matches[0], tuple):
+                                                for match_group in matches:
+                                                    extracted_content.extend(match_group)
+                                            else:
+                                                extracted_content.extend(matches)
+                                    except re.error:
+                                        pass
+                                
+                                if extracted_content:
+                                    content_to_save = "\n".join(set(extracted_content))
                                 else:
-                                    acc.send_message(int(dest_chat_id), extracted_text)
+                                    content_to_save = ""
+                            
+                            # Handle media
+                            media_type = None
+                            media_path = None
+                            
+                            if message.photo:
+                                media_type = "photo"
+                                photo = message.photo
+                                file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                file_path = os.path.join("media", file_name)
+                                os.makedirs("media", exist_ok=True)
+                                acc.download_media(photo.file_id, file_name=file_path)
+                                media_path = file_name
+                            
+                            elif message.video:
+                                media_type = "video"
+                                try:
+                                    from PIL import Image
+                                    import io
+                                    
+                                    # Download video thumbnail
+                                    thumb = message.video.thumbs[0] if message.video.thumbs else None
+                                    if thumb:
+                                        file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                                        file_path = os.path.join("media", file_name)
+                                        os.makedirs("media", exist_ok=True)
+                                        acc.download_media(thumb.file_id, file_name=file_path)
+                                        media_path = file_name
+                                except Exception as e:
+                                    print(f"Error downloading video thumbnail: {e}")
+                            
+                            # Save to database
+                            add_note(
+                                user_id=int(user_id),
+                                source_chat_id=source_chat_id,
+                                source_name=source_name,
+                                message_text=content_to_save if content_to_save else None,
+                                media_type=media_type,
+                                media_path=media_path
+                            )
                         
-                        # Full forward mode
+                        # Forward mode
                         else:
-                            if preserve_forward_source:
-                                if dest_chat_id == "me":
-                                    acc.forward_messages("me", message.chat.id, message.id)
-                                else:
-                                    acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
+                            # Extract mode
+                            if forward_mode == "extract" and extract_patterns:
+                                extracted_content = []
+                                for pattern in extract_patterns:
+                                    try:
+                                        matches = re.findall(pattern, message_text)
+                                        if matches:
+                                            if isinstance(matches[0], tuple):
+                                                for match_group in matches:
+                                                    extracted_content.extend(match_group)
+                                            else:
+                                                extracted_content.extend(matches)
+                                    except re.error:
+                                        pass
+                                
+                                if extracted_content:
+                                    extracted_text = "\n".join(set(extracted_content))
+                                    if dest_chat_id == "me":
+                                        acc.send_message("me", extracted_text)
+                                    else:
+                                        acc.send_message(int(dest_chat_id), extracted_text)
+                            
+                            # Full forward mode
                             else:
-                                if dest_chat_id == "me":
-                                    acc.copy_message("me", message.chat.id, message.id)
+                                if preserve_forward_source:
+                                    if dest_chat_id == "me":
+                                        acc.forward_messages("me", message.chat.id, message.id)
+                                    else:
+                                        acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
                                 else:
-                                    acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+                                    if dest_chat_id == "me":
+                                        acc.copy_message("me", message.chat.id, message.id)
+                                    else:
+                                        acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                     except Exception as e:
-                        pass
+                        print(f"Error processing message: {e}")
         except Exception as e:
             print(f"Error in auto_forward: {e}")
 

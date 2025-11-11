@@ -1,3 +1,6 @@
 pyrogram
 tgcrypto
 flask
+flask-login
+bcrypt
+pillow
