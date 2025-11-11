@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>笔记管理 - Telegram 笔记</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-title h1 {
+            color: #333;
+            font-size: 28px;
+        }
+
+        .header-icon {
+            font-size: 40px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #555;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .filters {
+            background: white;
+            border-radius: 15px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .filter-group select {
+            padding: 8px 15px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        .stats {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stat-icon {
+            font-size: 24px;
+        }
+
+        .stat-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .note-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .note-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .note-image {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            background: #f5f5f5;
+        }
+
+        .note-video-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            background: #000;
+        }
+
+        .note-video-thumbnail {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .note-content {
+            padding: 20px;
+        }
+
+        .note-source {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .note-text {
+            color: #333;
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .note-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .note-time {
+            font-size: 12px;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .pagination {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            padding: 8px 15px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .page-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .page-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #764ba2;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .empty-state {
+            background: white;
+            border-radius: 15px;
+            padding: 60px 40px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .empty-state-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .notes-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .filter-group {
+                flex-direction: column;
+                align-items: flex-start;
+                width: 100%;
+            }
+
+            .filter-group select {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <span class="header-icon">📝</span>
+                <h1>Telegram 笔记</h1>
+            </div>
+            <div class="header-actions">
+                <a href="/admin" class="btn btn-secondary">⚙️ 管理</a>
+                <a href="/logout" class="btn btn-secondary">🚪 退出</a>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-icon">📊</span>
+                <div class="stat-text">
+                    <span class="stat-label">总笔记数</span>
+                    <span class="stat-value">{{ total_count }}</span>
+                </div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-icon">📂</span>
+                <div class="stat-text">
+                    <span class="stat-label">来源数量</span>
+                    <span class="stat-value">{{ sources|length }}</span>
+                </div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-icon">📄</span>
+                <div class="stat-text">
+                    <span class="stat-label">当前页</span>
+                    <span class="stat-value">{{ current_page }} / {{ total_pages }}</span>
+                </div>
+            </div>
+        </div>
+
+        {% if sources|length > 0 %}
+        <div class="filters">
+            <form method="GET" action="/notes">
+                <div class="filter-group">
+                    <label>📌 筛选来源：</label>
+                    <select name="source" onchange="this.form.submit()">
+                        <option value="">全部来源</option>
+                        {% for source in sources %}
+                        <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
+                            {{ source.source_name or source.source_chat_id }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if notes|length > 0 %}
+        <div class="notes-grid">
+            {% for note in notes %}
+            <div class="note-card">
+                {% if note.media_type == 'photo' %}
+                    <img src="/media/{{ note.media_path }}" alt="Note image" class="note-image" onerror="this.style.display='none'">
+                {% elif note.media_type == 'video' %}
+                    <div class="note-video-container">
+                        <img src="/media/{{ note.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
+                        <span class="video-badge">🎬 视频</span>
+                    </div>
+                {% endif %}
+                
+                <div class="note-content">
+                    <div class="note-source">
+                        <span>📡</span>
+                        <span><strong>{{ note.source_name or note.source_chat_id }}</strong></span>
+                    </div>
+                    
+                    {% if note.message_text %}
+                    <div class="note-text">{{ note.message_text }}</div>
+                    {% endif %}
+                    
+                    <div class="note-footer">
+                        <div class="note-time">
+                            <span>🕒</span>
+                            <span>{{ note.timestamp }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if current_page > 1 %}
+                <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}" class="page-btn">« 上一页</a>
+            {% endif %}
+
+            {% for page_num in range(1, total_pages + 1) %}
+                {% if page_num == current_page %}
+                    <span class="page-btn active">{{ page_num }}</span>
+                {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
+                    <a href="?page={{ page_num }}{% if selected_source %}&source={{ selected_source }}{% endif %}" class="page-btn">{{ page_num }}</a>
+                {% elif page_num == 4 or page_num == total_pages - 3 %}
+                    <span class="page-btn" style="border: none; cursor: default;">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if current_page < total_pages %}
+                <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}" class="page-btn">下一页 »</a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <h2>暂无笔记</h2>
+            <p>当监控任务开启记录模式后，笔记将会显示在这里</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

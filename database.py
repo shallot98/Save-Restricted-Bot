@@ -1,0 +1,152 @@
+import sqlite3
+import bcrypt
+from datetime import datetime
+import os
+
+DATABASE_FILE = 'notes.db'
+
+def init_database():
+    """初始化数据库，创建必要的表"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    
+    # 创建笔记表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            source_chat_id TEXT NOT NULL,
+            source_name TEXT,
+            message_text TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            media_type TEXT,
+            media_path TEXT
+        )
+    ''')
+    
+    # 创建用户表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+    ''')
+    
+    # 创建默认管理员账户 (admin/admin)
+    try:
+        password_hash = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cursor.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', ('admin', password_hash))
+    except sqlite3.IntegrityError:
+        # 管理员账户已存在
+        pass
+    
+    conn.commit()
+    conn.close()
+
+def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None):
+    """添加一条笔记记录"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path))
+    
+    conn.commit()
+    note_id = cursor.lastrowid
+    conn.close()
+    return note_id
+
+def get_notes(user_id=None, source_chat_id=None, limit=50, offset=0):
+    """获取笔记列表"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    query = 'SELECT * FROM notes WHERE 1=1'
+    params = []
+    
+    if user_id:
+        query += ' AND user_id = ?'
+        params.append(user_id)
+    
+    if source_chat_id:
+        query += ' AND source_chat_id = ?'
+        params.append(source_chat_id)
+    
+    query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?'
+    params.extend([limit, offset])
+    
+    cursor.execute(query, params)
+    notes = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return notes
+
+def get_note_count(user_id=None, source_chat_id=None):
+    """获取笔记总数"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    
+    query = 'SELECT COUNT(*) FROM notes WHERE 1=1'
+    params = []
+    
+    if user_id:
+        query += ' AND user_id = ?'
+        params.append(user_id)
+    
+    if source_chat_id:
+        query += ' AND source_chat_id = ?'
+        params.append(source_chat_id)
+    
+    cursor.execute(query, params)
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_sources(user_id=None):
+    """获取所有来源的列表"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    query = 'SELECT DISTINCT source_chat_id, source_name FROM notes WHERE 1=1'
+    params = []
+    
+    if user_id:
+        query += ' AND user_id = ?'
+        params.append(user_id)
+    
+    cursor.execute(query, params)
+    sources = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return sources
+
+def verify_user(username, password):
+    """验证用户登录"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
+    result = cursor.fetchone()
+    conn.close()
+    
+    if result:
+        password_hash = result[0]
+        return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+    return False
+
+def update_password(username, new_password):
+    """更新用户密码"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    
+    password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    cursor.execute('UPDATE users SET password_hash = ? WHERE username = ?', (password_hash, username))
+    
+    conn.commit()
+    conn.close()
+
+# 初始化数据库（确保表和默认用户存在）
+init_database()

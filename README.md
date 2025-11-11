@@ -40,6 +40,11 @@ The script will:
 - Media-type aware forwarding
 - Real-time download/upload progress
 - **🆕 Auto Session String generation**
+- **🆕 Record Mode** - Save monitored content to beautiful web notes
+  - Save text, images, and video thumbnails
+  - Filter and extract mode support
+  - Secure web interface with authentication
+  - Pagination and source filtering
 
 ### Variables
 
@@ -81,6 +86,37 @@ https://t.me/c/xxxx/101 - 120
 ```
 
 _note that space in between doesn't matter_
+
+### 📝 Record Mode
+
+Record Mode allows you to save monitored content to a beautiful web interface instead of forwarding:
+
+**Features:**
+- Save messages as web notes with text, images, and video thumbnails
+- All filter rules (keywords, regex) still apply
+- Extract mode works with record mode
+- Secure login with admin credentials (default: admin/admin)
+- Filter notes by source
+- Pagination support (50 notes per page)
+- Change password through admin panel
+
+**How to use:**
+1. Set up a monitoring task through the bot
+2. Click on the task in the task list
+3. Click "📝 切换记录模式" (Toggle Record Mode)
+4. Messages matching your filters will be saved to the web interface
+
+**Access the web interface:**
+```bash
+# Start the Flask web application
+python app.py
+```
+
+Then visit `http://localhost:5000` in your browser and login with:
+- Username: `admin`
+- Password: `admin`
+
+**Note:** Change the default password immediately after first login through the Admin Panel.
 
 ### Deployment
 
