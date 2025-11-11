@@ -8,7 +8,8 @@
       "blacklist_regex": [],
       "preserve_forward_source": false,
       "forward_mode": "full",
-      "extract_patterns": []
+      "extract_patterns": [],
+      "record_mode": false
     },
     "-1009876543210": {
       "dest": "-1001111111111",
@@ -18,7 +19,8 @@
       "blacklist_regex": ["广告|推广"],
       "preserve_forward_source": true,
       "forward_mode": "full",
-      "extract_patterns": []
+      "extract_patterns": [],
+      "record_mode": false
     },
     "-1005555555555": {
       "dest": "me",
@@ -28,7 +30,19 @@
       "blacklist_regex": [],
       "preserve_forward_source": false,
       "forward_mode": "extract",
-      "extract_patterns": ["https?://[^\\s]+", "\\d{6,}"]
+      "extract_patterns": ["https?://[^\\s]+", "\\d{6,}"],
+      "record_mode": false
+    },
+    "-1006666666666": {
+      "dest": "me",
+      "whitelist": [],
+      "blacklist": [],
+      "whitelist_regex": [],
+      "blacklist_regex": [],
+      "preserve_forward_source": false,
+      "forward_mode": "full",
+      "extract_patterns": [],
+      "record_mode": true
     }
   }
 }

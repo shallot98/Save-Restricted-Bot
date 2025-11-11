@@ -66,3 +66,7 @@ config.json
 
 # Watch configuration (user-specific data)
 watch_config.json
+
+# Record mode database and media
+notes.db
+media/
