@@ -13,7 +13,7 @@ services:
       - ID=${ID}
       - HASH=${HASH}
       - STRING=${STRING}
-      - DATA_DIR=/app/data
+      - DATA_DIR=/data/save_restricted_bot
     volumes:
-      - ./data:/app/data
+      - /data/save_restricted_bot:/data/save_restricted_bot
       - ./downloads:/app/downloads
