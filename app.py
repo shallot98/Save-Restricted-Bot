@@ -64,15 +64,20 @@ def notes():
     page = request.args.get('page', 1, type=int)
     source_filter = request.args.get('source', None)
     search_query = request.args.get('search', None)
+    date_from = request.args.get('date_from', None)
+    date_to = request.args.get('date_to', None)
     
     # 计算偏移量
     offset = (page - 1) * NOTES_PER_PAGE
     
     # 获取笔记
-    notes_list = get_notes(source_chat_id=source_filter, search_query=search_query, limit=NOTES_PER_PAGE, offset=offset)
+    notes_list = get_notes(source_chat_id=source_filter, search_query=search_query, 
+                          date_from=date_from, date_to=date_to, 
+                          limit=NOTES_PER_PAGE, offset=offset)
     
     # 获取总数和来源列表
-    total_count = get_note_count(source_chat_id=source_filter, search_query=search_query)
+    total_count = get_note_count(source_chat_id=source_filter, search_query=search_query,
+                                 date_from=date_from, date_to=date_to)
     sources = get_sources()
     
     # 计算总页数
@@ -85,7 +90,9 @@ def notes():
                          current_page=page,
                          total_pages=total_pages,
                          selected_source=source_filter,
-                         search_query=search_query)
+                         search_query=search_query,
+                         date_from=date_from,
+                         date_to=date_to)
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():

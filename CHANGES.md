@@ -1,195 +1,167 @@
-# 更新说明 / Changes
+# 更新说明 - 2024
 
-## 版本更新 / Version Update
+## 主要改进
 
-本次更新添加了三个主要功能改进 / This update adds three major feature improvements:
+### 1. 记录模式改为独立且不可切换 ✅
 
-### 1. 静默转发失败 / Silent Forward Failures
+**问题**: 之前的"切换记录模式"按钮允许用户在创建监控任务后切换模式，这可能导致配置混乱。
 
-**功能说明 / Description:**
-- 转发失败时不再显示错误提示，直接忽略
-- When forwarding fails, no error messages are shown - failures are silently ignored
+**解决方案**:
+- 删除了 `main.py` 中的"📝 切换记录模式"按钮（第470行）
+- 删除了对应的 `edit_record_` 回调处理逻辑（第801-838行）
+- 现在记录模式只能在添加监控任务时设置，后续无法更改
+- 如需更改模式，需删除旧任务并创建新任务
 
-**实现细节 / Implementation:**
-- 所有转发操作的错误都被静默捕获
-- All forwarding operation errors are silently caught
-- 只有配置相关的错误才会显示给用户
-- Only configuration-related errors are shown to users
+**文件修改**:
+- `main.py`: 删除切换记录模式按钮和处理逻辑
 
-### 2. 直接转发内容 / Direct Forwarding
+---
 
-**功能说明 / Description:**
-- 执行命令时直接转发内容，不再回复命令消息
-- When executing forwarding commands, content is forwarded directly without replying to the command message
+### 2. 长文本展开/折叠功能 ✅
 
-**实现细节 / Implementation:**
-- 从所有内容转发操作中移除了 `reply_to_message_id` 参数
-- Removed `reply_to_message_id` parameter from all content forwarding operations
-- 状态消息（下载中/上传中）仍然会回复命令以提供用户反馈
-- Status messages (downloading/uploading) still reply to commands for user feedback
+**问题**: 当笔记文本内容很长时，网页上可能显示不全，影响阅读体验。
 
-**效果对比 / Comparison:**
+**解决方案**:
+- 为每条笔记添加智能展开/折叠功能
+- JavaScript 在页面加载时自动检测文本高度
+- 只有当文本超过 150px 高度时才显示"展开"按钮
+- 点击按钮可以在"展开"和"收起"之间切换
+- 按钮文本会相应变化
 
-Before:
-```
-User: https://t.me/channel/123
-Bot: ⬇️ 下载中 (replying to command)
-Bot: [Forwarded content] (replying to command)
-```
+**文件修改**:
+- `templates/notes.html`:
+  - 添加 `.collapsed` 和 `.expanded` CSS 类
+  - 添加 `.expand-btn` 样式
+  - 为每个 `.note-text` 添加 `id` 和对应的展开按钮
+  - 添加 `toggleText()` JavaScript 函数
+  - 添加 `DOMContentLoaded` 事件监听器自动检测长文本
 
-After:
-```
-User: https://t.me/channel/123
-Bot: ⬇️ 下载中 (replying to command)
-Bot: [Forwarded content] (NOT replying to command)
-```
+**使用体验**:
+- 短文本：无变化，不显示按钮
+- 长文本：自动显示"展开"按钮
+- 点击展开：查看完整内容，按钮变为"收起"
+- 点击收起：恢复折叠状态
 
-### 3. 关键词黑白名单过滤 / Keyword Blacklist/Whitelist Filtering
+---
 
-**功能说明 / Description:**
-- 监控功能支持关键词白名单和黑名单
-- Monitoring now supports keyword whitelist and blacklist
-- ~~匹配的关键词会显示在转发消息中~~ (已移除 / Removed)
-- ~~Matched keywords are displayed in forwarded messages~~ (已移除 / Removed)
+### 3. 优化网页 UI 布局和添加日期筛选 ✅
 
-**使用方法 / Usage:**
+#### 3.1 独立的汉堡菜单
 
-```bash
-# 基本监控（无过滤）/ Basic monitoring (no filtering)
-/watch add @source @dest
+**问题**: 之前汉堡菜单和标题在同一行，在移动端显示不够优雅。
 
-# 白名单过滤 / Whitelist filtering
-/watch add @source me whitelist:重要,紧急,新闻
+**解决方案**:
+- 汉堡菜单使用绝对定位（`position: absolute`）
+- 始终固定在页面右上角
+- 不与"Telegram 笔记"标题在同一容器内
+- 完美适配手机和电脑屏幕
 
-# 黑名单过滤 / Blacklist filtering
-/watch add @source me blacklist:广告,推广,垃圾
+**文件修改**:
+- `templates/notes.html`:
+  - `.header` 改为相对定位容器
+  - `.header-actions` 使用绝对定位在右上角
+  - `.header-title` 添加右侧 padding 避免遮挡
+  - 响应式设计：移动端自动调整位置
 
-# 组合使用 / Combined usage
-/watch add @source me whitelist:新闻 blacklist:娱乐
+#### 3.2 日期范围筛选
 
-# 保留转发来源 / Preserve forward source (NEW)
-/watch add @source me preserve_source:true
-```
+**问题**: 用户无法按日期范围筛选笔记。
 
-**过滤规则 / Filtering Rules:**
-1. **白名单 (Whitelist):** 只转发包含至少一个白名单关键词的消息
-   - Only forwards messages containing at least one whitelisted keyword
-2. **黑名单 (Blacklist):** 不转发包含任何黑名单关键词的消息
-   - Does not forward messages containing any blacklisted keyword
-3. **优先级 (Priority):** 黑名单优先级高于白名单
-   - Blacklist has higher priority than whitelist
-4. **不区分大小写 (Case-insensitive):** 关键词匹配不区分大小写
-   - Keyword matching is case-insensitive
+**解决方案**:
+- 添加"开始日期"和"结束日期"输入框
+- 使用标准 HTML5 `<input type="date">` 控件
+- 与搜索和来源筛选无缝集成
+- 筛选条件在分页时保持不变
 
-**消息格式 / Message Format:**
+**文件修改**:
+- `database.py`:
+  - `get_notes()` 添加 `date_from` 和 `date_to` 参数
+  - `get_note_count()` 添加日期筛选支持
+  - 使用 SQL `DATE()` 函数进行日期比较
 
-转发的消息保持原始内容，不添加任何前缀信息
-Forwarded messages maintain original content without any prefix
+- `app.py`:
+  - `/notes` 路由获取 `date_from` 和 `date_to` 参数
+  - 传递日期参数给数据库查询
+  - 在模板中传递日期值用于保持状态
 
-```
-[原始消息内容]
-[Original message content]
-```
+- `templates/notes.html`:
+  - 添加 `.date-filter` 样式和输入框
+  - 更新分页链接包含日期参数
+  - 清除按钮在有日期筛选时显示
+  - 响应式设计：移动端垂直排列日期输入框
 
-### 4. 保留转发来源选项 / Preserve Forward Source Option (NEW)
+**使用体验**:
+- 可以选择单个日期或日期范围
+- 只选开始日期：显示该日期之后的笔记
+- 只选结束日期：显示该日期之前的笔记
+- 同时选择：显示日期范围内的笔记
+- 与其他筛选条件（来源、搜索）可同时使用
 
-**功能说明 / Description:**
-- 可选择是否在转发时保留原始消息来源信息
-- Option to preserve original message source information when forwarding
-- 默认不保留（与之前版本行为一致）
-- Default: do not preserve (consistent with previous version behavior)
+---
 
-**使用方法 / Usage:**
+## 技术细节
 
-```bash
-# 不保留来源（默认）/ Don't preserve source (default)
-/watch add @source @dest
+### CSS 改进
+- 使用绝对定位实现汉堡菜单独立布局
+- 添加文本展开/折叠的过渡效果
+- 改进响应式设计，支持移动端和桌面端
+- 新增日期筛选器的样式
 
-# 保留来源 / Preserve source
-/watch add @source @dest preserve_source:true
-```
+### JavaScript 改进
+- 智能检测文本高度，按需显示展开按钮
+- 文本展开/折叠状态管理
+- 保持原有的菜单切换和删除笔记功能
 
-**效果对比 / Comparison:**
+### 后端改进
+- 数据库查询支持日期范围筛选
+- 参数传递和状态保持优化
+- URL 参数完整性确保分页正常工作
 
-- `preserve_source:false` (默认 / default): 使用 `copy_message()`，消息不显示来源
-  - Uses `copy_message()`, message doesn't show source
-- `preserve_source:true`: 使用 `forward_messages()`，消息显示 "Forwarded from [原频道]"
-  - Uses `forward_messages()`, message shows "Forwarded from [original channel]"
+---
 
-**配置结构 / Configuration Structure:**
+## 测试建议
 
-新格式 / New format:
-```json
-{
-  "user_id": {
-    "source_chat_id": {
-      "dest": "destination_chat_id",
-      "whitelist": ["keyword1", "keyword2"],
-      "blacklist": ["keyword3", "keyword4"],
-      "preserve_forward_source": false
-    }
-  }
-}
-```
+1. **记录模式测试**:
+   - 创建新的监控任务，设置为记录模式
+   - 验证任务详情页不再显示"切换记录模式"按钮
+   - 验证只能通过删除任务来更改模式
 
-旧格式（仍然支持）/ Old format (still supported):
-```json
-{
-  "user_id": {
-    "source_chat_id": "destination_chat_id"
-  }
-}
-```
+2. **文本展开测试**:
+   - 创建短文本笔记，验证不显示展开按钮
+   - 创建长文本笔记（>150px），验证显示展开按钮
+   - 点击展开/收起，验证功能正常
 
-## 向后兼容 / Backward Compatibility
+3. **日期筛选测试**:
+   - 选择单个开始日期，验证只显示该日期后的笔记
+   - 选择单个结束日期，验证只显示该日期前的笔记
+   - 选择日期范围，验证只显示范围内的笔记
+   - 结合搜索和来源筛选，验证多条件筛选正常
+   - 测试分页时日期参数是否保持
 
-- 所有更改都向后兼容
-- All changes are backward compatible
-- 旧的监控配置会继续正常工作
-- Old monitoring configurations will continue to work
-- 新功能是可选的
-- New features are optional
+4. **响应式测试**:
+   - 在桌面浏览器测试汉堡菜单位置
+   - 在移动浏览器测试汉堡菜单位置
+   - 验证日期筛选器在移动端的布局
+   - 验证所有功能在不同屏幕尺寸下正常工作
 
-## 命令更新 / Command Updates
+---
 
-### /watch list
-现在显示关键词信息和转发来源选项 / Now shows keyword information and forward source option:
-```
-📋 你的监控任务列表：
+## 兼容性说明
 
-1. `-100123456789` ➡️ `me`
-   白名单: `重要, 紧急`
-   黑名单: `广告, 垃圾`
-   保留转发来源: `是`
+- 所有更改向后兼容
+- 现有的监控任务不受影响
+- 数据库查询优化，不影响性能
+- 旧的 HTML 类名保持不变，只添加新功能
 
-总计： 1 个监控任务
-```
+---
 
-### /watch add
-新增关键词参数和转发来源选项 / New keyword parameters and forward source option:
-```
-/watch add <source> <dest> [whitelist:kw1,kw2] [blacklist:kw3,kw4] [preserve_source:true/false]
-```
+## 更新文件列表
 
-### /watch remove
-功能保持不变，支持新旧配置格式 / Unchanged, supports both old and new configuration formats
+- ✅ `main.py` - 删除切换记录模式功能
+- ✅ `database.py` - 添加日期筛选支持
+- ✅ `app.py` - 添加日期参数处理
+- ✅ `templates/notes.html` - UI 优化和新功能实现
 
-## 测试 / Testing
+---
 
-运行测试脚本 / Run test script:
-```bash
-python3 test_changes.py
-```
-
-## 注意事项 / Notes
-
-1. 关键词匹配作用于消息文本和媒体标题
-   - Keyword matching applies to message text and media captions
-2. 如果消息既没有文本也没有标题，不会被关键词过滤
-   - Messages without text or caption won't be filtered by keywords
-3. 转发失败不会有任何通知，请确保目标频道设置正确
-   - No notifications for forwarding failures, ensure destination is configured correctly
-4. 关键词信息不再显示在转发的消息中（已移除此功能）
-   - Keyword information is no longer displayed in forwarded messages (feature removed)
-5. 保留转发来源默认为关闭，与之前版本保持一致
-   - Preserve forward source defaults to off, consistent with previous versions
+完成日期: 2024
