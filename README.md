@@ -2,21 +2,41 @@
 
 *A Telegram Bot, Which can send you restricted content by it's post link*
 
+## 🎉 What's New in v2.3.0
+
+### ✨ Complete DATA_DIR Support
+- **Environment Variable**: Full support for `DATA_DIR` environment variable
+- **Auto-Initialization**: Automatic directory and config file creation on startup
+- **Docker-Friendly**: Perfect data persistence in Docker containers
+- **Zero Configuration**: Config files auto-created from environment variables
+
+### 🔍 New Search UI
+- **Search Icon**: Moved to top navigation bar (left of menu)
+- **Search Panel**: Elegant popup with search, filter, and date range
+- **Mobile Optimized**: Full-screen panel on mobile devices
+- **Smooth Animation**: Beautiful expand/collapse animations
+
+📖 **See Full Details**: [CHANGELOG_v2.3.0.md](CHANGELOG_v2.3.0.md)
+
+---
+
 ## ⚠️ Important: Configuration and Data Protection
 
 **Your configuration and data are now protected from code updates!**
 
-✅ **Auto-protected content**:
-- `config.json` - Bot configuration (TOKEN, ID, HASH, STRING)
-- `watch_config.json` - Watch task configuration  
-- `data/` - All user data (database and media files)
-- `*.session` - Session files
+✅ **All data in DATA_DIR** (`/data/save_restricted_bot/`):
+- `config/config.json` - Bot configuration (auto-created from env vars)
+- `config/watch_config.json` - Watch task configuration (auto-created)
+- `media/` - Downloaded media files
+- `logs/` - Log files
+- `notes.db` - Database file
 
 📖 **Details**: See [DATA_PROTECTION.md](DATA_PROTECTION.md)
 
 🔄 **Safe code update**:
 ```bash
-git pull  # Your config and data will be preserved automatically
+git pull  # Your config and data in DATA_DIR will be preserved automatically
+docker-compose restart  # Or restart Docker
 ```
 
 ---

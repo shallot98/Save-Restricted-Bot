@@ -20,22 +20,25 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 os.makedirs(os.path.join(DATA_DIR, 'media'), exist_ok=True)
 os.makedirs(os.path.join(DATA_DIR, 'logs'), exist_ok=True)
 
-# 配置文件路径（优先使用 data/config/ 目录，其次使用根目录以保持向后兼容）
-CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json') if os.path.exists(os.path.join(CONFIG_DIR, 'config.json')) else 'config.json'
-WATCH_FILE = os.path.join(CONFIG_DIR, 'watch_config.json') if os.path.exists(os.path.join(CONFIG_DIR, 'watch_config.json')) else 'watch_config.json'
+# 配置文件路径（统一使用 DATA_DIR/config/ 目录）
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
+WATCH_FILE = os.path.join(CONFIG_DIR, 'watch_config.json')
 
 # 配置文件初始化：如果不存在则创建默认配置
 if not os.path.exists(CONFIG_FILE):
     print(f"⚠️ 配置文件 {CONFIG_FILE} 不存在，正在创建默认配置...")
+    # 优先从环境变量读取配置
     default_config = {
-        "TOKEN": "",
-        "ID": "",
-        "HASH": "",
-        "STRING": ""
+        "TOKEN": os.environ.get('TOKEN', ''),
+        "ID": os.environ.get('ID', ''),
+        "HASH": os.environ.get('HASH', ''),
+        "STRING": os.environ.get('STRING', '')
     }
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(default_config, f, indent=4, ensure_ascii=False)
-    print(f"✅ 已创建默认配置文件，请编辑 {CONFIG_FILE} 填入您的 bot 凭证")
+    print(f"✅ 已创建默认配置文件 {CONFIG_FILE}")
+    if default_config['TOKEN']:
+        print(f"✅ 已从环境变量初始化配置")
 
 # 监控配置初始化：如果不存在则创建空配置
 if not os.path.exists(WATCH_FILE):
@@ -43,7 +46,7 @@ if not os.path.exists(WATCH_FILE):
     default_watch_config = {}
     with open(WATCH_FILE, 'w', encoding='utf-8') as f:
         json.dump(default_watch_config, f, indent=4, ensure_ascii=False)
-    print(f"✅ 已创建空监控配置文件")
+    print(f"✅ 已创建空监控配置文件 {WATCH_FILE}")
 
 with open(CONFIG_FILE, 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)

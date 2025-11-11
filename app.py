@@ -126,7 +126,7 @@ def media(filename):
     if 'username' not in session:
         return redirect(url_for('login'))
     
-    media_dir = os.path.join(os.path.dirname(__file__), DATA_DIR, 'media')
+    media_dir = os.path.join(DATA_DIR, 'media')
     return send_from_directory(media_dir, filename)
 
 @app.route('/edit_note/<int:note_id>', methods=['GET', 'POST'])
