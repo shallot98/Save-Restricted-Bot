@@ -1,8 +1,8 @@
 import os
 import re
-from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, flash, jsonify
 from markupsafe import Markup, escape
-from database import init_database, get_notes, get_note_count, get_sources, verify_user, update_password
+from database import init_database, get_notes, get_note_count, get_sources, verify_user, update_password, get_note_by_id, update_note, delete_note, DATA_DIR
 import math
 
 app = Flask(__name__)
@@ -119,8 +119,38 @@ def media(filename):
     if 'username' not in session:
         return redirect(url_for('login'))
     
-    media_dir = os.path.join(os.path.dirname(__file__), 'media')
+    media_dir = os.path.join(os.path.dirname(__file__), DATA_DIR, 'media')
     return send_from_directory(media_dir, filename)
+
+@app.route('/edit_note/<int:note_id>', methods=['GET', 'POST'])
+def edit_note(note_id):
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    
+    note = get_note_by_id(note_id)
+    if not note:
+        flash('笔记不存在')
+        return redirect(url_for('notes'))
+    
+    if request.method == 'POST':
+        new_text = request.form.get('message_text', '').strip()
+        if update_note(note_id, new_text):
+            flash('笔记更新成功')
+            return redirect(url_for('notes'))
+        else:
+            flash('更新失败')
+    
+    return render_template('edit_note.html', note=note)
+
+@app.route('/delete_note/<int:note_id>', methods=['POST'])
+def delete_note_route(note_id):
+    if 'username' not in session:
+        return jsonify({'success': False, 'error': '未登录'}), 401
+    
+    if delete_note(note_id):
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': '删除失败'}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

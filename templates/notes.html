@@ -378,6 +378,80 @@
             gap: 5px;
         }
 
+        .note-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-edit, .btn-delete {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-edit {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .btn-delete {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #da190b;
+            transform: translateY(-1px);
+        }
+
+        .flash-messages {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+            max-width: 400px;
+        }
+
+        .flash-message {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .flash-success {
+            border-left: 4px solid #4caf50;
+        }
+
+        .flash-error {
+            border-left: 4px solid #f44336;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
         .pagination {
             background: white;
             border-radius: 15px;
@@ -561,6 +635,14 @@
                             <span>🕒</span>
                             <span>{{ note.timestamp }}</span>
                         </div>
+                        <div class="note-actions">
+                            <a href="/edit_note/{{ note.id }}" class="btn-edit">
+                                <span>✏️</span>编辑
+                            </a>
+                            <button class="btn-delete" onclick="deleteNote({{ note.id }})">
+                                <span>🗑️</span>删除
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -612,6 +694,32 @@
                 menu.classList.remove('active');
             }
         });
+
+        // 删除笔记
+        function deleteNote(noteId) {
+            if (!confirm('确定要删除这条笔记吗？此操作不可撤销。')) {
+                return;
+            }
+
+            fetch(`/delete_note/${noteId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 刷新页面
+                    location.reload();
+                } else {
+                    alert('删除失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                alert('删除失败: ' + error);
+            });
+        }
     </script>
 </body>
 </html>

@@ -99,6 +99,8 @@ Record Mode allows you to save monitored content to a beautiful web interface in
 - Filter notes by source
 - Pagination support (50 notes per page)
 - Change password through admin panel
+- **✏️ Edit and delete notes** - Manage your saved notes directly from web interface
+- **🔒 Data protection** - All user data stored in independent `data/` directory
 
 **How to use:**
 1. Set up a monitoring task through the bot
@@ -117,6 +119,27 @@ Then visit `http://localhost:5000` in your browser and login with:
 - Password: `admin`
 
 **Note:** Change the default password immediately after first login through the Admin Panel.
+
+### 💾 Data Storage & Protection
+
+**All user data is now stored in an independent `data/` directory:**
+
+```
+data/
+├── notes.db       # Database with all saved notes and user accounts
+└── media/         # Downloaded images and video thumbnails
+```
+
+**Why this matters:**
+- ✅ **Safe updates**: When updating bot code via `git pull`, your data is never overwritten
+- ✅ **Easy backup**: Just backup the entire `data/` directory
+- ✅ **Easy migration**: Move the `data/` directory to a new server to keep all your notes
+- ✅ **Gitignored**: The `data/` directory is automatically ignored by git to prevent accidental commits
+
+**Important:** 
+- Monitor configurations are stored in `watch_config.json` (also gitignored)
+- Both `data/` directory and `watch_config.json` are independent of code updates
+- Always backup these files before major system changes
 
 ### Deployment
 
@@ -310,6 +333,60 @@ https://t.me/c/xxxx/101 - 120
 ```
 
 _注意：中间的空格可有可无_
+
+### 📝 记录模式与网页笔记
+
+记录模式允许你将监控的内容保存到美观的网页界面中，而不是转发到其他聊天：
+
+**功能特性：**
+- 保存文本、图片和视频缩略图到网页笔记
+- 所有过滤规则（关键词、正则表达式）仍然有效
+- 提取模式可以与记录模式配合使用
+- 使用管理员账号安全登录（默认：admin/admin）
+- 按来源筛选笔记
+- 分页支持（每页 50 条笔记）
+- 在管理面板中修改密码
+- **✏️ 编辑和删除笔记** - 直接在网页界面管理你保存的笔记
+- **🔒 数据保护** - 所有用户数据存储在独立的 `data/` 目录中
+
+**使用方法：**
+1. 通过机器人设置一个监控任务
+2. 在任务列表中点击该任务
+3. 点击 "📝 切换记录模式"
+4. 符合过滤规则的消息将被保存到网页界面
+
+**访问网页界面：**
+```bash
+# 启动 Flask Web 应用
+python app.py
+```
+
+然后在浏览器中访问 `http://localhost:5000`，使用以下账号登录：
+- 用户名：`admin`
+- 密码：`admin`
+
+**注意：** 首次登录后请立即通过管理面板修改默认密码。
+
+### 💾 数据存储与保护
+
+**所有用户数据现在都存储在独立的 `data/` 目录中：**
+
+```
+data/
+├── notes.db       # 包含所有保存的笔记和用户账户的数据库
+└── media/         # 下载的图片和视频缩略图
+```
+
+**为什么这很重要：**
+- ✅ **安全更新**：使用 `git pull` 更新代码时，你的数据永远不会被覆盖
+- ✅ **轻松备份**：只需备份整个 `data/` 目录
+- ✅ **轻松迁移**：将 `data/` 目录移动到新服务器即可保留所有笔记
+- ✅ **Git 忽略**：`data/` 目录会被 git 自动忽略，防止意外提交
+
+**重要提示：**
+- 监控配置存储在 `watch_config.json` 中（也被 git 忽略）
+- `data/` 目录和 `watch_config.json` 都独立于代码更新
+- 进行重大系统更改之前，请务必备份这些文件
 
 ### 部署教程
 
