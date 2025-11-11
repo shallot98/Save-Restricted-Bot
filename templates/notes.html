@@ -404,6 +404,14 @@
             color: #666;
         }
 
+        .stat-item .full-text {
+            display: inline;
+        }
+
+        .stat-item .compact-text {
+            display: none;
+        }
+
         .stat-icon {
             font-size: 16px;
         }
@@ -742,6 +750,14 @@
         }
 
         @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 15px 20px;
+            }
+
             .notes-grid {
                 grid-template-columns: 1fr;
             }
@@ -752,6 +768,7 @@
             
             .header-title h1 {
                 font-size: 18px;
+                white-space: nowrap;
             }
             
             .header-actions {
@@ -792,6 +809,141 @@
 
             .filter-group select {
                 width: 100%;
+            }
+
+            /* 移动端简化统计信息显示 */
+            .stats {
+                padding: 10px 15px;
+                gap: 12px;
+                font-size: 12px;
+                justify-content: space-around;
+            }
+
+            .stat-item .full-text {
+                display: none;
+            }
+
+            .stat-item .compact-text {
+                display: inline;
+            }
+
+            .stat-icon {
+                font-size: 14px;
+            }
+
+            /* 移动端按钮优化 */
+            .btn {
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+
+            .btn-edit, .btn-delete {
+                padding: 5px 10px;
+                font-size: 11px;
+            }
+
+            /* 移动端笔记卡片优化 */
+            .note-card {
+                margin-bottom: 10px;
+            }
+
+            .note-content {
+                padding: 12px;
+            }
+
+            /* 移动端分页优化 */
+            .pagination {
+                padding: 15px 10px;
+                gap: 6px;
+            }
+
+            .page-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            /* 移动端筛选器优化 */
+            .filters {
+                padding: 8px 12px;
+                margin-bottom: 10px;
+            }
+
+            .filter-group label {
+                font-size: 12px;
+            }
+
+            .filter-group select {
+                font-size: 12px;
+                padding: 5px 8px;
+            }
+        }
+
+        /* 小屏幕设备（手机竖屏）额外优化 */
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+
+            .header {
+                padding: 12px 15px;
+            }
+
+            .header-title {
+                padding-right: 100px;
+            }
+
+            .header-title h1 {
+                font-size: 16px;
+            }
+
+            .header-icon {
+                font-size: 24px;
+            }
+
+            .header-actions {
+                gap: 8px;
+            }
+
+            .search-icon-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+
+            .menu-bar {
+                width: 20px;
+            }
+
+            .stats {
+                padding: 8px 12px;
+                gap: 8px;
+                font-size: 11px;
+            }
+
+            .stat-icon {
+                font-size: 12px;
+            }
+
+            .note-content {
+                padding: 10px;
+            }
+
+            .note-text {
+                font-size: 13px;
+            }
+
+            .note-footer {
+                padding-top: 10px;
+            }
+
+            .pagination {
+                padding: 12px 8px;
+                gap: 4px;
+            }
+
+            .page-btn {
+                padding: 5px 10px;
+                font-size: 11px;
             }
         }
     </style>
@@ -878,15 +1030,18 @@
         <div class="stats">
             <div class="stat-item">
                 <span class="stat-icon">📊</span>
-                <span>总计 <span class="stat-value">{{ total_count }}</span> 条笔记</span>
+                <span class="full-text">总计 <span class="stat-value">{{ total_count }}</span> 条笔记</span>
+                <span class="compact-text">笔记: <span class="stat-value">{{ total_count }}</span></span>
             </div>
             <div class="stat-item">
                 <span class="stat-icon">📂</span>
-                <span><span class="stat-value">{{ sources|length }}</span> 个来源</span>
+                <span class="full-text"><span class="stat-value">{{ sources|length }}</span> 个来源</span>
+                <span class="compact-text">来源: <span class="stat-value">{{ sources|length }}</span></span>
             </div>
             <div class="stat-item">
                 <span class="stat-icon">📄</span>
-                <span>第 <span class="stat-value">{{ current_page }}</span> / {{ total_pages }} 页</span>
+                <span class="full-text">第 <span class="stat-value">{{ current_page }}</span> / {{ total_pages }} 页</span>
+                <span class="compact-text"><span class="stat-value">{{ current_page }}</span>/{{ total_pages }} 页</span>
             </div>
             {% if search_query or date_from or date_to or selected_source %}
             <div class="stat-item">
