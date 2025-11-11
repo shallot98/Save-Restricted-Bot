@@ -36,7 +36,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            padding-right: 60px;
+            padding-right: 120px;
         }
 
         .header-title h1 {
@@ -52,6 +52,29 @@
             position: absolute;
             top: 20px;
             right: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .search-icon-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 18px;
+        }
+        
+        .search-icon-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
 
         .menu-toggle {
@@ -159,6 +182,179 @@
             background: #e0e0e0;
         }
 
+        /* Search Panel Overlay */
+        .search-panel-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1500;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .search-panel-overlay.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .search-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            z-index: 1600;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -40%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .search-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .search-panel-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-panel-close {
+            background: transparent;
+            border: none;
+            font-size: 28px;
+            color: #999;
+            cursor: pointer;
+            transition: all 0.3s;
+            line-height: 1;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        }
+
+        .search-panel-close:hover {
+            color: #333;
+            transform: rotate(90deg);
+        }
+
+        .search-form-group {
+            margin-bottom: 20px;
+        }
+
+        .search-form-label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .search-form-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .search-form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-form-select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .search-form-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .date-range-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .search-form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .search-form-btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .search-form-btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .search-form-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .search-form-btn-secondary {
+            background: #f0f0f0;
+            color: #555;
+        }
+
+        .search-form-btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
         .filters {
             background: white;
             border-radius: 8px;
@@ -180,120 +376,12 @@
             font-size: 13px;
         }
 
-        .filter-group select,
-        .filter-group input[type="text"],
-        .filter-group input[type="date"] {
+        .filter-group select {
             padding: 6px 10px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 13px;
             min-width: 140px;
-        }
-        
-        .date-filter {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-        
-        .date-filter input[type="date"] {
-            min-width: 120px;
-        }
-        
-        .date-filter span {
-            font-size: 12px;
-            color: #999;
-        }
-        
-        /* Collapsible search box styles */
-        .search-container {
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .search-icon-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 16px;
-        }
-        
-        .search-icon-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        
-        .search-box {
-            display: none;
-            gap: 6px;
-            align-items: center;
-            flex: 1;
-            animation: slideIn 0.3s ease-out;
-        }
-        
-        .search-box.active {
-            display: flex;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-        
-        .search-input {
-            flex: 1;
-            min-width: 180px;
-        }
-        
-        .search-btn {
-            padding: 6px 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            white-space: nowrap;
-        }
-        
-        .search-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        
-        .clear-search {
-            padding: 6px 12px;
-            background: #f0f0f0;
-            color: #555;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            white-space: nowrap;
-        }
-        
-        .clear-search:hover {
-            background: #e0e0e0;
         }
 
         .stats {
@@ -659,16 +747,41 @@
             }
 
             .header-title {
-                padding-right: 50px;
+                padding-right: 110px;
             }
             
             .header-title h1 {
-                font-size: 20px;
+                font-size: 18px;
             }
             
             .header-actions {
                 top: 15px;
                 right: 15px;
+                gap: 10px;
+            }
+
+            .search-icon-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+
+            .search-panel {
+                width: 95%;
+                padding: 20px;
+                max-height: 90vh;
+            }
+
+            .search-panel-title {
+                font-size: 18px;
+            }
+
+            .date-range-group {
+                grid-template-columns: 1fr;
+            }
+
+            .search-form-actions {
+                flex-direction: column;
             }
 
             .filter-group {
@@ -677,24 +790,7 @@
                 width: 100%;
             }
 
-            .filter-group select,
-            .filter-group input[type="text"],
-            .filter-group input[type="date"] {
-                width: 100%;
-            }
-            
-            .date-filter {
-                width: 100%;
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .search-box {
-                width: 100%;
-                flex-direction: column;
-            }
-            
-            .search-container {
+            .filter-group select {
                 width: 100%;
             }
         }
@@ -708,6 +804,9 @@
                 <h1>Telegram 笔记</h1>
             </div>
             <div class="header-actions">
+                <button class="search-icon-btn" onclick="toggleSearchPanel()" title="搜索和筛选">
+                    🔍
+                </button>
                 <button class="menu-toggle" onclick="toggleMenu()">
                     <div class="menu-bar"></div>
                     <div class="menu-bar"></div>
@@ -724,6 +823,58 @@
             </div>
         </div>
 
+        <!-- Search Panel Overlay -->
+        <div class="search-panel-overlay" id="searchPanelOverlay" onclick="closeSearchPanel()"></div>
+        
+        <!-- Search Panel -->
+        <div class="search-panel" id="searchPanel" onclick="event.stopPropagation()">
+            <div class="search-panel-header">
+                <div class="search-panel-title">
+                    <span>🔍</span>
+                    <span>搜索和筛选</span>
+                </div>
+                <button class="search-panel-close" onclick="closeSearchPanel()" title="关闭">×</button>
+            </div>
+            
+            <form method="GET" action="/notes" id="searchForm">
+                <div class="search-form-group">
+                    <label class="search-form-label">🔎 关键词搜索</label>
+                    <input type="text" name="search" class="search-form-input" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}">
+                </div>
+                
+                {% if sources|length > 0 %}
+                <div class="search-form-group">
+                    <label class="search-form-label">📌 筛选来源</label>
+                    <select name="source" class="search-form-select">
+                        <option value="">全部来源</option>
+                        {% for source in sources %}
+                        <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
+                            {{ source.source_name or source.source_chat_id }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                
+                <div class="search-form-group">
+                    <label class="search-form-label">📅 日期范围</label>
+                    <div class="date-range-group">
+                        <div>
+                            <input type="date" name="date_from" class="search-form-input" placeholder="开始日期" value="{{ date_from or '' }}">
+                        </div>
+                        <div>
+                            <input type="date" name="date_to" class="search-form-input" placeholder="结束日期" value="{{ date_to or '' }}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="search-form-actions">
+                    <button type="submit" class="search-form-btn search-form-btn-primary">🔍 搜索</button>
+                    <a href="/notes" class="search-form-btn search-form-btn-secondary" style="text-align: center; text-decoration: none;">🔄 清除筛选</a>
+                </div>
+            </form>
+        </div>
+
         <div class="stats">
             <div class="stat-item">
                 <span class="stat-icon">📊</span>
@@ -737,13 +888,19 @@
                 <span class="stat-icon">📄</span>
                 <span>第 <span class="stat-value">{{ current_page }}</span> / {{ total_pages }} 页</span>
             </div>
+            {% if search_query or date_from or date_to or selected_source %}
+            <div class="stat-item">
+                <span class="stat-icon">🔍</span>
+                <span style="color: #667eea; font-weight: 600;">筛选中</span>
+            </div>
+            {% endif %}
         </div>
 
+        {% if sources|length > 0 %}
         <div class="filters">
             <form method="GET" action="/notes">
                 <div class="filter-group">
-                    {% if sources|length > 0 %}
-                    <label>📌 筛选来源：</label>
+                    <label>📌 快速切换来源：</label>
                     <select name="source" onchange="this.form.submit()">
                         <option value="">全部来源</option>
                         {% for source in sources %}
@@ -752,33 +909,10 @@
                         </option>
                         {% endfor %}
                     </select>
-                    {% endif %}
-                    
-                    <div class="date-filter">
-                        <label>📅 日期范围：</label>
-                        <input type="date" name="date_from" value="{{ date_from or '' }}" placeholder="开始日期">
-                        <span>至</span>
-                        <input type="date" name="date_to" value="{{ date_to or '' }}" placeholder="结束日期">
-                    </div>
-                    
-                    <div class="search-container">
-                        <button type="button" class="search-icon-btn" onclick="toggleSearch()" title="搜索">
-                            🔍
-                        </button>
-                        <div class="search-box{% if search_query %} active{% endif %}" id="searchBox">
-                            <input type="text" name="search" class="search-input" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}" id="searchInput">
-                            {% if selected_source %}
-                            <input type="hidden" name="source" value="{{ selected_source }}">
-                            {% endif %}
-                            <button type="submit" class="search-btn">搜索</button>
-                            {% if search_query or date_from or date_to %}
-                            <a href="/notes{% if selected_source %}?source={{ selected_source }}{% endif %}" class="clear-search">清除</a>
-                            {% endif %}
-                        </div>
-                    </div>
                 </div>
             </form>
         </div>
+        {% endif %}
 
         {% if notes|length > 0 %}
         <div class="notes-grid">
@@ -887,39 +1021,44 @@
             menu.classList.toggle('active');
         }
 
-        // 搜索框展开/收起
-        function toggleSearch() {
-            const searchBox = document.getElementById('searchBox');
-            const searchInput = document.getElementById('searchInput');
+        // 打开搜索面板
+        function toggleSearchPanel() {
+            const overlay = document.getElementById('searchPanelOverlay');
+            const panel = document.getElementById('searchPanel');
             
-            if (searchBox.classList.contains('active')) {
-                searchBox.classList.remove('active');
+            if (overlay.classList.contains('active')) {
+                closeSearchPanel();
             } else {
-                searchBox.classList.add('active');
-                // 聚焦到搜索输入框
-                setTimeout(() => searchInput.focus(), 100);
+                overlay.classList.add('active');
+                // 延迟显示面板以触发动画
+                setTimeout(() => {
+                    panel.style.display = 'block';
+                    // 聚焦到第一个输入框
+                    const firstInput = panel.querySelector('input[name="search"]');
+                    if (firstInput) {
+                        firstInput.focus();
+                    }
+                }, 10);
             }
         }
 
-        // 点击页面其他地方关闭菜单和搜索框
+        // 关闭搜索面板
+        function closeSearchPanel() {
+            const overlay = document.getElementById('searchPanelOverlay');
+            const panel = document.getElementById('searchPanel');
+            
+            overlay.classList.remove('active');
+            panel.style.display = 'none';
+        }
+
+        // 点击页面其他地方关闭菜单
         document.addEventListener('click', function(event) {
             const menu = document.getElementById('menuDropdown');
             const toggle = document.querySelector('.menu-toggle');
-            const searchBox = document.getElementById('searchBox');
-            const searchContainer = document.querySelector('.search-container');
             
             // 关闭菜单
             if (!toggle.contains(event.target) && !menu.contains(event.target)) {
                 menu.classList.remove('active');
-            }
-            
-            // 关闭搜索框（如果点击的不是搜索容器内的元素）
-            if (searchContainer && !searchContainer.contains(event.target)) {
-                // 只在搜索框为空时自动收起
-                const searchInput = document.getElementById('searchInput');
-                if (searchInput && !searchInput.value) {
-                    searchBox.classList.remove('active');
-                }
             }
         });
 

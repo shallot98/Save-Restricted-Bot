@@ -8,6 +8,10 @@ import os
 import json
 from pyrogram import Client
 
+# 数据目录配置
+DATA_DIR = os.environ.get('DATA_DIR', '/data/save_restricted_bot')
+CONFIG_DIR = os.path.join(DATA_DIR, 'config')
+
 
 def print_banner():
     """打印欢迎横幅"""
@@ -57,6 +61,9 @@ STRING={session_string}
 
 def save_to_config_json(token, api_id, api_hash, session_string):
     """保存配置到 config.json 文件"""
+    # 确保配置目录存在
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    
     config = {
         "TOKEN": token,
         "ID": api_id,
@@ -64,10 +71,11 @@ def save_to_config_json(token, api_id, api_hash, session_string):
         "STRING": session_string
     }
     
-    with open('config.json', 'w', encoding='utf-8') as f:
+    config_file = os.path.join(CONFIG_DIR, 'config.json')
+    with open(config_file, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4)
     
-    print("✅ 配置已保存到 config.json 文件")
+    print(f"✅ 配置已保存到 {config_file} 文件")
 
 
 def generate_session_string(api_id, api_hash, phone_number):
