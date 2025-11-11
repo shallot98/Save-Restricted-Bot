@@ -59,7 +59,7 @@ def add_note(user_id, source_chat_id, source_name, message_text, media_type=None
     conn.close()
     return note_id
 
-def get_notes(user_id=None, source_chat_id=None, limit=50, offset=0):
+def get_notes(user_id=None, source_chat_id=None, search_query=None, limit=50, offset=0):
     """获取笔记列表"""
     conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row
@@ -76,6 +76,11 @@ def get_notes(user_id=None, source_chat_id=None, limit=50, offset=0):
         query += ' AND source_chat_id = ?'
         params.append(source_chat_id)
     
+    if search_query:
+        query += ' AND (message_text LIKE ? OR source_name LIKE ?)'
+        search_pattern = f'%{search_query}%'
+        params.extend([search_pattern, search_pattern])
+    
     query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?'
     params.extend([limit, offset])
     
@@ -84,7 +89,7 @@ def get_notes(user_id=None, source_chat_id=None, limit=50, offset=0):
     conn.close()
     return notes
 
-def get_note_count(user_id=None, source_chat_id=None):
+def get_note_count(user_id=None, source_chat_id=None, search_query=None):
     """获取笔记总数"""
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
@@ -99,6 +104,11 @@ def get_note_count(user_id=None, source_chat_id=None):
     if source_chat_id:
         query += ' AND source_chat_id = ?'
         params.append(source_chat_id)
+    
+    if search_query:
+        query += ' AND (message_text LIKE ? OR source_name LIKE ?)'
+        search_pattern = f'%{search_query}%'
+        params.extend([search_pattern, search_pattern])
     
     cursor.execute(query, params)
     count = cursor.fetchone()[0]

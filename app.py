@@ -42,18 +42,19 @@ def notes():
     if 'username' not in session:
         return redirect(url_for('login'))
     
-    # 获取分页参数
+    # 获取分页和过滤参数
     page = request.args.get('page', 1, type=int)
     source_filter = request.args.get('source', None)
+    search_query = request.args.get('search', None)
     
     # 计算偏移量
     offset = (page - 1) * NOTES_PER_PAGE
     
     # 获取笔记
-    notes_list = get_notes(source_chat_id=source_filter, limit=NOTES_PER_PAGE, offset=offset)
+    notes_list = get_notes(source_chat_id=source_filter, search_query=search_query, limit=NOTES_PER_PAGE, offset=offset)
     
     # 获取总数和来源列表
-    total_count = get_note_count(source_chat_id=source_filter)
+    total_count = get_note_count(source_chat_id=source_filter, search_query=search_query)
     sources = get_sources()
     
     # 计算总页数
@@ -65,7 +66,8 @@ def notes():
                          total_count=total_count,
                          current_page=page,
                          total_pages=total_pages,
-                         selected_source=source_filter)
+                         selected_source=source_filter,
+                         search_query=search_query)
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():

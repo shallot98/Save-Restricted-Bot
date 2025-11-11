@@ -108,12 +108,58 @@
             color: #555;
         }
 
-        .filter-group select {
+        .filter-group select,
+        .filter-group input[type="text"] {
             padding: 8px 15px;
             border: 2px solid #e1e1e1;
             border-radius: 8px;
             font-size: 14px;
             min-width: 200px;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex: 1;
+        }
+        
+        .search-input {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .search-btn {
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .clear-search {
+            padding: 8px 15px;
+            background: #f0f0f0;
+            color: #555;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .clear-search:hover {
+            background: #e0e0e0;
         }
 
         .stats {
@@ -381,10 +427,10 @@
             </div>
         </div>
 
-        {% if sources|length > 0 %}
         <div class="filters">
             <form method="GET" action="/notes">
                 <div class="filter-group">
+                    {% if sources|length > 0 %}
                     <label>📌 筛选来源：</label>
                     <select name="source" onchange="this.form.submit()">
                         <option value="">全部来源</option>
@@ -394,10 +440,22 @@
                         </option>
                         {% endfor %}
                     </select>
+                    {% endif %}
+                    
+                    <div class="search-box">
+                        <label>🔍 搜索：</label>
+                        <input type="text" name="search" class="search-input" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}">
+                        {% if selected_source %}
+                        <input type="hidden" name="source" value="{{ selected_source }}">
+                        {% endif %}
+                        <button type="submit" class="search-btn">搜索</button>
+                        {% if search_query %}
+                        <a href="/notes{% if selected_source %}?source={{ selected_source }}{% endif %}" class="clear-search">清除</a>
+                        {% endif %}
+                    </div>
                 </div>
             </form>
         </div>
-        {% endif %}
 
         {% if notes|length > 0 %}
         <div class="notes-grid">
@@ -436,21 +494,21 @@
         {% if total_pages > 1 %}
         <div class="pagination">
             {% if current_page > 1 %}
-                <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}" class="page-btn">« 上一页</a>
+                <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">« 上一页</a>
             {% endif %}
 
             {% for page_num in range(1, total_pages + 1) %}
                 {% if page_num == current_page %}
                     <span class="page-btn active">{{ page_num }}</span>
                 {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
-                    <a href="?page={{ page_num }}{% if selected_source %}&source={{ selected_source }}{% endif %}" class="page-btn">{{ page_num }}</a>
+                    <a href="?page={{ page_num }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">{{ page_num }}</a>
                 {% elif page_num == 4 or page_num == total_pages - 3 %}
                     <span class="page-btn" style="border: none; cursor: default;">...</span>
                 {% endif %}
             {% endfor %}
 
             {% if current_page < total_pages %}
-                <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}" class="page-btn">下一页 »</a>
+                <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">下一页 »</a>
             {% endif %}
         </div>
         {% endif %}
