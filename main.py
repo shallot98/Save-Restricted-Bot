@@ -1889,6 +1889,9 @@ def print_startup_config():
         total_tasks = sum(len(watches) for watches in watch_config.values())
         print(f"\n📋 已加载 {len(watch_config)} 个用户的 {total_tasks} 个监控任务：\n")
         
+        # Collect all unique source IDs to pre-cache
+        source_ids_to_cache = set()
+        
         for user_id, watches in watch_config.items():
             print(f"👤 用户 {user_id}:")
             for watch_key, watch_data in watches.items():
@@ -1903,6 +1906,17 @@ def print_startup_config():
                     if dest_id is None:
                         dest_id = "未知目标"
                     
+                    # Add to cache list if it's a valid chat ID (channels/groups have negative IDs)
+                    if source_id not in ["未知来源", "me"] and source_id:
+                        try:
+                            # Try to parse as int to verify it's a valid chat ID
+                            # Only cache negative IDs (channels/groups), not positive IDs (users)
+                            chat_id_int = int(source_id)
+                            if chat_id_int < 0:
+                                source_ids_to_cache.add(source_id)
+                        except (ValueError, TypeError):
+                            pass
+                    
                     if record_mode:
                         print(f"   📝 {source_id} → 记录模式")
                     else:
@@ -1911,8 +1925,32 @@ def print_startup_config():
                     # Handle None values in old format
                     source_display = watch_key if watch_key is not None else "未知来源"
                     dest_display = watch_data if watch_data is not None else "未知目标"
+                    
+                    # Add to cache list if it's a valid chat ID (channels/groups have negative IDs)
+                    if watch_key not in ["未知来源", "me", None] and watch_key:
+                        try:
+                            # Only cache negative IDs (channels/groups), not positive IDs (users)
+                            chat_id_int = int(watch_key)
+                            if chat_id_int < 0:
+                                source_ids_to_cache.add(watch_key)
+                        except (ValueError, TypeError):
+                            pass
+                    
                     print(f"   📤 {source_display} → {dest_display}")
             print()
+        
+        # Pre-cache all source channels to prevent "Peer id invalid" errors
+        if acc is not None and source_ids_to_cache:
+            print("🔄 预加载频道信息到缓存...")
+            cached_count = 0
+            for source_id in source_ids_to_cache:
+                try:
+                    acc.get_chat(int(source_id))
+                    cached_count += 1
+                    print(f"   ✅ 已缓存: {source_id}")
+                except Exception as e:
+                    print(f"   ⚠️ 无法缓存 {source_id}: {str(e)}")
+            print(f"📦 成功缓存 {cached_count}/{len(source_ids_to_cache)} 个频道\n")
     
     print("="*60)
     print("✅ 机器人已就绪，正在监听消息...")
