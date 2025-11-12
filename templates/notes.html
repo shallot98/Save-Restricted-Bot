@@ -364,26 +364,25 @@
         .stats {
             background: rgba(255, 255, 255, 0.95);
             border-radius: 10px;
-            padding: 8px 15px;
+            padding: 12px 20px;
             margin-bottom: 15px;
             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             display: flex;
-            gap: 15px;
+            gap: 20px;
             flex-wrap: wrap;
             align-items: center;
-            font-size: 12px;
+            font-size: 13px;
         }
 
         .stat-item {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
             color: #666;
-            white-space: nowrap;
         }
 
         .stat-icon {
-            font-size: 14px;
+            font-size: 16px;
         }
 
         .stat-value {
@@ -746,25 +745,9 @@
             font-size: 16px;
         }
 
-        @media (max-width: 1024px) {
-            .notes-grid {
-                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-                gap: 18px;
-            }
-        }
-
         @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-
-            .container {
-                max-width: 100%;
-            }
-
-            .header {
-                padding: 15px 20px;
-                margin-bottom: 15px;
+            .notes-grid {
+                grid-template-columns: 1fr;
             }
 
             .header-title {
@@ -772,52 +755,18 @@
             }
             
             .header-title h1 {
-                font-size: 18px;
+                font-size: 20px;
             }
             
             .header-actions {
-                top: 12px;
-                right: 12px;
-            }
-
-            .stats {
-                padding: 6px 12px;
-                gap: 10px;
-                font-size: 11px;
-                margin-bottom: 10px;
-            }
-
-            .stat-item {
-                gap: 3px;
-            }
-
-            .stat-icon {
-                font-size: 12px;
-            }
-
-            .notes-grid {
-                grid-template-columns: 1fr;
-                gap: 15px;
-                margin-bottom: 15px;
-            }
-
-            .note-card {
-                border-radius: 8px;
-            }
-
-            .note-content {
-                padding: 12px;
-            }
-
-            .note-text {
-                font-size: 13px;
+                top: 15px;
+                right: 15px;
             }
 
             .search-panel {
-                right: -5px;
-                min-width: 250px;
-                max-width: 92vw;
-                padding: 12px;
+                right: -10px;
+                min-width: 280px;
+                max-width: 90vw;
             }
 
             .search-row {
@@ -851,98 +800,6 @@
             .search-box {
                 width: 100%;
                 flex-direction: column;
-            }
-
-            .pagination {
-                padding: 15px;
-                gap: 8px;
-            }
-
-            .page-btn {
-                padding: 6px 12px;
-                font-size: 13px;
-            }
-
-            .empty-state {
-                padding: 40px 20px;
-            }
-
-            .empty-state-icon {
-                font-size: 60px;
-            }
-
-            @media (max-width: 480px) {
-                .stats {
-                    justify-content: space-between;
-                    padding: 5px 10px;
-                }
-
-                .stat-item {
-                    font-size: 10px;
-                    gap: 2px;
-                }
-
-                .stat-icon {
-                    font-size: 11px;
-                }
-
-                .note-content {
-                    padding: 10px;
-                }
-
-                .note-text {
-                    font-size: 12px;
-                }
-
-                .note-source {
-                    font-size: 11px;
-                }
-
-                .note-time {
-                    font-size: 11px;
-                }
-
-                .btn-edit, .btn-delete {
-                    padding: 5px 8px;
-                    font-size: 11px;
-                }
-
-                .expand-btn {
-                    padding: 3px 8px;
-                    font-size: 11px;
-                }
-
-                .header {
-                    padding: 12px 15px;
-                }
-
-                .header-title h1 {
-                    font-size: 16px;
-                }
-
-                .note-media-grid.single .note-media-item {
-                    height: 180px;
-                }
-
-                .note-media-grid.double .note-media-item {
-                    height: 130px;
-                }
-
-                .note-media-grid.triple .note-media-item:first-child {
-                    height: 180px;
-                }
-
-                .note-media-grid.triple .note-media-item:not(:first-child) {
-                    height: 90px;
-                }
-
-                .note-media-grid.multi .note-media-item {
-                    height: 100px;
-                }
-
-                .note-video-container {
-                    height: 180px;
-                }
             }
         }
     </style>

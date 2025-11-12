@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 
 # 数据目录 - 独立存储，防止更新时丢失
-DATA_DIR = os.environ.get('DATA_DIR', 'data')
+DATA_DIR = 'data'
 DATABASE_FILE = os.path.join(DATA_DIR, 'notes.db')
 
 def init_database():
