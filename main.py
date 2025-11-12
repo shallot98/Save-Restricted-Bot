@@ -58,6 +58,11 @@ user_states = {}
 # Format: {media_group_id: {'messages': [msg1, msg2, ...], 'timer': timer_obj, 'user_id': uid, 'task_config': {...}}}
 media_groups = {}
 
+# Global peer cache tracking for failed channels
+# Format: {'chat_id': {'error': 'error_message', 'last_attempt': timestamp}}
+failed_peers_cache = {}
+cached_peers = set()  # Successfully cached peer IDs
+
 def load_watch_config():
     if os.path.exists(WATCH_FILE):
         with open(WATCH_FILE, 'r', encoding='utf-8') as f:
@@ -67,6 +72,50 @@ def load_watch_config():
 def save_watch_config(config):
     with open(WATCH_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
+
+def cache_peer(client, chat_id, chat_type="频道"):
+    """
+    尝试缓存一个peer（频道/群组/用户）
+    Returns: (success: bool, error_message: str or None)
+    """
+    global failed_peers_cache, cached_peers
+    
+    # Skip if already cached successfully
+    if chat_id in cached_peers:
+        return True, None
+    
+    # Check if recently failed (within last 5 minutes)
+    if chat_id in failed_peers_cache:
+        last_attempt = failed_peers_cache[chat_id].get('last_attempt', 0)
+        if time.time() - last_attempt < 300:  # 5 minutes
+            return False, failed_peers_cache[chat_id].get('error', 'Unknown error')
+    
+    try:
+        # Try to resolve the peer
+        chat = client.get_chat(int(chat_id))
+        cached_peers.add(chat_id)
+        
+        # Remove from failed cache if it was there
+        if chat_id in failed_peers_cache:
+            del failed_peers_cache[chat_id]
+        
+        return True, None
+    except ChannelPrivate:
+        error_msg = f"无权访问{chat_type}（频道/群组可能设为私有，或Bot未加入）"
+        failed_peers_cache[chat_id] = {'error': error_msg, 'last_attempt': time.time()}
+        return False, error_msg
+    except UsernameInvalid:
+        error_msg = f"{chat_type}用户名无效"
+        failed_peers_cache[chat_id] = {'error': error_msg, 'last_attempt': time.time()}
+        return False, error_msg
+    except UsernameNotOccupied:
+        error_msg = f"{chat_type}不存在或已被删除"
+        failed_peers_cache[chat_id] = {'error': error_msg, 'last_attempt': time.time()}
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"无法解析 Peer: {str(e)}"
+        failed_peers_cache[chat_id] = {'error': error_msg, 'last_attempt': time.time()}
+        return False, error_msg
 
 bot_token = getenv("TOKEN") 
 api_hash = getenv("HASH") 
@@ -1720,13 +1769,15 @@ if acc is not None:
             msg_preview = (message.text or message.caption or "[media]")[:50]
             print(f"📨 收到消息 - 来源: {chat_name} ({message.chat.id}), 内容预览: {msg_preview}...")
             
-            # Ensure the peer is resolved to prevent "Peer id invalid" errors
-            try:
-                if message.chat.id:
-                    acc.get_chat(message.chat.id)
-            except Exception as e:
-                print(f"⚠️ 无法解析 Peer {message.chat.id}: {e}")
-                return
+            # Ensure the source peer is resolved to prevent "Peer id invalid" errors
+            source_chat_str = str(message.chat.id)
+            if source_chat_str not in cached_peers and source_chat_str not in failed_peers_cache:
+                success, error = cache_peer(acc, source_chat_str, "源频道")
+                if success:
+                    print(f"✅ 成功缓存源频道 Peer: {message.chat.id}")
+                else:
+                    print(f"⚠️ 无法缓存源频道 Peer {message.chat.id}: {error}")
+                    # Don't return here - continue processing in case other tasks can handle it
             
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
@@ -2028,6 +2079,19 @@ if acc is not None:
                         
                         # Forward mode
                         else:
+                            # Ensure dest peer is cached before forwarding (if not "me")
+                            if dest_chat_id != "me":
+                                dest_chat_str = str(dest_chat_id)
+                                if dest_chat_str not in cached_peers:
+                                    # Try to cache the destination peer
+                                    success, error = cache_peer(acc, dest_chat_str, "目标频道")
+                                    if not success:
+                                        print(f"❌ 无法缓存目标频道 {dest_chat_id}: {error}")
+                                        print(f"⏭ 跳过此任务，继续处理其他任务...")
+                                        continue  # Skip this task, but continue with others
+                                    else:
+                                        print(f"✅ 成功缓存目标频道 Peer: {dest_chat_id}")
+                            
                             # Extract mode
                             if forward_mode == "extract" and extract_patterns:
                                 print(f"🎯 提取模式：提取内容并发送...")
@@ -2098,8 +2162,9 @@ def print_startup_config():
         total_tasks = sum(len(watches) for watches in watch_config.values())
         print(f"\n📋 已加载 {len(watch_config)} 个用户的 {total_tasks} 个监控任务：\n")
         
-        # Collect all unique source IDs to pre-cache
+        # Collect all unique source and destination IDs to pre-cache
         source_ids_to_cache = set()
+        dest_ids_to_cache = set()
         
         for user_id, watches in watch_config.items():
             print(f"👤 用户 {user_id}:")
@@ -2115,7 +2180,7 @@ def print_startup_config():
                     if dest_id is None:
                         dest_id = "未知目标"
                     
-                    # Add to cache list if it's a valid chat ID (channels/groups have negative IDs)
+                    # Add source to cache list if it's a valid chat ID (channels/groups have negative IDs)
                     if source_id not in ["未知来源", "me"] and source_id:
                         try:
                             # Try to parse as int to verify it's a valid chat ID
@@ -2123,6 +2188,15 @@ def print_startup_config():
                             chat_id_int = int(source_id)
                             if chat_id_int < 0:
                                 source_ids_to_cache.add(source_id)
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Add dest to cache list if it's a valid chat ID (not in record mode)
+                    if not record_mode and dest_id not in ["未知目标", "me"] and dest_id:
+                        try:
+                            chat_id_int = int(dest_id)
+                            if chat_id_int < 0:
+                                dest_ids_to_cache.add(dest_id)
                         except (ValueError, TypeError):
                             pass
                     
@@ -2135,7 +2209,7 @@ def print_startup_config():
                     source_display = watch_key if watch_key is not None else "未知来源"
                     dest_display = watch_data if watch_data is not None else "未知目标"
                     
-                    # Add to cache list if it's a valid chat ID (channels/groups have negative IDs)
+                    # Add source to cache list if it's a valid chat ID (channels/groups have negative IDs)
                     if watch_key not in ["未知来源", "me", None] and watch_key:
                         try:
                             # Only cache negative IDs (channels/groups), not positive IDs (users)
@@ -2145,21 +2219,78 @@ def print_startup_config():
                         except (ValueError, TypeError):
                             pass
                     
+                    # Add dest to cache list
+                    if watch_data not in ["未知目标", "me", None] and watch_data:
+                        try:
+                            chat_id_int = int(watch_data)
+                            if chat_id_int < 0:
+                                dest_ids_to_cache.add(watch_data)
+                        except (ValueError, TypeError):
+                            pass
+                    
                     print(f"   📤 {source_display} → {dest_display}")
             print()
         
-        # Pre-cache all source channels to prevent "Peer id invalid" errors
-        if acc is not None and source_ids_to_cache:
-            print("🔄 预加载频道信息到缓存...")
-            cached_count = 0
-            for source_id in source_ids_to_cache:
-                try:
-                    acc.get_chat(int(source_id))
-                    cached_count += 1
-                    print(f"   ✅ 已缓存: {source_id}")
-                except Exception as e:
-                    print(f"   ⚠️ 无法缓存 {source_id}: {str(e)}")
-            print(f"📦 成功缓存 {cached_count}/{len(source_ids_to_cache)} 个频道\n")
+        # Pre-cache all source and destination channels to prevent "Peer id invalid" errors
+        all_ids_to_cache = source_ids_to_cache | dest_ids_to_cache
+        if acc is not None and all_ids_to_cache:
+            print(f"🔄 开始预加载 {len(all_ids_to_cache)} 个频道信息（源频道: {len(source_ids_to_cache)}, 目标频道: {len(dest_ids_to_cache)}）...\n")
+            
+            source_cached = 0
+            source_failed = 0
+            dest_cached = 0
+            dest_failed = 0
+            failed_details = []
+            
+            # Cache source channels
+            if source_ids_to_cache:
+                print("📥 预加载源频道...")
+                for source_id in source_ids_to_cache:
+                    success, error = cache_peer(acc, source_id, "源频道")
+                    if success:
+                        source_cached += 1
+                        print(f"   ✅ 源频道 {source_id}")
+                    else:
+                        source_failed += 1
+                        print(f"   ❌ 源频道 {source_id}: {error}")
+                        failed_details.append(f"源频道 {source_id}: {error}")
+                print()
+            
+            # Cache destination channels
+            if dest_ids_to_cache:
+                print("📤 预加载目标频道...")
+                for dest_id in dest_ids_to_cache:
+                    success, error = cache_peer(acc, dest_id, "目标频道")
+                    if success:
+                        dest_cached += 1
+                        print(f"   ✅ 目标频道 {dest_id}")
+                    else:
+                        dest_failed += 1
+                        print(f"   ❌ 目标频道 {dest_id}: {error}")
+                        failed_details.append(f"目标频道 {dest_id}: {error}")
+                print()
+            
+            # Summary
+            total_cached = source_cached + dest_cached
+            total_failed = source_failed + dest_failed
+            print("="*60)
+            print(f"📦 Peer 预缓存完成：")
+            print(f"   ✅ 成功: {total_cached}/{len(all_ids_to_cache)} 个频道")
+            print(f"      - 源频道: {source_cached}/{len(source_ids_to_cache)}")
+            print(f"      - 目标频道: {dest_cached}/{len(dest_ids_to_cache)}")
+            if total_failed > 0:
+                print(f"   ❌ 失败: {total_failed}/{len(all_ids_to_cache)} 个频道")
+                print(f"      - 源频道: {source_failed}/{len(source_ids_to_cache)}")
+                print(f"      - 目标频道: {dest_failed}/{len(dest_ids_to_cache)}")
+                print(f"\n⚠️ 失败频道详情：")
+                for detail in failed_details:
+                    print(f"   • {detail}")
+                print(f"\n💡 诊断建议：")
+                print(f"   1. 检查 Bot 是否已加入这些频道/群组")
+                print(f"   2. 确认频道/群组是否存在且未被删除")
+                print(f"   3. 验证频道 ID 是否正确（应为负数，如 -1001234567890）")
+                print(f"   4. 检查 Bot 是否有访问权限（私有频道需要邀请 Bot）")
+            print("="*60 + "\n")
     
     print("="*60)
     print("✅ 机器人已就绪，正在监听消息...")
