@@ -25,22 +25,7 @@ def init_database():
             message_text TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             media_type TEXT,
-            media_path TEXT,
-            media_group_id TEXT,
-            is_media_group BOOLEAN DEFAULT 0
-        )
-    ''')
-    
-    # 创建媒体文件表（支持多图片）
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS note_media (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            note_id INTEGER NOT NULL,
-            media_type TEXT NOT NULL,
-            media_path TEXT NOT NULL,
-            file_id TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (note_id) REFERENCES notes (id) ON DELETE CASCADE
+            media_path TEXT
         )
     ''')
     
@@ -64,49 +49,23 @@ def init_database():
     conn.commit()
     conn.close()
 
-def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None, media_group_id=None, is_media_group=False):
+def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None):
     """添加一条笔记记录"""
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_group_id, is_media_group)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_group_id, is_media_group))
+        INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path))
     
     conn.commit()
     note_id = cursor.lastrowid
     conn.close()
     return note_id
 
-def add_media_to_note(note_id, media_type, media_path, file_id=None):
-    """为笔记添加单个媒体文件"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        INSERT INTO note_media (note_id, media_type, media_path, file_id)
-        VALUES (?, ?, ?, ?)
-    ''', (note_id, media_type, media_path, file_id))
-    
-    conn.commit()
-    media_id = cursor.lastrowid
-    conn.close()
-    return media_id
-
-def get_note_media(note_id):
-    """获取笔记的所有媒体文件"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM note_media WHERE note_id = ? ORDER BY created_at', (note_id,))
-    media_files = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return media_files
-
 def get_notes(user_id=None, source_chat_id=None, search_query=None, date_from=None, date_to=None, limit=50, offset=0):
-    """获取笔记列表（包含媒体文件）"""
+    """获取笔记列表"""
     conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -140,13 +99,6 @@ def get_notes(user_id=None, source_chat_id=None, search_query=None, date_from=No
     
     cursor.execute(query, params)
     notes = [dict(row) for row in cursor.fetchall()]
-    
-    # 为每个笔记获取媒体文件
-    for note in notes:
-        cursor.execute('SELECT * FROM note_media WHERE note_id = ? ORDER BY created_at', (note['id'],))
-        media_files = [dict(row) for row in cursor.fetchall()]
-        note['media_files'] = media_files
-    
     conn.close()
     return notes
 
@@ -228,24 +180,17 @@ def update_password(username, new_password):
     conn.close()
 
 def get_note_by_id(note_id):
-    """根据ID获取单条笔记（包含媒体文件）"""
+    """根据ID获取单条笔记"""
     conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     cursor.execute('SELECT * FROM notes WHERE id = ?', (note_id,))
     note = cursor.fetchone()
+    conn.close()
     
     if note:
-        note_dict = dict(note)
-        # 获取所有媒体文件
-        cursor.execute('SELECT * FROM note_media WHERE note_id = ? ORDER BY created_at', (note_id,))
-        media_files = [dict(row) for row in cursor.fetchall()]
-        note_dict['media_files'] = media_files
-        conn.close()
-        return note_dict
-    
-    conn.close()
+        return dict(note)
     return None
 
 def update_note(note_id, message_text):
@@ -261,39 +206,33 @@ def update_note(note_id, message_text):
     return affected > 0
 
 def delete_note(note_id):
-    """删除笔记（包含所有媒体文件）"""
+    """删除笔记"""
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     
-    # 先获取所有媒体文件路径
-    cursor.execute('SELECT media_path FROM note_media WHERE note_id = ?', (note_id,))
-    media_paths = [row[0] for row in cursor.fetchall()]
-    
-    # 获取旧的单媒体文件路径（兼容性）
+    # 先获取笔记信息以删除关联的媒体文件
     cursor.execute('SELECT media_path FROM notes WHERE id = ?', (note_id,))
-    old_media_result = cursor.fetchone()
-    if old_media_result and old_media_result[0]:
-        media_paths.append(old_media_result[0])
+    result = cursor.fetchone()
     
-    # 删除媒体文件记录
-    cursor.execute('DELETE FROM note_media WHERE note_id = ?', (note_id,))
+    media_path = None
+    if result and result[0]:
+        media_path = result[0]
     
-    # 删除笔记记录
+    # 删除数据库记录
     cursor.execute('DELETE FROM notes WHERE id = ?', (note_id,))
     
     conn.commit()
     affected = cursor.rowcount
     conn.close()
     
-    # 删除所有关联的媒体文件
-    for media_path in media_paths:
-        if media_path:
-            try:
-                full_media_path = os.path.join(DATA_DIR, 'media', media_path)
-                if os.path.exists(full_media_path):
-                    os.remove(full_media_path)
-            except Exception as e:
-                print(f"Error deleting media file {media_path}: {e}")
+    # 删除关联的媒体文件
+    if media_path:
+        try:
+            full_media_path = os.path.join(DATA_DIR, 'media', media_path)
+            if os.path.exists(full_media_path):
+                os.remove(full_media_path)
+        except Exception as e:
+            print(f"Error deleting media file: {e}")
     
     return affected > 0
 
