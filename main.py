@@ -1711,20 +1711,35 @@ __注意：中间的空格无关紧要__
 
 # Auto-forward handler for watched channels
 if acc is not None:
+    print("✅ 正在注册 auto_forward 消息处理器...")
     @acc.on_message(filters.channel | filters.group | filters.private)
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         try:
+            # Log incoming message for debugging
+            chat_name = message.chat.title or message.chat.username or message.chat.id
+            msg_preview = (message.text or message.caption or "[media]")[:50]
+            print(f"📨 收到消息 - 来源: {chat_name} ({message.chat.id}), 内容预览: {msg_preview}...")
+            
             # Ensure the peer is resolved to prevent "Peer id invalid" errors
             try:
                 if message.chat.id:
                     acc.get_chat(message.chat.id)
             except Exception as e:
-                print(f"Warning: Could not resolve peer {message.chat.id}: {e}")
+                print(f"⚠️ 无法解析 Peer {message.chat.id}: {e}")
                 return
             
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
             
+            # Log if there are any watch tasks
+            total_tasks = sum(len(watches) for watches in watch_config.values())
+            if total_tasks == 0:
+                print(f"ℹ️ 没有监控任务，跳过消息处理")
+                return
+            
+            print(f"🔍 检查 {total_tasks} 个监控任务...")
+            
+            task_matched = False
             for user_id, watches in watch_config.items():
                 # Iterate through all watch tasks for this user
                 for watch_key, watch_data in watches.items():
@@ -1768,16 +1783,25 @@ if acc is not None:
                     if not record_mode and dest_chat_id is None:
                         continue
                     
+                    # Log matched task
+                    task_matched = True
+                    if record_mode:
+                        print(f"✅ 匹配任务: {source_chat_id} → 记录模式 (用户 {user_id})")
+                    else:
+                        print(f"✅ 匹配任务: {source_chat_id} → {dest_chat_id} (用户 {user_id})")
+                    
                     message_text = message.text or message.caption or ""
                     
                     # Check keyword whitelist
                     if whitelist:
                         if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
+                            print(f"⏭ 关键词白名单不匹配，跳过")
                             continue
                     
                     # Check keyword blacklist
                     if blacklist:
                         if any(keyword.lower() in message_text.lower() for keyword in blacklist):
+                            print(f"⏭ 关键词黑名单匹配，跳过")
                             continue
                     
                     # Check regex whitelist
@@ -1791,6 +1815,7 @@ if acc is not None:
                             except re.error:
                                 pass
                         if not match_found:
+                            print(f"⏭ 正则白名单不匹配，跳过")
                             continue
                     
                     # Check regex blacklist
@@ -1804,11 +1829,15 @@ if acc is not None:
                             except re.error:
                                 pass
                         if skip_message:
+                            print(f"⏭ 正则黑名单匹配，跳过")
                             continue
+                    
+                    print(f"🎯 消息通过所有过滤器，开始处理...")
                     
                     try:
                         # Record mode - save to database
                         if record_mode:
+                            print(f"📝 记录模式：保存到数据库...")
                             source_name = message.chat.title or message.chat.username or source_chat_id
                             
                             # Check if this message is part of a media group
@@ -2001,6 +2030,7 @@ if acc is not None:
                         else:
                             # Extract mode
                             if forward_mode == "extract" and extract_patterns:
+                                print(f"🎯 提取模式：提取内容并发送...")
                                 extracted_content = []
                                 for pattern in extract_patterns:
                                     try:
@@ -2020,9 +2050,13 @@ if acc is not None:
                                         acc.send_message("me", extracted_text)
                                     else:
                                         acc.send_message(int(dest_chat_id), extracted_text)
+                                    print(f"✅ 已发送提取内容到 {dest_chat_id}")
+                                else:
+                                    print(f"⚠️ 未提取到任何内容")
                             
                             # Full forward mode
                             else:
+                                print(f"📤 转发模式：转发消息到 {dest_chat_id}...")
                                 if preserve_forward_source:
                                     # 保留转发来源标签
                                     if dest_chat_id == "me":
@@ -2035,10 +2069,20 @@ if acc is not None:
                                         acc.forward_messages("me", message.chat.id, message.id, drop_author=True)
                                     else:
                                         acc.forward_messages(int(dest_chat_id), message.chat.id, message.id, drop_author=True)
+                                print(f"✅ 已转发消息到 {dest_chat_id}")
                     except Exception as e:
-                        print(f"Error processing message: {e}")
+                        import traceback
+                        print(f"❌ 处理消息时出错: {e}")
+                        print(f"详细错误信息:\n{traceback.format_exc()}")
+            
+            if not task_matched:
+                print(f"ℹ️ 没有找到匹配的监控任务 (来源: {source_chat_id})")
         except Exception as e:
-            print(f"Error in auto_forward: {e}")
+            import traceback
+            print(f"❌ auto_forward 函数出错: {e}")
+            print(f"详细错误信息:\n{traceback.format_exc()}")
+else:
+    print("⚠️ 未配置 String Session (acc 客户端)，自动转发功能将不可用")
 
 
 # 启动时加载并打印配置信息
@@ -2124,7 +2168,26 @@ def print_startup_config():
 # 打印启动配置
 print_startup_config()
 
-# infinty polling
-bot.run()
+# Start bot and keep both clients running
+print("🚀 启动机器人客户端...")
+bot.start()
+print("✅ Bot 客户端已启动")
+
+if acc is not None:
+    print("✅ User 客户端已启动（监听消息中...）")
+
+# Import idle to keep both clients running
+from pyrogram import idle
+
+print("⏳ 进入空闲模式，保持客户端运行...")
+print("💡 提示：按 Ctrl+C 可安全停止机器人\n")
+
+# Keep both clients running
+idle()
+
+# Clean shutdown
+print("\n🛑 正在停止客户端...")
+bot.stop()
 if acc is not None:
     acc.stop()
+print("✅ 已安全停止所有客户端")
