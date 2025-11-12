@@ -4,8 +4,8 @@ from datetime import datetime
 import os
 
 # 数据目录 - 独立存储，防止更新时丢失
-# 支持环境变量配置，默认为系统级独立目录 '/data/save_restricted_bot/'
-DATA_DIR = os.environ.get('DATA_DIR', '/data/save_restricted_bot')
+# 支持环境变量配置，默认为 'data'
+DATA_DIR = os.environ.get('DATA_DIR', 'data')
 DATABASE_FILE = os.path.join(DATA_DIR, 'notes.db')
 
 def init_database():
@@ -81,18 +81,11 @@ def add_note(user_id, source_chat_id, source_name, message_text, media_type=None
         message_text: 消息文本
         media_type: 单个媒体类型（向后兼容）
         media_path: 单个媒体路径（向后兼容）
-        media_list: 多媒体列表 [{'type': 'photo', 'path': 'xxx.jpg'}, ...]（最多9张）
+        media_list: 多媒体列表 [{'type': 'photo', 'path': 'xxx.jpg'}, ...]
     
     Returns:
         note_id: 新创建的笔记ID
-    
-    Raises:
-        ValueError: 如果媒体数量超过9张
     """
-    # 验证媒体数量限制（最多9张）
-    if media_list and len(media_list) > 9:
-        raise ValueError(f"每条笔记最多支持9张媒体，当前提供了{len(media_list)}张")
-    
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     
