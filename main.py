@@ -8,12 +8,57 @@ import os
 import threading
 import json
 import re
+import sys
+import traceback
 from datetime import datetime
+from pathlib import Path
+
+# 添加项目根目录到Python路径
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# 导入重构后的模块
+try:
+    from config.config_manager import get_config
+    from services.record_service import RecordService
+    from services.filter_service import FilterService
+    from services.forward_service import ForwardService
+    USE_REFACTORED_SERVICES = True
+    print("✅ 使用重构后的服务模块")
+except ImportError as e:
+    print(f"⚠️ 无法导入重构模块: {e}")
+    print("⚠️ 将使用原有代码")
+    USE_REFACTORED_SERVICES = False
+
 from database import add_note, add_media_to_note, DATA_DIR
 
-config_file = os.path.join(DATA_DIR, 'config', 'config.json')
-with open(config_file, 'r') as f: DATA = json.load(f)
-def getenv(var): return os.environ.get(var) or DATA.get(var, None)
+# 修复配置文件路径问题
+def find_config_file():
+    """查找配置文件 - 优先级：data/config > 根目录"""
+    # 优先从data/config目录查找
+    config_in_data = os.path.join(DATA_DIR, 'config', 'config.json')
+    if os.path.exists(config_in_data):
+        print(f"✅ 使用配置文件: {config_in_data}")
+        return config_in_data
+
+    # 其次从根目录查找
+    config_in_root = 'config.json'
+    if os.path.exists(config_in_root):
+        print(f"✅ 使用配置文件: {config_in_root}")
+        return config_in_root
+
+    print(f"❌ 配置文件不存在")
+    return None
+
+config_file = find_config_file()
+if config_file:
+    with open(config_file, 'r') as f:
+        DATA = json.load(f)
+else:
+    DATA = {}
+    print("⚠️ 使用空配置，将从环境变量读取")
+
+def getenv(var):
+    return os.environ.get(var) or DATA.get(var, None)
 
 # Watch configurations file
 WATCH_FILE = os.path.join(DATA_DIR, 'config', 'watch_config.json')
@@ -38,8 +83,8 @@ def save_watch_config(config):
     with open(WATCH_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
 
-bot_token = getenv("TOKEN") 
-api_hash = getenv("HASH") 
+bot_token = getenv("TOKEN")
+api_hash = getenv("HASH")
 api_id = getenv("ID")
 bot = Client("mybot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
@@ -47,7 +92,33 @@ ss = getenv("STRING")
 if ss is not None:
     acc = Client("myacc" ,api_id=api_id, api_hash=api_hash, session_string=ss)
     acc.start()
-else: acc = None
+    print("✅ 用户账号客户端已启动")
+else:
+    acc = None
+    print("⚠️ 未配置 Session String，部分功能将不可用")
+
+# 初始化重构后的服务
+if USE_REFACTORED_SERVICES and acc is not None:
+    try:
+        import database as db_module
+        config_manager = get_config()
+        record_service = RecordService(acc, db_module, config_manager)
+        filter_service = FilterService()
+        forward_service = ForwardService(acc)
+        print("✅ 重构服务初始化成功")
+    except Exception as e:
+        print(f"❌ 重构服务初始化失败: {e}")
+        traceback.print_exc()
+        USE_REFACTORED_SERVICES = False
+        record_service = None
+        filter_service = None
+        forward_service = None
+else:
+    record_service = None
+    filter_service = None
+    forward_service = None
+    if not acc:
+        print("⚠️ 未初始化重构服务（需要Session String）")
 
 # download status
 def downstatus(statusfile,message):
@@ -1777,6 +1848,21 @@ if acc is not None:
                             continue
                     
                     try:
+                        # 使用重构后的服务处理消息
+                        if USE_REFACTORED_SERVICES and record_service and filter_service and forward_service:
+                            # 记录模式
+                            if record_mode:
+                                success = record_service.record_message(message, int(user_id), watch_data)
+                                if not success:
+                                    print(f"❌ 记录消息失败")
+                            # 转发模式
+                            else:
+                                success = forward_service.forward_message(message, watch_data)
+                                if not success:
+                                    print(f"❌ 转发消息失败")
+                            continue
+
+                        # 降级：使用原有代码（如果重构服务不可用）
                         # Record mode - save to database
                         if record_mode:
                             print(f"📝 记录模式：保存消息从 {source_chat_id} 到数据库")
