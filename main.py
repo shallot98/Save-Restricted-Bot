@@ -1861,17 +1861,15 @@ if acc is not None:
                             # Full forward mode
                             else:
                                 if preserve_forward_source:
-                                    # 保留转发来源标签
                                     if dest_chat_id == "me":
                                         acc.forward_messages("me", message.chat.id, message.id)
                                     else:
                                         acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
                                 else:
-                                    # 不显示转发来源，但保留媒体组完整性（多图片+文字）
                                     if dest_chat_id == "me":
-                                        acc.forward_messages("me", message.chat.id, message.id, drop_author=True)
+                                        acc.copy_message("me", message.chat.id, message.id)
                                     else:
-                                        acc.forward_messages(int(dest_chat_id), message.chat.id, message.id, drop_author=True)
+                                        acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                     except Exception as e:
                         print(f"Error processing message: {e}")
         except Exception as e:
