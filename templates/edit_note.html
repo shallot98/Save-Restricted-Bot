@@ -107,10 +107,18 @@
             text-align: center;
         }
 
+        .media-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        }
+
+        .media-grid img,
         .media-preview img {
-            max-width: 100%;
+            width: 100%;
             max-height: 300px;
             border-radius: 10px;
+            object-fit: cover;
             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
         }
 
@@ -237,9 +245,27 @@
                     <span>{% if note.media_type == 'photo' %}图片{% else %}视频{% endif %}</span>
                 </div>
                 {% endif %}
+                {% if note.media_paths and note.media_paths|length > 1 %}
+                <div class="note-info-item">
+                    <span>🖼️</span>
+                    <span class="note-info-label">图片数量：</span>
+                    <span>{{ note.media_paths|length }} 张</span>
+                </div>
+                {% endif %}
             </div>
 
-            {% if note.media_path %}
+            {% if note.media_paths and note.media_paths|length > 0 %}
+            <div class="media-preview">
+                <div class="media-grid">
+                    {% for media_path in note.media_paths %}
+                    <img src="/media/{{ media_path }}" alt="Media preview">
+                    {% endfor %}
+                </div>
+                {% if note.media_type == 'video' %}
+                <div class="media-badge">🎬 视频缩略图</div>
+                {% endif %}
+            </div>
+            {% elif note.media_path %}
             <div class="media-preview">
                 <img src="/media/{{ note.media_path }}" alt="Media preview">
                 {% if note.media_type == 'video' %}

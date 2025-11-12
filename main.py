@@ -1671,6 +1671,20 @@ https://t.me/c/xxxx/101 - 120
 __注意：中间的空格无关紧要__
 """
 
+# Track media groups to process only once per task
+processed_media_groups = set()
+processed_media_groups_order = []
+
+
+def register_processed_media_group(key):
+    if not key:
+        return
+    processed_media_groups.add(key)
+    processed_media_groups_order.append(key)
+    if len(processed_media_groups_order) > 300:
+        old_key = processed_media_groups_order.pop(0)
+        processed_media_groups.discard(old_key)
+
 # Auto-forward handler for watched channels
 if acc is not None:
     @acc.on_message(filters.channel | filters.group | filters.private)
@@ -1729,6 +1743,12 @@ if acc is not None:
                     # Handle None value for dest_chat_id (skip if not in record mode)
                     if not record_mode and dest_chat_id is None:
                         continue
+                    
+                    media_group_key = None
+                    if message.media_group_id:
+                        media_group_key = f"{user_id}_{watch_key}_{message.media_group_id}"
+                        if media_group_key in processed_media_groups:
+                            continue
                     
                     message_text = message.text or message.caption or ""
                     
@@ -1797,8 +1817,45 @@ if acc is not None:
                             # Handle media
                             media_type = None
                             media_path = None
+                            media_paths = []
                             
-                            if message.photo:
+                            # Check if this is a media group (multiple images)
+                            if message.media_group_id:
+                                try:
+                                    media_group = acc.get_media_group(message.chat.id, message.id)
+                                    if media_group:
+                                        print(f"📝 记录模式：发现媒体组，共 {len(media_group)} 个媒体")
+                                        for idx, msg in enumerate(media_group):
+                                            if msg.photo:
+                                                media_type = "photo"
+                                                file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                                file_path = os.path.join("data", "media", file_name)
+                                                os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                                acc.download_media(msg.photo.file_id, file_name=file_path)
+                                                media_paths.append(file_name)
+                                                if idx == 0:
+                                                    media_path = file_name
+                                                # Limit to 9 images
+                                                if len(media_paths) >= 9:
+                                                    print(f"⚠️ 记录模式：媒体组超过9张图片，仅保存前9张")
+                                                    break
+                                            # Capture caption if available and not already set (common on last item)
+                                            if msg.caption and not content_to_save:
+                                                content_to_save = msg.caption
+                                except Exception as e:
+                                    print(f"Error fetching media group: {e}")
+                                    # Fallback to single image
+                                    if message.photo:
+                                        media_type = "photo"
+                                        file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                        file_path = os.path.join("data", "media", file_name)
+                                        os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                        acc.download_media(message.photo.file_id, file_name=file_path)
+                                        media_path = file_name
+                                        media_paths = [file_name]
+                            
+                            # Single photo
+                            elif message.photo:
                                 media_type = "photo"
                                 photo = message.photo
                                 file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
@@ -1806,13 +1863,12 @@ if acc is not None:
                                 os.makedirs(os.path.join("data", "media"), exist_ok=True)
                                 acc.download_media(photo.file_id, file_name=file_path)
                                 media_path = file_name
+                                media_paths = [file_name]
                             
+                            # Single video
                             elif message.video:
                                 media_type = "video"
                                 try:
-                                    from PIL import Image
-                                    import io
-                                    
                                     # Download video thumbnail
                                     thumb = message.video.thumbs[0] if message.video.thumbs else None
                                     if thumb:
@@ -1821,18 +1877,25 @@ if acc is not None:
                                         os.makedirs(os.path.join("data", "media"), exist_ok=True)
                                         acc.download_media(thumb.file_id, file_name=file_path)
                                         media_path = file_name
+                                        media_paths = [file_name]
                                 except Exception as e:
                                     print(f"Error downloading video thumbnail: {e}")
                             
                             # Save to database
+                            print(f"✅ 记录模式：保存笔记 (文本: {bool(content_to_save)}, 媒体: {len(media_paths)} 个)")
                             add_note(
                                 user_id=int(user_id),
                                 source_chat_id=source_chat_id,
                                 source_name=source_name,
                                 message_text=content_to_save if content_to_save else None,
                                 media_type=media_type,
-                                media_path=media_path
+                                media_path=media_path,
+                                media_paths=media_paths if media_paths else None
                             )
+                            
+                            # Mark as processed
+                            if media_group_key:
+                                register_processed_media_group(media_group_key)
                         
                         # Forward mode
                         else:
@@ -1857,19 +1920,50 @@ if acc is not None:
                                         acc.send_message("me", extracted_text)
                                     else:
                                         acc.send_message(int(dest_chat_id), extracted_text)
+                                    if media_group_key:
+                                        register_processed_media_group(media_group_key)
                             
                             # Full forward mode
                             else:
+                                dest_id = "me" if dest_chat_id == "me" else int(dest_chat_id)
+                                
                                 if preserve_forward_source:
-                                    if dest_chat_id == "me":
-                                        acc.forward_messages("me", message.chat.id, message.id)
+                                    # Keep forward source - forward full media group when available
+                                    if message.media_group_id:
+                                        try:
+                                            media_group = acc.get_media_group(message.chat.id, message.id)
+                                            if media_group:
+                                                message_ids = [msg.id for msg in media_group]
+                                            else:
+                                                message_ids = [message.id]
+                                            acc.forward_messages(dest_id, message.chat.id, message_ids)
+                                            if media_group_key:
+                                                register_processed_media_group(media_group_key)
+                                        except Exception as e:
+                                            print(f"Warning: forward media group failed, fallback to single forward: {e}")
+                                            acc.forward_messages(dest_id, message.chat.id, message.id)
+                                            if media_group_key:
+                                                register_processed_media_group(media_group_key)
                                     else:
-                                        acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
+                                        acc.forward_messages(dest_id, message.chat.id, message.id)
                                 else:
-                                    if dest_chat_id == "me":
-                                        acc.copy_message("me", message.chat.id, message.id)
+                                    # Hide forward source - use copy for single messages or copy_media_group for albums
+                                    if message.media_group_id:
+                                        try:
+                                            # Use copy_media_group to keep multiple images together
+                                            acc.copy_media_group(dest_id, message.chat.id, message.id)
+                                            print(f"📤 转发模式：复制媒体组到 {dest_id}（隐藏引用）")
+                                            # Mark as processed
+                                            if media_group_key:
+                                                register_processed_media_group(media_group_key)
+                                        except Exception as e:
+                                            print(f"Warning: copy_media_group failed, falling back to copy_message: {e}")
+                                            acc.copy_message(dest_id, message.chat.id, message.id)
+                                            if media_group_key:
+                                                register_processed_media_group(media_group_key)
                                     else:
-                                        acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+                                        # Single message - use copy_message
+                                        acc.copy_message(dest_id, message.chat.id, message.id)
                     except Exception as e:
                         print(f"Error processing message: {e}")
         except Exception as e:
