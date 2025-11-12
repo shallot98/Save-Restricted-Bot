@@ -7,13 +7,10 @@ services:
     restart: unless-stopped
     ports:
       - "10000:10000"
-      - "5000:5000"
     environment:
       - TOKEN=${TOKEN}
       - ID=${ID}
       - HASH=${HASH}
       - STRING=${STRING}
-      - DATA_DIR=/app/data
     volumes:
-      - ./data:/app/data
       - ./downloads:/app/downloads
