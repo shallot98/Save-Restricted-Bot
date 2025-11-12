@@ -2,25 +2,39 @@
 
 *A Telegram Bot, Which can send you restricted content by it's post link*
 
-## 🎉 What's New in v2.3.3
+## 🎉 What's New in v2.3.4
 
-### 🔧 Multi-Channel Peer Cache Fix (Critical)
-- **Enhanced Peer Caching**: Now pre-caches BOTH source and destination channels on startup
-- **Graceful Error Handling**: Single channel failure won't interrupt entire message processing
-- **Smart Retry Logic**: 5-minute cache for failed channels to avoid repeated attempts
-- **Detailed Diagnostics**: Clear error messages with fix suggestions for failed channels
-- **Improved Reliability**: Non-blocking error handling ensures maximum processing success rate
+### 🎯 Auto-Forward Filter Config Sources Only (Critical)
+- **Smart Message Filtering**: Only processes messages from configured source channels
+- **Early Validation**: Checks source channel before any processing
+- **Silent Skip**: Non-monitored channels are silently ignored (no logs, no errors)
+- **Performance Boost**: O(1) set lookup for source validation
+- **Cleaner Logs**: Only records messages from monitored channels
 
 **Problem Fixed**:
-- "Peer id invalid" errors for channels: -1002314545813, -1002201840184, -1002529437122
-- Destination channels not being pre-cached, causing forwarding failures
-- Single channel failure interrupting entire message flow
+- Auto-forward was processing ALL messages, not just configured channels
+- "Peer id invalid" errors for unconfigured channels (-1002201840184, -1002529437122, etc.)
+- Unnecessary processing and logging of irrelevant messages
+- Performance overhead from checking all messages against all tasks
 
-📖 **See Full Details**: [RELEASE_NOTES_v2.3.3.md](RELEASE_NOTES_v2.3.3.md) | [FIX_PEER_CACHE_MULTI_CHANNELS.md](FIX_PEER_CACHE_MULTI_CHANNELS.md)
+**Impact**:
+- ✅ No more errors for unconfigured channels
+- ✅ Cleaner, more focused logs
+- ✅ Better performance (early filtering)
+- ✅ Lower CPU and I/O usage
+
+📖 **See Full Details**: [FIX_AUTO_FORWARD_FILTER_CONFIG_SOURCES.md](FIX_AUTO_FORWARD_FILTER_CONFIG_SOURCES.md)
 
 ---
 
 ## 📋 Previous Updates
+
+### v2.3.3 - Multi-Channel Peer Cache Fix
+- **Enhanced Peer Caching**: Now pre-caches BOTH source and destination channels on startup
+- **Graceful Error Handling**: Single channel failure won't interrupt entire message processing
+- **Smart Retry Logic**: 5-minute cache for failed channels to avoid repeated attempts
+
+📖 **Details**: [RELEASE_NOTES_v2.3.3.md](RELEASE_NOTES_v2.3.3.md) | [FIX_PEER_CACHE_MULTI_CHANNELS.md](FIX_PEER_CACHE_MULTI_CHANNELS.md)
 
 ### v2.3.1 - DATA_DIR Enhancement & Mobile Optimization
 - **Unified DATA_DIR**: All file operations now use DATA_DIR environment variable

@@ -1764,10 +1764,33 @@ if acc is not None:
     @acc.on_message(filters.channel | filters.group | filters.private)
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         try:
+            # Load watch configuration
+            watch_config = load_watch_config()
+            source_chat_id = str(message.chat.id)
+            
+            # Step 1: Extract all monitored source chat IDs
+            monitored_sources = set()
+            for user_id, watches in watch_config.items():
+                for watch_key, watch_data in watches.items():
+                    if isinstance(watch_data, dict):
+                        # New format: extract source from watch_data
+                        task_source = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                        if task_source:
+                            monitored_sources.add(task_source)
+                    else:
+                        # Old format: key is source
+                        monitored_sources.add(watch_key)
+            
+            # Step 2: Check if message is from a monitored source
+            if source_chat_id not in monitored_sources:
+                # Message is not from a monitored channel - skip silently
+                return
+            
+            # Step 3: Message is from a monitored source - proceed with processing
             # Log incoming message for debugging
             chat_name = message.chat.title or message.chat.username or message.chat.id
             msg_preview = (message.text or message.caption or "[media]")[:50]
-            print(f"📨 收到消息 - 来源: {chat_name} ({message.chat.id}), 内容预览: {msg_preview}...")
+            print(f"📨 收到监控消息 - 来源: {chat_name} ({message.chat.id}), 内容预览: {msg_preview}...")
             
             # Ensure the source peer is resolved to prevent "Peer id invalid" errors
             source_chat_str = str(message.chat.id)
@@ -1778,9 +1801,6 @@ if acc is not None:
                 else:
                     print(f"⚠️ 无法缓存源频道 Peer {message.chat.id}: {error}")
                     # Don't return here - continue processing in case other tasks can handle it
-            
-            watch_config = load_watch_config()
-            source_chat_id = str(message.chat.id)
             
             # Log if there are any watch tasks
             total_tasks = sum(len(watches) for watches in watch_config.values())
