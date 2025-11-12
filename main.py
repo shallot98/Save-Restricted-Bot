@@ -11,12 +11,11 @@ import re
 from datetime import datetime
 from database import add_note, add_media_to_note, DATA_DIR
 
-config_file = os.path.join(DATA_DIR, 'config', 'config.json')
-with open(config_file, 'r') as f: DATA = json.load(f)
+with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
 
 # Watch configurations file
-WATCH_FILE = os.path.join(DATA_DIR, 'config', 'watch_config.json')
+WATCH_FILE = 'watch_config.json'
 
 # User state management for multi-step interactions
 user_states = {}
@@ -25,16 +24,12 @@ user_states = {}
 processed_media_groups = set()
 
 def load_watch_config():
-    # 确保配置目录存在
-    os.makedirs(os.path.dirname(WATCH_FILE), exist_ok=True)
     if os.path.exists(WATCH_FILE):
         with open(WATCH_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {}
 
 def save_watch_config(config):
-    # 确保配置目录存在
-    os.makedirs(os.path.dirname(WATCH_FILE), exist_ok=True)
     with open(WATCH_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
 
@@ -1779,7 +1774,6 @@ if acc is not None:
                     try:
                         # Record mode - save to database
                         if record_mode:
-                            print(f"📝 记录模式：保存消息从 {source_chat_id} 到数据库")
                             # Skip if we've already processed this media group
                             media_group_id = getattr(message, 'media_group_id', None)
                             if media_group_id and media_group_id in processed_media_groups:
@@ -1827,13 +1821,11 @@ if acc is not None:
                                     media_group_id=media_group_id,
                                     is_media_group=True
                                 )
-                                print(f"✅ 记录模式：已保存媒体组笔记 ID {note_id}")
                                 
                                 # Download and save all media in the group
                                 # Get all messages in the media group
                                 try:
                                     group_messages = acc.get_media_group(message.chat.id, message.id)
-                                    print(f"📁 媒体组包含 {len(group_messages)} 个文件")
                                     for group_msg in group_messages:
                                         if group_msg.photo:
                                             file_name = f"{group_msg.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
@@ -1880,7 +1872,7 @@ if acc is not None:
                                 media_path = file_name
                                 
                                 # Create note with single media
-                                note_id = add_note(
+                                add_note(
                                     user_id=int(user_id),
                                     source_chat_id=source_chat_id,
                                     source_name=source_name,
@@ -1890,7 +1882,6 @@ if acc is not None:
                                     media_group_id=media_group_id,
                                     is_media_group=False
                                 )
-                                print(f"✅ 记录模式：已保存图片笔记 ID {note_id}")
                                 
                             elif message.video:
                                 media_type = "video"
@@ -1910,7 +1901,7 @@ if acc is not None:
                                     print(f"Error downloading video thumbnail: {e}")
                                 
                                 # Create note with video
-                                note_id = add_note(
+                                add_note(
                                     user_id=int(user_id),
                                     source_chat_id=source_chat_id,
                                     source_name=source_name,
@@ -1920,11 +1911,10 @@ if acc is not None:
                                     media_group_id=media_group_id,
                                     is_media_group=False
                                 )
-                                print(f"✅ 记录模式：已保存视频笔记 ID {note_id}")
                             
                             # Handle text-only messages (no media)
                             elif not message.photo and not message.video:
-                                note_id = add_note(
+                                add_note(
                                     user_id=int(user_id),
                                     source_chat_id=source_chat_id,
                                     source_name=source_name,
@@ -1934,7 +1924,6 @@ if acc is not None:
                                     media_group_id=media_group_id,
                                     is_media_group=False
                                 )
-                                print(f"✅ 记录模式：已保存文本笔记 ID {note_id}")
                         
                         # Forward mode
                         else:
@@ -1999,10 +1988,7 @@ if acc is not None:
                                         else:
                                             acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                     except Exception as e:
-                        if record_mode:
-                            print(f"❌ 记录模式错误：处理消息失败 - {e}")
-                        else:
-                            print(f"Error processing message: {e}")
+                        print(f"Error processing message: {e}")
         except Exception as e:
             print(f"Error in auto_forward: {e}")
 
