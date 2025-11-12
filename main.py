@@ -1794,35 +1794,60 @@ if acc is not None:
                                 else:
                                     content_to_save = ""
                             
-                            # Handle media
+                            # Handle media - 支持多图片
                             media_type = None
                             media_path = None
+                            media_paths_list = []
                             
-                            if message.photo:
-                                media_type = "photo"
-                                photo = message.photo
-                                file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                                file_path = os.path.join("data", "media", file_name)
-                                os.makedirs(os.path.join("data", "media"), exist_ok=True)
-                                acc.download_media(photo.file_id, file_name=file_path)
-                                media_path = file_name
-                            
-                            elif message.video:
-                                media_type = "video"
+                            # 检查是否是媒体组（多图片/视频）
+                            if hasattr(message, 'media_group_id') and message.media_group_id:
                                 try:
-                                    from PIL import Image
-                                    import io
-                                    
-                                    # Download video thumbnail
-                                    thumb = message.video.thumbs[0] if message.video.thumbs else None
-                                    if thumb:
-                                        file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                                    media_group = acc.get_media_group(message.chat.id, message.id)
+                                    for media_msg in media_group:
+                                        if media_msg.photo:
+                                            file_name = f"{media_msg.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                            file_path = os.path.join("data", "media", file_name)
+                                            os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                            acc.download_media(media_msg.photo.file_id, file_name=file_path)
+                                            media_paths_list.append({"type": "photo", "path": file_name})
+                                        elif media_msg.video:
+                                            thumb = media_msg.video.thumbs[0] if media_msg.video.thumbs else None
+                                            if thumb:
+                                                file_name = f"{media_msg.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                                                file_path = os.path.join("data", "media", file_name)
+                                                os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                                acc.download_media(thumb.file_id, file_name=file_path)
+                                                media_paths_list.append({"type": "video", "path": file_name})
+                                except Exception as e:
+                                    print(f"Error handling media group: {e}")
+                                    if message.photo:
+                                        media_type = "photo"
+                                        file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                         file_path = os.path.join("data", "media", file_name)
                                         os.makedirs(os.path.join("data", "media"), exist_ok=True)
-                                        acc.download_media(thumb.file_id, file_name=file_path)
+                                        acc.download_media(message.photo.file_id, file_name=file_path)
                                         media_path = file_name
-                                except Exception as e:
-                                    print(f"Error downloading video thumbnail: {e}")
+                            else:
+                                if message.photo:
+                                    media_type = "photo"
+                                    photo = message.photo
+                                    file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                    file_path = os.path.join("data", "media", file_name)
+                                    os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                    acc.download_media(photo.file_id, file_name=file_path)
+                                    media_path = file_name
+                                elif message.video:
+                                    media_type = "video"
+                                    try:
+                                        thumb = message.video.thumbs[0] if message.video.thumbs else None
+                                        if thumb:
+                                            file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                                            file_path = os.path.join("data", "media", file_name)
+                                            os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                            acc.download_media(thumb.file_id, file_name=file_path)
+                                            media_path = file_name
+                                    except Exception as e:
+                                        print(f"Error downloading video thumbnail: {e}")
                             
                             # Save to database
                             add_note(
@@ -1831,7 +1856,8 @@ if acc is not None:
                                 source_name=source_name,
                                 message_text=content_to_save if content_to_save else None,
                                 media_type=media_type,
-                                media_path=media_path
+                                media_path=media_path,
+                                media_paths=media_paths_list if media_paths_list else None
                             )
                         
                         # Forward mode
@@ -1860,16 +1886,30 @@ if acc is not None:
                             
                             # Full forward mode
                             else:
-                                if preserve_forward_source:
-                                    if dest_chat_id == "me":
-                                        acc.forward_messages("me", message.chat.id, message.id)
-                                    else:
-                                        acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
+                                # 检查是否是媒体组（多图片）
+                                if hasattr(message, 'media_group_id') and message.media_group_id:
+                                    try:
+                                        if dest_chat_id == "me":
+                                            acc.copy_media_group("me", message.chat.id, message.id)
+                                        else:
+                                            acc.copy_media_group(int(dest_chat_id), message.chat.id, message.id)
+                                    except Exception as e:
+                                        print(f"Error copying media group: {e}")
+                                        if dest_chat_id == "me":
+                                            acc.copy_message("me", message.chat.id, message.id)
+                                        else:
+                                            acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                                 else:
-                                    if dest_chat_id == "me":
-                                        acc.copy_message("me", message.chat.id, message.id)
+                                    if preserve_forward_source:
+                                        if dest_chat_id == "me":
+                                            acc.forward_messages("me", message.chat.id, message.id)
+                                        else:
+                                            acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
                                     else:
-                                        acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+                                        if dest_chat_id == "me":
+                                            acc.copy_message("me", message.chat.id, message.id)
+                                        else:
+                                            acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                     except Exception as e:
                         print(f"Error processing message: {e}")
         except Exception as e:

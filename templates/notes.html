@@ -54,6 +54,28 @@
             right: 30px;
         }
 
+
+        .search-icon-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            margin-right: 10px;
+            color: #667eea;
+        }
+        
+        .search-icon-btn:hover {
+            opacity: 0.7;
+            transform: scale(1.1);
+        }
+        
+        .search-icon-btn svg {
+            display: block;
+        }
         .menu-toggle {
             background: transparent;
             border: none;
@@ -165,6 +187,16 @@
             padding: 10px 15px;
             margin-bottom: 15px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: all 0.3s ease-out;
+        }
+        
+        .filters.active {
+            max-height: 500px;
+            opacity: 1;
+            padding: 15px;
         }
 
         .filter-group {
@@ -313,6 +345,55 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
         }
 
+
+        .note-images-grid {
+            display: grid;
+            gap: 2px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .note-images-grid.grid-1 {
+            grid-template-columns: 1fr;
+        }
+        
+        .note-images-grid.grid-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .note-images-grid.grid-3 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .note-images-grid.grid-3 .note-grid-image:first-child {
+            grid-column: 1 / -1;
+        }
+        
+        .note-images-grid.grid-4 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .note-images-grid.grid-many {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        .note-grid-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            background: #f5f5f5;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .note-grid-image:hover {
+            opacity: 0.9;
+        }
+        
+        .note-images-grid.grid-1 .note-grid-image {
+            height: 200px;
+        }
         .note-image {
             width: 100%;
             height: 200px;
@@ -610,6 +691,12 @@
                 <h1>Telegram 笔记</h1>
             </div>
             <div class="header-actions">
+                <button class="search-icon-btn" onclick="toggleSearchPanel()" title="搜索">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                </button>
                 <button class="menu-toggle" onclick="toggleMenu()">
                     <div class="menu-bar"></div>
                     <div class="menu-bar"></div>
@@ -682,9 +769,43 @@
         <div class="notes-grid">
             {% for note in notes %}
             <div class="note-card">
-                {% if note.media_type == 'photo' %}
+                {% if note.media_paths_list and note.media_paths_list|length > 0 %}
+                    {# 多图片展示 #}
+                    {% set img_count = note.media_paths_list|length %}
+                    {% if img_count == 1 %}
+                        {% set grid_class = 'grid-1' %}
+                    {% elif img_count == 2 %}
+                        {% set grid_class = 'grid-2' %}
+                    {% elif img_count == 3 %}
+                        {% set grid_class = 'grid-3' %}
+                    {% elif img_count == 4 %}
+                        {% set grid_class = 'grid-4' %}
+                    {% else %}
+                        {% set grid_class = 'grid-many' %}
+                    {% endif %}
+                    
+                    <div class="note-images-grid {{ grid_class }}">
+                        {% for media in note.media_paths_list[:9] %}
+                            {% if media.type == 'photo' %}
+                                <img src="/media/{{ media.path }}" alt="Image" class="note-grid-image" onerror="this.style.display='none'">
+                            {% elif media.type == 'video' %}
+                                <div style="position: relative;">
+                                    <img src="/media/{{ media.path }}" alt="Video" class="note-grid-image">
+                                    <span style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🎬</span>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% if img_count > 9 %}
+                        <div style="text-align: center; color: #999; font-size: 12px; margin-bottom: 10px;">
+                            还有 {{ img_count - 9 }} 张图片...
+                        </div>
+                    {% endif %}
+                {% elif note.media_type == 'photo' %}
+                    {# 向后兼容：单图片 #}
                     <img src="/media/{{ note.media_path }}" alt="Note image" class="note-image" onerror="this.style.display='none'">
                 {% elif note.media_type == 'video' %}
+                    {# 向后兼容：视频 #}
                     <div class="note-video-container">
                         <img src="/media/{{ note.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
                         <span class="video-badge">🎬 视频</span>
@@ -755,6 +876,11 @@
         function toggleMenu() {
             const menu = document.getElementById('menuDropdown');
             menu.classList.toggle('active');
+        }
+        
+        function toggleSearchPanel() {
+            const panel = document.querySelector('.filters');
+            panel.classList.toggle('active');
         }
 
         // 点击页面其他地方关闭菜单
