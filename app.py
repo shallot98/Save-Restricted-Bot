@@ -2,7 +2,7 @@ import os
 import re
 from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, flash, jsonify
 from markupsafe import Markup, escape
-from database import init_database, get_notes, get_note_count, get_sources, verify_user, update_password, get_note_by_id, update_note, delete_note, get_note_media, DATA_DIR
+from database import init_database, get_notes, get_note_count, get_sources, verify_user, update_password, get_note_by_id, update_note, delete_note, DATA_DIR
 import math
 
 app = Flask(__name__)
