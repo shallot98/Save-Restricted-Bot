@@ -9,7 +9,7 @@ import threading
 import json
 import re
 from datetime import datetime
-from database import add_note
+from database import add_note, add_media_to_note, DATA_DIR
 
 with open('config.json', 'r') as f: DATA = json.load(f)
 def getenv(var): return os.environ.get(var) or DATA.get(var, None)
@@ -19,6 +19,9 @@ WATCH_FILE = 'watch_config.json'
 
 # User state management for multi-step interactions
 user_states = {}
+
+# Track processed media groups to prevent duplicates
+processed_media_groups = set()
 
 def load_watch_config():
     if os.path.exists(WATCH_FILE):
@@ -1771,6 +1774,11 @@ if acc is not None:
                     try:
                         # Record mode - save to database
                         if record_mode:
+                            # Skip if we've already processed this media group
+                            media_group_id = getattr(message, 'media_group_id', None)
+                            if media_group_id and media_group_id in processed_media_groups:
+                                continue
+                            
                             source_name = message.chat.title or message.chat.username or source_chat_id
                             
                             # Handle text content with extraction
@@ -1794,19 +1802,87 @@ if acc is not None:
                                 else:
                                     content_to_save = ""
                             
-                            # Handle media
+                            # Handle media and media groups
                             media_type = None
                             media_path = None
+                            media_group_id = getattr(message, 'media_group_id', None)
+                            is_media_group = media_group_id is not None
                             
-                            if message.photo:
+                            # Handle media groups (multiple photos/videos)
+                            if is_media_group and (message.photo or message.video):
+                                # For media groups, create one note and add all media files
+                                note_id = add_note(
+                                    user_id=int(user_id),
+                                    source_chat_id=source_chat_id,
+                                    source_name=source_name,
+                                    message_text=content_to_save if content_to_save else None,
+                                    media_type="media_group",
+                                    media_path=None,
+                                    media_group_id=media_group_id,
+                                    is_media_group=True
+                                )
+                                
+                                # Download and save all media in the group
+                                # Get all messages in the media group
+                                try:
+                                    group_messages = acc.get_media_group(message.chat.id, message.id)
+                                    for group_msg in group_messages:
+                                        if group_msg.photo:
+                                            file_name = f"{group_msg.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                            file_path = os.path.join(DATA_DIR, 'media', file_name)
+                                            os.makedirs(os.path.join(DATA_DIR, 'media'), exist_ok=True)
+                                            acc.download_media(group_msg.photo.file_id, file_name=file_path)
+                                            add_media_to_note(note_id, "photo", file_name, group_msg.photo.file_id)
+                                            
+                                        elif group_msg.video:
+                                            try:
+                                                thumb = group_msg.video.thumbs[0] if group_msg.video.thumbs else None
+                                                if thumb:
+                                                    file_name = f"{group_msg.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                                                    file_path = os.path.join(DATA_DIR, 'media', file_name)
+                                                    os.makedirs(os.path.join(DATA_DIR, 'media'), exist_ok=True)
+                                                    acc.download_media(thumb.file_id, file_name=file_path)
+                                                    add_media_to_note(note_id, "video", file_name, thumb.file_id)
+                                            except Exception as e:
+                                                print(f"Error downloading video thumbnail from media group: {e}")
+                                    
+                                    # Mark this media group as processed
+                                    processed_media_groups.add(media_group_id)
+                                except Exception as e:
+                                    print(f"Error getting media group: {e}")
+                                    # Fallback to single media handling
+                                    if message.photo:
+                                        file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                        file_path = os.path.join(DATA_DIR, 'media', file_name)
+                                        os.makedirs(os.path.join(DATA_DIR, 'media'), exist_ok=True)
+                                        acc.download_media(message.photo.file_id, file_name=file_path)
+                                        add_media_to_note(note_id, "photo", file_name, message.photo.file_id)
+                                    
+                                    # Still mark as processed to avoid retries
+                                    processed_media_groups.add(media_group_id)
+                            
+                            # Handle single media
+                            elif message.photo:
                                 media_type = "photo"
                                 photo = message.photo
                                 file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                                file_path = os.path.join("data", "media", file_name)
-                                os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                file_path = os.path.join(DATA_DIR, 'media', file_name)
+                                os.makedirs(os.path.join(DATA_DIR, 'media'), exist_ok=True)
                                 acc.download_media(photo.file_id, file_name=file_path)
                                 media_path = file_name
-                            
+                                
+                                # Create note with single media
+                                add_note(
+                                    user_id=int(user_id),
+                                    source_chat_id=source_chat_id,
+                                    source_name=source_name,
+                                    message_text=content_to_save if content_to_save else None,
+                                    media_type=media_type,
+                                    media_path=media_path,
+                                    media_group_id=media_group_id,
+                                    is_media_group=False
+                                )
+                                
                             elif message.video:
                                 media_type = "video"
                                 try:
@@ -1817,25 +1893,49 @@ if acc is not None:
                                     thumb = message.video.thumbs[0] if message.video.thumbs else None
                                     if thumb:
                                         file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
-                                        file_path = os.path.join("data", "media", file_name)
-                                        os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                        file_path = os.path.join(DATA_DIR, 'media', file_name)
+                                        os.makedirs(os.path.join(DATA_DIR, 'media'), exist_ok=True)
                                         acc.download_media(thumb.file_id, file_name=file_path)
                                         media_path = file_name
                                 except Exception as e:
                                     print(f"Error downloading video thumbnail: {e}")
+                                
+                                # Create note with video
+                                add_note(
+                                    user_id=int(user_id),
+                                    source_chat_id=source_chat_id,
+                                    source_name=source_name,
+                                    message_text=content_to_save if content_to_save else None,
+                                    media_type=media_type,
+                                    media_path=media_path,
+                                    media_group_id=media_group_id,
+                                    is_media_group=False
+                                )
                             
-                            # Save to database
-                            add_note(
-                                user_id=int(user_id),
-                                source_chat_id=source_chat_id,
-                                source_name=source_name,
-                                message_text=content_to_save if content_to_save else None,
-                                media_type=media_type,
-                                media_path=media_path
-                            )
+                            # Handle text-only messages (no media)
+                            elif not message.photo and not message.video:
+                                add_note(
+                                    user_id=int(user_id),
+                                    source_chat_id=source_chat_id,
+                                    source_name=source_name,
+                                    message_text=content_to_save if content_to_save else None,
+                                    media_type=None,
+                                    media_path=None,
+                                    media_group_id=media_group_id,
+                                    is_media_group=False
+                                )
                         
                         # Forward mode
                         else:
+                            # Skip if we've already processed this media group (for non-preserve mode)
+                            media_group_id = getattr(message, 'media_group_id', None)
+                            if media_group_id and media_group_id in processed_media_groups and not preserve_forward_source:
+                                continue
+                            
+                            # Mark media group as processed if not preserving forward source
+                            if media_group_id and not preserve_forward_source:
+                                processed_media_groups.add(media_group_id)
+                            
                             # Extract mode
                             if forward_mode == "extract" and extract_patterns:
                                 extracted_content = []
@@ -1866,10 +1966,27 @@ if acc is not None:
                                     else:
                                         acc.forward_messages(int(dest_chat_id), message.chat.id, message.id)
                                 else:
-                                    if dest_chat_id == "me":
-                                        acc.copy_message("me", message.chat.id, message.id)
+                                    # Use copy_message to preserve structure without forward attribution
+                                    # For media groups, copy the entire group
+                                    if getattr(message, 'media_group_id', None):
+                                        try:
+                                            if dest_chat_id == "me":
+                                                acc.copy_media_group("me", message.chat.id, message.id)
+                                            else:
+                                                acc.copy_media_group(int(dest_chat_id), message.chat.id, message.id)
+                                        except Exception as e:
+                                            print(f"Error copying media group: {e}")
+                                            # Fallback to individual messages
+                                            if dest_chat_id == "me":
+                                                acc.copy_message("me", message.chat.id, message.id)
+                                            else:
+                                                acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                                     else:
-                                        acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
+                                        # Single message
+                                        if dest_chat_id == "me":
+                                            acc.copy_message("me", message.chat.id, message.id)
+                                        else:
+                                            acc.copy_message(int(dest_chat_id), message.chat.id, message.id)
                     except Exception as e:
                         print(f"Error processing message: {e}")
         except Exception as e:

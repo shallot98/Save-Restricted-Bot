@@ -52,6 +52,115 @@
             position: absolute;
             top: 20px;
             right: 30px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-toggle {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            font-size: 20px;
+        }
+
+        .search-toggle:hover {
+            opacity: 0.7;
+            transform: scale(1.1);
+        }
+
+        .search-panel {
+            display: none;
+            position: absolute;
+            top: 60px;
+            right: 0;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+            min-width: 300px;
+            z-index: 1000;
+            overflow: hidden;
+            padding: 15px;
+        }
+
+        .search-panel.active {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        .search-panel-content {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .search-row label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+            min-width: 60px;
+        }
+
+        .search-row input,
+        .search-row select {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .search-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .search-btn-compact {
+            flex: 1;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .search-btn-compact:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .clear-search-compact {
+            flex: 1;
+            padding: 8px 12px;
+            background: #f0f0f0;
+            color: #555;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .clear-search-compact:hover {
+            background: #e0e0e0;
         }
 
         .menu-toggle {
@@ -320,6 +429,83 @@
             background: #f5f5f5;
         }
 
+        .note-media-grid {
+            display: grid;
+            gap: 2px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .note-media-grid.single {
+            grid-template-columns: 1fr;
+        }
+
+        .note-media-grid.double {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .note-media-grid.triple {
+            grid-template-columns: 2fr 1fr 1fr;
+        }
+
+        .note-media-grid.triple .note-media-item:first-child {
+            grid-row: span 2;
+        }
+
+        .note-media-grid.multi {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .note-media-item {
+            position: relative;
+            overflow: hidden;
+            background: #f5f5f5;
+        }
+
+        .note-media-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+        .note-media-item:hover img {
+            transform: scale(1.05);
+        }
+
+        .note-media-grid.single .note-media-item {
+            height: 200px;
+        }
+
+        .note-media-grid.double .note-media-item {
+            height: 150px;
+        }
+
+        .note-media-grid.triple .note-media-item:first-child {
+            height: 200px;
+        }
+
+        .note-media-grid.triple .note-media-item:not(:first-child) {
+            height: 100px;
+        }
+
+        .note-media-grid.multi .note-media-item {
+            height: 120px;
+        }
+
+        .media-count-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
         .note-video-container {
             position: relative;
             width: 100%;
@@ -577,6 +763,22 @@
                 right: 15px;
             }
 
+            .search-panel {
+                right: -10px;
+                min-width: 280px;
+                max-width: 90vw;
+            }
+
+            .search-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-row label {
+                min-width: auto;
+                margin-bottom: 5px;
+            }
+
             .filter-group {
                 flex-direction: column;
                 align-items: flex-start;
@@ -610,6 +812,50 @@
                 <h1>Telegram 笔记</h1>
             </div>
             <div class="header-actions">
+                <button class="search-toggle" onclick="toggleSearchPanel()" title="搜索">
+                    🔍
+                </button>
+                <div class="search-panel" id="searchPanel">
+                    <form method="GET" action="/notes">
+                        <div class="search-panel-content">
+                            {% if sources|length > 0 %}
+                            <div class="search-row">
+                                <label>来源:</label>
+                                <select name="source">
+                                    <option value="">全部来源</option>
+                                    {% for source in sources %}
+                                    <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
+                                        {{ source.source_name or source.source_chat_id }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="search-row">
+                                <label>搜索:</label>
+                                <input type="text" name="search" placeholder="搜索笔记内容..." value="{{ search_query or '' }}">
+                            </div>
+                            
+                            <div class="search-row">
+                                <label>开始:</label>
+                                <input type="date" name="date_from" value="{{ date_from or '' }}">
+                            </div>
+                            
+                            <div class="search-row">
+                                <label>结束:</label>
+                                <input type="date" name="date_to" value="{{ date_to or '' }}">
+                            </div>
+                            
+                            <div class="search-buttons">
+                                <button type="submit" class="search-btn-compact">搜索</button>
+                                {% if search_query or date_from or date_to or selected_source %}
+                                <a href="/notes" class="clear-search-compact">清除</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </form>
+                </div>
                 <button class="menu-toggle" onclick="toggleMenu()">
                     <div class="menu-bar"></div>
                     <div class="menu-bar"></div>
@@ -641,48 +887,81 @@
             </div>
         </div>
 
-        <div class="filters">
-            <form method="GET" action="/notes">
-                <div class="filter-group">
-                    {% if sources|length > 0 %}
-                    <label>📌 筛选来源：</label>
-                    <select name="source" onchange="this.form.submit()">
-                        <option value="">全部来源</option>
-                        {% for source in sources %}
-                        <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
-                            {{ source.source_name or source.source_chat_id }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    {% endif %}
-                    
-                    <div class="date-filter">
-                        <label>📅 日期范围：</label>
-                        <input type="date" name="date_from" value="{{ date_from or '' }}" placeholder="开始日期">
-                        <span>至</span>
-                        <input type="date" name="date_to" value="{{ date_to or '' }}" placeholder="结束日期">
-                    </div>
-                    
-                    <div class="search-box">
-                        <label>🔍 搜索：</label>
-                        <input type="text" name="search" class="search-input" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}">
-                        {% if selected_source %}
-                        <input type="hidden" name="source" value="{{ selected_source }}">
-                        {% endif %}
-                        <button type="submit" class="search-btn">搜索</button>
-                        {% if search_query or date_from or date_to %}
-                        <a href="/notes{% if selected_source %}?source={{ selected_source }}{% endif %}" class="clear-search">清除</a>
-                        {% endif %}
-                    </div>
-                </div>
-            </form>
-        </div>
-
         {% if notes|length > 0 %}
         <div class="notes-grid">
             {% for note in notes %}
             <div class="note-card">
-                {% if note.media_type == 'photo' %}
+                {% set media_files = note.media_files %}
+                {% set media_count = media_files|length %}
+                
+                {% if media_count > 0 %}
+                    {% if media_count == 1 %}
+                        <div class="note-media-grid single">
+                            {% for media in media_files %}
+                                <div class="note-media-item">
+                                    {% if media.media_type == 'photo' %}
+                                        <img src="/media/{{ media.media_path }}" alt="Note image" onerror="this.style.display='none'">
+                                    {% elif media.media_type == 'video' %}
+                                        <div class="note-video-container">
+                                            <img src="/media/{{ media.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
+                                            <span class="video-badge">🎬 视频</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% elif media_count == 2 %}
+                        <div class="note-media-grid double">
+                            {% for media in media_files %}
+                                <div class="note-media-item">
+                                    {% if media.media_type == 'photo' %}
+                                        <img src="/media/{{ media.media_path }}" alt="Note image" onerror="this.style.display='none'">
+                                    {% elif media.media_type == 'video' %}
+                                        <div class="note-video-container">
+                                            <img src="/media/{{ media.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
+                                            <span class="video-badge">🎬 视频</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% elif media_count == 3 %}
+                        <div class="note-media-grid triple">
+                            {% for media in media_files %}
+                                <div class="note-media-item">
+                                    {% if media.media_type == 'photo' %}
+                                        <img src="/media/{{ media.media_path }}" alt="Note image" onerror="this.style.display='none'">
+                                    {% elif media.media_type == 'video' %}
+                                        <div class="note-video-container">
+                                            <img src="/media/{{ media.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
+                                            <span class="video-badge">🎬 视频</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="note-media-grid multi">
+                            {% for media in media_files[:9] %}
+                                <div class="note-media-item">
+                                    {% if media.media_type == 'photo' %}
+                                        <img src="/media/{{ media.media_path }}" alt="Note image" onerror="this.style.display='none'">
+                                    {% elif media.media_type == 'video' %}
+                                        <div class="note-video-container">
+                                            <img src="/media/{{ media.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
+                                            <span class="video-badge">🎬 视频</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                            {% if media_count > 9 %}
+                                <div class="note-media-item">
+                                    <div class="media-count-badge">+{{ media_count - 9 }}</div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% elif note.media_type == 'photo' %}
                     <img src="/media/{{ note.media_path }}" alt="Note image" class="note-image" onerror="this.style.display='none'">
                 {% elif note.media_type == 'video' %}
                     <div class="note-video-container">
@@ -757,13 +1036,32 @@
             menu.classList.toggle('active');
         }
 
-        // 点击页面其他地方关闭菜单
+        function toggleSearchPanel() {
+            const searchPanel = document.getElementById('searchPanel');
+            searchPanel.classList.toggle('active');
+            
+            // Close menu when opening search panel
+            const menu = document.getElementById('menuDropdown');
+            if (searchPanel.classList.contains('active')) {
+                menu.classList.remove('active');
+            }
+        }
+
+        // 点击页面其他地方关闭菜单和搜索面板
         document.addEventListener('click', function(event) {
             const menu = document.getElementById('menuDropdown');
-            const toggle = document.querySelector('.menu-toggle');
+            const menuToggle = document.querySelector('.menu-toggle');
+            const searchPanel = document.getElementById('searchPanel');
+            const searchToggle = document.querySelector('.search-toggle');
             
-            if (!toggle.contains(event.target) && !menu.contains(event.target)) {
+            // Close menu if clicking outside
+            if (!menuToggle.contains(event.target) && !menu.contains(event.target)) {
                 menu.classList.remove('active');
+            }
+            
+            // Close search panel if clicking outside
+            if (!searchToggle.contains(event.target) && !searchPanel.contains(event.target)) {
+                searchPanel.classList.remove('active');
             }
         });
 
