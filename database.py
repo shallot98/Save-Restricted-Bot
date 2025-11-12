@@ -2,7 +2,6 @@ import sqlite3
 import bcrypt
 from datetime import datetime
 import os
-import json
 
 # 数据目录 - 独立存储，防止更新时丢失
 DATA_DIR = 'data'
@@ -26,16 +25,9 @@ def init_database():
             message_text TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             media_type TEXT,
-            media_path TEXT,
-            media_paths TEXT
+            media_path TEXT
         )
     ''')
-    
-    # 检查是否需要添加 media_paths 列（向后兼容）
-    cursor.execute("PRAGMA table_info(notes)")
-    columns = [column[1] for column in cursor.fetchall()]
-    if 'media_paths' not in columns:
-        cursor.execute('ALTER TABLE notes ADD COLUMN media_paths TEXT')
     
     # 创建用户表
     cursor.execute('''
@@ -57,20 +49,15 @@ def init_database():
     conn.commit()
     conn.close()
 
-def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None, media_paths=None):
+def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None):
     """添加一条笔记记录"""
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     
-    # 如果提供了 media_paths，转换为 JSON 字符串
-    media_paths_json = None
-    if media_paths:
-        media_paths_json = json.dumps(media_paths, ensure_ascii=False)
-    
     cursor.execute('''
-        INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths_json))
+        INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path))
     
     conn.commit()
     note_id = cursor.lastrowid
@@ -111,18 +98,7 @@ def get_notes(user_id=None, source_chat_id=None, search_query=None, date_from=No
     params.extend([limit, offset])
     
     cursor.execute(query, params)
-    notes = []
-    for row in cursor.fetchall():
-        note = dict(row)
-        # 解析 media_paths JSON
-        if note.get('media_paths'):
-            try:
-                note['media_paths_list'] = json.loads(note['media_paths'])
-            except:
-                note['media_paths_list'] = []
-        else:
-            note['media_paths_list'] = []
-        notes.append(note)
+    notes = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return notes
 
@@ -214,16 +190,7 @@ def get_note_by_id(note_id):
     conn.close()
     
     if note:
-        note_dict = dict(note)
-        # 解析 media_paths JSON
-        if note_dict.get('media_paths'):
-            try:
-                note_dict['media_paths_list'] = json.loads(note_dict['media_paths'])
-            except:
-                note_dict['media_paths_list'] = []
-        else:
-            note_dict['media_paths_list'] = []
-        return note_dict
+        return dict(note)
     return None
 
 def update_note(note_id, message_text):
@@ -244,25 +211,12 @@ def delete_note(note_id):
     cursor = conn.cursor()
     
     # 先获取笔记信息以删除关联的媒体文件
-    cursor.execute('SELECT media_path, media_paths FROM notes WHERE id = ?', (note_id,))
+    cursor.execute('SELECT media_path FROM notes WHERE id = ?', (note_id,))
     result = cursor.fetchone()
     
-    media_files_to_delete = []
-    
-    if result:
-        # 删除单个媒体文件（向后兼容）
-        if result[0]:
-            media_files_to_delete.append(result[0])
-        
-        # 删除多个媒体文件
-        if result[1]:
-            try:
-                media_paths_list = json.loads(result[1])
-                for media_item in media_paths_list:
-                    if isinstance(media_item, dict) and 'path' in media_item:
-                        media_files_to_delete.append(media_item['path'])
-            except:
-                pass
+    media_path = None
+    if result and result[0]:
+        media_path = result[0]
     
     # 删除数据库记录
     cursor.execute('DELETE FROM notes WHERE id = ?', (note_id,))
@@ -272,13 +226,13 @@ def delete_note(note_id):
     conn.close()
     
     # 删除关联的媒体文件
-    for media_file in media_files_to_delete:
+    if media_path:
         try:
-            full_media_path = os.path.join(DATA_DIR, 'media', media_file)
+            full_media_path = os.path.join(DATA_DIR, 'media', media_path)
             if os.path.exists(full_media_path):
                 os.remove(full_media_path)
         except Exception as e:
-            print(f"Error deleting media file {media_file}: {e}")
+            print(f"Error deleting media file: {e}")
     
     return affected > 0
 
