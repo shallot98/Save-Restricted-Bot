@@ -36,7 +36,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            padding-right: 60px;
+            padding-right: 120px;
         }
 
         .header-title h1 {
@@ -52,6 +52,32 @@
             position: absolute;
             top: 20px;
             right: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .search-toggle {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 10px;
+            font-size: 24px;
+            color: #667eea;
+            transition: all 0.3s;
+            border-radius: 50%;
+        }
+
+        .search-toggle:hover {
+            opacity: 0.7;
+            transform: scale(1.1);
+        }
+
+        .search-toggle.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.35);
+            transform: scale(1.05);
         }
 
         .menu-toggle {
@@ -159,62 +185,74 @@
             background: #e0e0e0;
         }
 
-        .filters {
+        .search-panel {
+            display: none;
             background: white;
             border-radius: 8px;
             padding: 10px 15px;
             margin-bottom: 15px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            animation: slideDown 0.3s ease-out;
         }
 
-        .filter-group {
+        .search-panel.active {
+            display: block;
+        }
+
+        .search-row {
             display: flex;
-            gap: 10px;
-            align-items: center;
+            gap: 12px;
+            align-items: flex-end;
             flex-wrap: wrap;
         }
 
-        .filter-group label {
+        .search-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 140px;
+            flex: 1;
+        }
+
+        .search-field-wide {
+            flex: 2;
+            min-width: 240px;
+        }
+
+        .search-field-date {
+            max-width: 200px;
+        }
+
+        .search-field label {
             font-weight: 600;
             color: #555;
             font-size: 13px;
         }
 
-        .filter-group select,
-        .filter-group input[type="text"],
-        .filter-group input[type="date"] {
+        .search-field select,
+        .search-field input[type="text"],
+        .search-field input[type="date"] {
             padding: 6px 10px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 13px;
-            min-width: 140px;
         }
         
-        .date-filter {
+        .search-input-group {
             display: flex;
             gap: 6px;
             align-items: center;
         }
         
-        .date-filter input[type="date"] {
-            min-width: 120px;
+        .search-input-group input {
+            flex: 1;
         }
         
-        .date-filter span {
-            font-size: 12px;
-            color: #999;
-        }
-        
-        .search-box {
+        .search-actions {
             display: flex;
-            gap: 6px;
-            align-items: center;
-            flex: 1;
-        }
-        
-        .search-input {
-            flex: 1;
-            min-width: 180px;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
         }
         
         .search-btn {
@@ -311,6 +349,89 @@
         .note-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .note-media-grid {
+            width: 100%;
+            display: grid;
+            gap: 6px;
+            background: #f5f5f5;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .note-media-grid.count-1 {
+            grid-template-columns: 1fr;
+        }
+
+        .note-media-grid.count-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .note-media-grid.count-3 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .note-media-grid.count-4 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .note-media-grid.count-5 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .note-media-grid.count-6,
+        .note-media-grid.count-7,
+        .note-media-grid.count-8,
+        .note-media-grid.count-9 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .note-media-item {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            border-radius: 8px;
+            background: #e0e0e0;
+        }
+
+        .note-media-item::before {
+            content: "";
+            display: block;
+            padding-top: 70%;
+        }
+
+        .note-media-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .note-media-grid.count-1 .note-media-item::before {
+            padding-top: 58%;
+        }
+
+        .note-media-grid.count-2 .note-media-item::before {
+            padding-top: 70%;
+        }
+
+        .note-media-grid.count-3 .note-media-item:first-child {
+            grid-column: span 2;
+        }
+
+        .note-media-grid.count-3 .note-media-item:first-child::before {
+            padding-top: 52%;
+        }
+
+        .note-media-grid.count-5 .note-media-item:first-child {
+            grid-column: span 2;
+        }
+
+        .note-media-grid.count-5 .note-media-item:first-child::before {
+            padding-top: 52%;
         }
 
         .note-image {
@@ -577,27 +698,20 @@
                 right: 15px;
             }
 
-            .filter-group {
+            .search-row {
                 flex-direction: column;
                 align-items: flex-start;
-                width: 100%;
             }
 
-            .filter-group select,
-            .filter-group input[type="text"],
-            .filter-group input[type="date"] {
+            .search-field,
+            .search-field-wide,
+            .search-field-date {
                 width: 100%;
+                max-width: none;
             }
-            
-            .date-filter {
-                width: 100%;
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .search-box {
-                width: 100%;
-                flex-direction: column;
+
+            .search-actions {
+                justify-content: flex-start;
             }
         }
     </style>
@@ -610,6 +724,9 @@
                 <h1>Telegram 笔记</h1>
             </div>
             <div class="header-actions">
+                <button class="search-toggle" id="searchToggle" onclick="toggleSearchPanel()" aria-label="搜索笔记">
+                    🔍
+                </button>
                 <button class="menu-toggle" onclick="toggleMenu()">
                     <div class="menu-bar"></div>
                     <div class="menu-bar"></div>
@@ -641,39 +758,40 @@
             </div>
         </div>
 
-        <div class="filters">
+        <div class="search-panel{% if search_query or date_from or date_to or selected_source %} active{% endif %}" id="searchPanel">
             <form method="GET" action="/notes">
-                <div class="filter-group">
+                <div class="search-row">
+                    <div class="search-field search-field-wide">
+                        <label>🔍 搜索关键词</label>
+                        <input type="text" name="search" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}">
+                    </div>
                     {% if sources|length > 0 %}
-                    <label>📌 筛选来源：</label>
-                    <select name="source" onchange="this.form.submit()">
-                        <option value="">全部来源</option>
-                        {% for source in sources %}
-                        <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
-                            {{ source.source_name or source.source_chat_id }}
-                        </option>
-                        {% endfor %}
-                    </select>
+                    <div class="search-field">
+                        <label>📌 筛选来源</label>
+                        <select name="source">
+                            <option value="">全部来源</option>
+                            {% for source in sources %}
+                            <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
+                                {{ source.source_name or source.source_chat_id }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     {% endif %}
-                    
-                    <div class="date-filter">
-                        <label>📅 日期范围：</label>
-                        <input type="date" name="date_from" value="{{ date_from or '' }}" placeholder="开始日期">
-                        <span>至</span>
-                        <input type="date" name="date_to" value="{{ date_to or '' }}" placeholder="结束日期">
+                    <div class="search-field search-field-date">
+                        <label>📅 开始日期</label>
+                        <input type="date" name="date_from" value="{{ date_from or '' }}">
                     </div>
-                    
-                    <div class="search-box">
-                        <label>🔍 搜索：</label>
-                        <input type="text" name="search" class="search-input" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}">
-                        {% if selected_source %}
-                        <input type="hidden" name="source" value="{{ selected_source }}">
-                        {% endif %}
-                        <button type="submit" class="search-btn">搜索</button>
-                        {% if search_query or date_from or date_to %}
-                        <a href="/notes{% if selected_source %}?source={{ selected_source }}{% endif %}" class="clear-search">清除</a>
-                        {% endif %}
+                    <div class="search-field search-field-date">
+                        <label>📅 结束日期</label>
+                        <input type="date" name="date_to" value="{{ date_to or '' }}">
                     </div>
+                </div>
+                <div class="search-actions">
+                    <button type="submit" class="search-btn">应用筛选</button>
+                    {% if search_query or date_from or date_to or selected_source %}
+                    <a href="/notes" class="clear-search">清除筛选</a>
+                    {% endif %}
                 </div>
             </form>
         </div>
@@ -682,7 +800,15 @@
         <div class="notes-grid">
             {% for note in notes %}
             <div class="note-card">
-                {% if note.media_type == 'photo' %}
+                {% if note.media_paths and note.media_paths|length > 0 %}
+                    <div class="note-media-grid count-{{ note.media_paths|length }}">
+                        {% for media_path in note.media_paths %}
+                            <div class="note-media-item">
+                                <img src="/media/{{ media_path }}" alt="Note image" onerror="this.style.display='none'">
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% elif note.media_type == 'photo' %}
                     <img src="/media/{{ note.media_path }}" alt="Note image" class="note-image" onerror="this.style.display='none'">
                 {% elif note.media_type == 'video' %}
                     <div class="note-video-container">
@@ -752,18 +878,44 @@
     </div>
 
     <script>
+        function toggleSearchPanel() {
+            const panel = document.getElementById('searchPanel');
+            const toggle = document.getElementById('searchToggle');
+            if (!panel || !toggle) return;
+            const isActive = panel.classList.toggle('active');
+            toggle.classList.toggle('active', isActive);
+        }
+
         function toggleMenu() {
             const menu = document.getElementById('menuDropdown');
             menu.classList.toggle('active');
         }
 
-        // 点击页面其他地方关闭菜单
+        document.addEventListener('DOMContentLoaded', function() {
+            const panel = document.getElementById('searchPanel');
+            const toggle = document.getElementById('searchToggle');
+            if (panel && toggle && panel.classList.contains('active')) {
+                toggle.classList.add('active');
+            }
+        });
+
+        // 点击页面其他地方关闭菜单，必要时折叠搜索面板
         document.addEventListener('click', function(event) {
             const menu = document.getElementById('menuDropdown');
-            const toggle = document.querySelector('.menu-toggle');
+            const menuToggle = document.querySelector('.menu-toggle');
+            const searchPanel = document.getElementById('searchPanel');
+            const searchToggle = document.getElementById('searchToggle');
             
-            if (!toggle.contains(event.target) && !menu.contains(event.target)) {
+            if (menu && menuToggle && !menuToggle.contains(event.target) && !menu.contains(event.target)) {
                 menu.classList.remove('active');
+            }
+            
+            if (searchPanel && searchToggle && searchPanel.classList.contains('active')) {
+                const hasFilters = {{ 'true' if search_query or date_from or date_to or selected_source else 'false' }};
+                if (!hasFilters && !searchToggle.contains(event.target) && !searchPanel.contains(event.target)) {
+                    searchPanel.classList.remove('active');
+                    searchToggle.classList.remove('active');
+                }
             }
         });
 
