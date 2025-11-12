@@ -1710,23 +1710,14 @@ __注意：中间的空格无关紧要__
 if acc is not None:
     @acc.on_message(filters.channel | filters.group | filters.private)
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
-        # Wrap entire handler in try-except to prevent single message errors from breaking monitoring
         try:
-            # Dynamically cache the peer if not already cached (防止 Peer id invalid 错误)
-            # 这是运行时的额外保护，主要依赖启动时的预加载
+            # Ensure the peer is resolved to prevent "Peer id invalid" errors
             try:
-                if message.chat and message.chat.id:
-                    chat_id = message.chat.id
-                    # 尝试获取 chat 信息以确保 peer 被缓存
-                    # 如果已缓存，这个操作很快；如果未缓存，会主动缓存
-                    try:
-                        client.get_chat(chat_id)
-                    except Exception as get_error:
-                        # 如果获取失败，打印警告但继续（peer 可能已经被缓存）
-                        print(f"⚠️ 运行时缓存警告 - Chat ID: {chat_id}, 错误: {get_error}")
-            except Exception as cache_error:
-                # 整体缓存失败，记录但不中断处理
-                print(f"⚠️ 运行时缓存失败: {cache_error}")
+                if message.chat.id:
+                    acc.get_chat(message.chat.id)
+            except Exception as e:
+                print(f"Warning: Could not resolve peer {message.chat.id}: {e}")
+                return
             
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
@@ -2067,13 +2058,7 @@ def print_startup_config():
             print(f"👤 用户 {user_id}:")
             for watch_key, watch_data in watches.items():
                 if isinstance(watch_data, dict):
-                    # 优先使用 "source" 字段，然后尝试从 key 中提取
-                    source_id = watch_data.get("source")
-                    if not source_id and "|" in watch_key:
-                        source_id = watch_key.split("|")[0]
-                    elif not source_id:
-                        source_id = watch_key
-                    
+                    source_id = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
                     dest_id = watch_data.get("dest", "未知")
                     record_mode = watch_data.get("record_mode", False)
                     
@@ -2084,114 +2069,50 @@ def print_startup_config():
                         dest_id = "未知目标"
                     
                     # Add to cache list if it's a valid chat ID (channels/groups have negative IDs)
-                    if source_id not in ["未知来源", "me", None, ""] and source_id:
+                    if source_id not in ["未知来源", "me"] and source_id:
                         try:
                             # Try to parse as int to verify it's a valid chat ID
                             # Only cache negative IDs (channels/groups), not positive IDs (users)
-                            chat_id_int = int(str(source_id))
+                            chat_id_int = int(source_id)
                             if chat_id_int < 0:
-                                source_ids_to_cache.add(str(source_id))
-                                print(f"   📤 {source_id} → {dest_id if not record_mode else '记录模式'} [将缓存]")
-                            else:
-                                print(f"   📤 {source_id} → {dest_id if not record_mode else '记录模式'} [跳过缓存:正数ID]")
-                        except (ValueError, TypeError) as e:
-                            print(f"   📤 {source_id} → {dest_id if not record_mode else '记录模式'} [跳过缓存:非数字ID]")
+                                source_ids_to_cache.add(source_id)
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    if record_mode:
+                        print(f"   📝 {source_id} → 记录模式")
                     else:
-                        if record_mode:
-                            print(f"   📝 {source_id} → 记录模式")
-                        else:
-                            print(f"   📤 {source_id} → {dest_id}")
+                        print(f"   📤 {source_id} → {dest_id}")
                 else:
-                    # Old format: watch_key is source, watch_data is dest
-                    source_id = watch_key
+                    # Handle None values in old format
+                    source_display = watch_key if watch_key is not None else "未知来源"
                     dest_display = watch_data if watch_data is not None else "未知目标"
                     
                     # Add to cache list if it's a valid chat ID (channels/groups have negative IDs)
-                    if source_id not in ["未知来源", "me", None, ""] and source_id:
+                    if watch_key not in ["未知来源", "me", None] and watch_key:
                         try:
                             # Only cache negative IDs (channels/groups), not positive IDs (users)
-                            chat_id_int = int(str(source_id))
+                            chat_id_int = int(watch_key)
                             if chat_id_int < 0:
-                                source_ids_to_cache.add(str(source_id))
-                                print(f"   📤 {source_id} → {dest_display} [将缓存]")
-                            else:
-                                print(f"   📤 {source_id} → {dest_display} [跳过缓存:正数ID]")
+                                source_ids_to_cache.add(watch_key)
                         except (ValueError, TypeError):
-                            print(f"   📤 {source_id} → {dest_display} [跳过缓存:非数字ID]")
-                    else:
-                        print(f"   📤 {source_id if source_id else '未知来源'} → {dest_display}")
+                            pass
+                    
+                    print(f"   📤 {source_display} → {dest_display}")
             print()
         
         # Pre-cache all source channels to prevent "Peer id invalid" errors
         if acc is not None and source_ids_to_cache:
             print("🔄 预加载频道信息到缓存...")
-            print(f"   需要缓存 {len(source_ids_to_cache)} 个频道")
-            print(f"   频道ID列表: {sorted(source_ids_to_cache)}")
-            print()
-            
             cached_count = 0
-            failed_ids = []
-            
-            import time
-            for source_id in sorted(source_ids_to_cache):
+            for source_id in source_ids_to_cache:
                 try:
-                    # 尝试获取 chat 信息以缓存 peer
-                    chat_id_int = int(source_id)
-                    chat = acc.get_chat(chat_id_int)
+                    acc.get_chat(int(source_id))
                     cached_count += 1
-                    chat_name = chat.title or chat.username or source_id
-                    chat_type = "频道" if chat.type == "channel" else "群组" if chat.type == "supergroup" else "私聊"
                     print(f"   ✅ 已缓存: {source_id}")
-                    print(f"      名称: {chat_name}")
-                    print(f"      类型: {chat_type}")
-                    
-                    # 额外的强制缓存步骤：尝试获取最新消息来确保 peer 完全加载
-                    try:
-                        # 尝试获取一条消息历史，这会强制 Pyrogram 完全缓存这个 peer
-                        acc.get_history(chat_id_int, limit=1)
-                        print(f"      验证: ✓ Peer 已完全缓存")
-                    except Exception as history_err:
-                        # 无法获取历史记录，可能没有权限，但 get_chat 已经缓存了基本信息
-                        print(f"      验证: ⚠ 无法获取历史记录（可能是权限限制）")
-                    
-                    # 稍微延迟，避免请求过快
-                    time.sleep(0.3)
                 except Exception as e:
-                    failed_ids.append(source_id)
-                    error_msg = str(e)
-                    print(f"   ❌ 缓存失败: {source_id}")
-                    print(f"      错误: {error_msg}")
-                    
-                    # 提供解决建议
-                    if "CHAT_INVALID" in error_msg or "No such peer" in error_msg or "PEER_ID_INVALID" in error_msg:
-                        print(f"      💡 建议: 账号可能未加入该频道/群组，请先加入")
-                    elif "FLOOD_WAIT" in error_msg:
-                        # 提取等待时间
-                        import re
-                        wait_match = re.search(r'FLOOD_WAIT_(\d+)', error_msg)
-                        if wait_match:
-                            wait_seconds = wait_match.group(1)
-                            print(f"      💡 建议: 需要等待 {wait_seconds} 秒后重试")
-                        else:
-                            print(f"      💡 建议: API 请求过快，请稍后再试")
-                    time.sleep(0.3)
-            
-            print()
-            print("="*60)
-            print(f"📦 缓存结果: 成功 {cached_count}/{len(source_ids_to_cache)} 个频道")
-            print("="*60)
-            
-            if failed_ids:
-                print(f"\n⚠️ 警告: 以下 {len(failed_ids)} 个频道缓存失败，将无法正常监控:")
-                for fid in failed_ids:
-                    print(f"   • {fid}")
-                print(f"\n💡 解决方法:")
-                print(f"   1. 确保账号已加入这些频道/群组")
-                print(f"   2. 检查频道/群组 ID 是否正确")
-                print(f"   3. 重新启动机器人以重试缓存")
-            else:
-                print(f"\n✅ 所有频道已成功缓存，监控功能正常")
-            print()
+                    print(f"   ⚠️ 无法缓存 {source_id}: {str(e)}")
+            print(f"📦 成功缓存 {cached_count}/{len(source_ids_to_cache)} 个频道\n")
     
     print("="*60)
     print("✅ 机器人已就绪，正在监听消息...")
