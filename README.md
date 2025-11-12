@@ -2,22 +2,33 @@
 
 *A Telegram Bot, Which can send you restricted content by it's post link*
 
-## 🎉 What's New in v2.3.1
+## 🎉 What's New in v2.3.3
 
-### ✨ DATA_DIR Enhancement & Mobile Optimization
+### 🔧 Multi-Channel Peer Cache Fix (Critical)
+- **Enhanced Peer Caching**: Now pre-caches BOTH source and destination channels on startup
+- **Graceful Error Handling**: Single channel failure won't interrupt entire message processing
+- **Smart Retry Logic**: 5-minute cache for failed channels to avoid repeated attempts
+- **Detailed Diagnostics**: Clear error messages with fix suggestions for failed channels
+- **Improved Reliability**: Non-blocking error handling ensures maximum processing success rate
+
+**Problem Fixed**:
+- "Peer id invalid" errors for channels: -1002314545813, -1002201840184, -1002529437122
+- Destination channels not being pre-cached, causing forwarding failures
+- Single channel failure interrupting entire message flow
+
+📖 **See Full Details**: [RELEASE_NOTES_v2.3.3.md](RELEASE_NOTES_v2.3.3.md) | [FIX_PEER_CACHE_MULTI_CHANNELS.md](FIX_PEER_CACHE_MULTI_CHANNELS.md)
+
+---
+
+## 📋 Previous Updates
+
+### v2.3.1 - DATA_DIR Enhancement & Mobile Optimization
 - **Unified DATA_DIR**: All file operations now use DATA_DIR environment variable
 - **Auto-Initialization**: Automatic directory and config file creation on first run
 - **Mobile Responsive**: Optimized display for mobile devices (768px, 480px breakpoints)
 - **Compact Stats**: Simplified statistics display on mobile (e.g., "笔记: 42" vs "总计 42 条笔记")
-- **No Line Break**: Title stays on one line on all screen sizes
 
-### 📱 Mobile UI Improvements
-- **Responsive Layout**: Multi-level responsive design (desktop, tablet, mobile)
-- **Touch-Friendly**: Optimized button sizes and spacing for touch devices
-- **Compact Display**: Reduced padding and font sizes on small screens
-- **Better Readability**: Improved text hierarchy and spacing
-
-📖 **See Full Details**: [UPDATE_v2.3.1.md](UPDATE_v2.3.1.md) | [IMPROVEMENTS_v2.3.1.md](IMPROVEMENTS_v2.3.1.md)
+📖 **Details**: [UPDATE_v2.3.1.md](UPDATE_v2.3.1.md) | [IMPROVEMENTS_v2.3.1.md](IMPROVEMENTS_v2.3.1.md)
 
 ---
 
