@@ -70,4 +70,3 @@ watch_config.json
 # Data directory - contains all user data (database and media files)
 # This directory is independent from code updates
 data/
-nul
