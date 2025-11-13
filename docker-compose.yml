@@ -12,5 +12,7 @@ services:
       - ID=${ID}
       - HASH=${HASH}
       - STRING=${STRING}
+      - DATA_DIR=/app/data
     volumes:
       - ./downloads:/app/downloads
+      - ./data:/app/data
