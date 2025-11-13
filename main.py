@@ -554,6 +554,7 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 del watch_config[user_id]
             
             save_watch_config(watch_config)
+            reload_monitored_sources()
             
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
             text = f"**✅ 监控任务已删除**\n\n来源：`{source_id}`\n目标：`{dest_id}`"
@@ -1173,6 +1174,7 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
             "record_mode": False
         }
         save_watch_config(watch_config)
+        reload_monitored_sources()
         
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
         
@@ -1235,6 +1237,7 @@ def complete_watch_setup_single(chat_id, message_id, user_id, whitelist, blackli
             "record_mode": True
         }
         save_watch_config(watch_config)
+        reload_monitored_sources()
         
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
         
@@ -1728,6 +1731,39 @@ def register_processed_media_group(key):
         old_key = processed_media_groups_order.pop(0)
         processed_media_groups.discard(old_key)
 
+# Build set of monitored source channels for efficient filtering
+def build_monitored_sources():
+    """Build a set of all monitored source chat IDs from watch config"""
+    watch_config = load_watch_config()
+    sources = set()
+    
+    for user_id, watches in watch_config.items():
+        for watch_key, watch_data in watches.items():
+            if isinstance(watch_data, dict):
+                source = watch_data.get('source')
+            else:
+                # Old format: key is the source
+                source = watch_key
+            
+            # Add to set if valid (exclude None and special values like "me")
+            if source and source != 'me':
+                sources.add(str(source))
+    
+    return sources
+
+def reload_monitored_sources():
+    """Reload the monitored sources set (call after config changes)"""
+    global monitored_sources
+    monitored_sources = build_monitored_sources()
+    logger.info(f"🔄 监控源已更新: {monitored_sources if monitored_sources else '无'}")
+
+# Initialize monitored sources set
+monitored_sources = build_monitored_sources()
+if monitored_sources:
+    logger.info(f"📋 正在监控的源频道: {monitored_sources}")
+else:
+    logger.info(f"📋 当前没有配置监控源")
+
 # Auto-forward handler for watched channels
 if acc is not None:
     @acc.on_message(filters.channel | filters.group | filters.private)
@@ -1743,7 +1779,13 @@ if acc is not None:
                 logger.debug("跳过：消息缺少有效的 chat ID")
                 return
             
-            # Log message reception
+            # Early filter: check if message is from a monitored source
+            source_chat_id = str(message.chat.id)
+            if source_chat_id not in monitored_sources:
+                # Not in monitored list, skip silently
+                return
+            
+            # Log message reception (only for monitored sources)
             chat_id = message.chat.id
             chat_title = getattr(message.chat, 'title', None) or getattr(message.chat, 'username', None) or str(chat_id)
             message_preview = ""
