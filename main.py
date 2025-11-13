@@ -1731,6 +1731,36 @@ def register_processed_media_group(key):
         old_key = processed_media_groups_order.pop(0)
         processed_media_groups.discard(old_key)
 
+# Message deduplication cache
+processed_messages = {}
+MESSAGE_CACHE_TTL = 5
+
+
+def is_message_processed(message_id, chat_id):
+    """Check if message has already been processed"""
+    key = f"{chat_id}_{message_id}"
+    if key in processed_messages:
+        if time.time() - processed_messages[key] < MESSAGE_CACHE_TTL:
+            return True
+        else:
+            del processed_messages[key]
+    return False
+
+
+def mark_message_processed(message_id, chat_id):
+    """Mark message as processed"""
+    key = f"{chat_id}_{message_id}"
+    processed_messages[key] = time.time()
+
+
+def cleanup_old_messages():
+    """Clean up expired message records"""
+    current_time = time.time()
+    expired_keys = [key for key, timestamp in processed_messages.items() 
+                    if current_time - timestamp > MESSAGE_CACHE_TTL]
+    for key in expired_keys:
+        del processed_messages[key]
+
 # Build set of monitored source channels for efficient filtering
 def build_monitored_sources():
     """Build a set of all monitored source chat IDs from watch config"""
@@ -1778,6 +1808,22 @@ if acc is not None:
             if not hasattr(message.chat, 'id') or message.chat.id is None:
                 logger.debug("跳过：消息缺少有效的 chat ID")
                 return
+            
+            # Check for duplicate messages
+            if not hasattr(message, 'id') or message.id is None:
+                logger.debug("跳过：消息缺少有效的 message ID")
+                return
+            
+            if is_message_processed(message.id, message.chat.id):
+                logger.debug(f"⏭️ 跳过已处理的消息: chat_id={message.chat.id}, message_id={message.id}")
+                return
+            
+            # Mark message as processed immediately to prevent duplicate processing
+            mark_message_processed(message.id, message.chat.id)
+            
+            # Periodically clean up old message records
+            if len(processed_messages) > 1000:
+                cleanup_old_messages()
             
             # Early filter: check if message is from a monitored source
             source_chat_id = str(message.chat.id)
