@@ -9,7 +9,7 @@ import threading
 import json
 import re
 from datetime import datetime
-from database import add_note
+from database import add_note, init_database
 
 # 数据目录 - 独立存储，防止更新时丢失
 DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
@@ -1843,6 +1843,7 @@ if acc is not None:
                     try:
                         # Record mode - save to database
                         if record_mode:
+                            print(f"📝 记录模式：收到消息来自 {source_chat_id}")
                             source_name = message.chat.title or message.chat.username or source_chat_id
                             
                             # Handle text content with extraction
@@ -1930,16 +1931,26 @@ if acc is not None:
                                     print(f"Error downloading video thumbnail: {e}")
                             
                             # Save to database
-                            print(f"✅ 记录模式：保存笔记 (文本: {bool(content_to_save)}, 媒体: {len(media_paths)} 个)")
-                            add_note(
-                                user_id=int(user_id),
-                                source_chat_id=source_chat_id,
-                                source_name=source_name,
-                                message_text=content_to_save if content_to_save else None,
-                                media_type=media_type,
-                                media_path=media_path,
-                                media_paths=media_paths if media_paths else None
-                            )
+                            print(f"💾 记录模式：准备保存笔记")
+                            print(f"   - 来源: {source_name} ({source_chat_id})")
+                            print(f"   - 文本: {bool(content_to_save)} ({len(content_to_save) if content_to_save else 0} 字符)")
+                            print(f"   - 媒体: {len(media_paths)} 个 ({media_type})")
+                            try:
+                                note_id = add_note(
+                                    user_id=int(user_id),
+                                    source_chat_id=source_chat_id,
+                                    source_name=source_name,
+                                    message_text=content_to_save if content_to_save else None,
+                                    media_type=media_type,
+                                    media_path=media_path,
+                                    media_paths=media_paths if media_paths else None
+                                )
+                                print(f"✅ 记录模式：笔记保存成功 (ID: {note_id})")
+                            except Exception as e:
+                                print(f"❌ 记录模式：保存笔记失败！")
+                                print(f"   错误类型: {type(e).__name__}")
+                                print(f"   错误信息: {str(e)}")
+                                raise
                             
                             # Mark as processed
                             if media_group_key:
@@ -2110,6 +2121,14 @@ def print_startup_config():
     print("="*60)
     print("✅ 机器人已就绪，正在监听消息...")
     print("="*60 + "\n")
+
+# 初始化数据库
+print("\n🔧 初始化数据库系统...")
+try:
+    init_database()
+except Exception as e:
+    print(f"⚠️ 数据库初始化时发生错误: {e}")
+    print("⚠️ 继续启动，但记录模式可能无法工作")
 
 # 打印启动配置
 print_startup_config()

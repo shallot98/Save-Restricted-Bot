@@ -11,46 +11,80 @@ DATABASE_FILE = os.path.join(DATA_DIR, 'notes.db')
 
 def init_database():
     """初始化数据库，创建必要的表"""
-    # 确保数据目录存在
-    os.makedirs(DATA_DIR, exist_ok=True)
-    
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    # 创建笔记表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            source_chat_id TEXT NOT NULL,
-            source_name TEXT,
-            message_text TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            media_type TEXT,
-            media_path TEXT,
-            media_paths TEXT
-        )
-    ''')
-    
-    # 创建用户表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL
-        )
-    ''')
-    
-    # 创建默认管理员账户 (admin/admin)
     try:
-        password_hash = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        cursor.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', ('admin', password_hash))
-    except sqlite3.IntegrityError:
-        # 管理员账户已存在
-        pass
-    
-    conn.commit()
-    conn.close()
+        print("=" * 50)
+        print("🔧 正在初始化数据库...")
+        print(f"📁 数据目录: {DATA_DIR}")
+        print(f"💾 数据库路径: {DATABASE_FILE}")
+        
+        # 确保数据目录存在
+        os.makedirs(DATA_DIR, exist_ok=True)
+        print(f"✅ 数据目录已确认存在")
+        
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        
+        # 创建笔记表
+        print("📝 正在创建 notes 表...")
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                source_chat_id TEXT NOT NULL,
+                source_name TEXT,
+                message_text TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                media_type TEXT,
+                media_path TEXT,
+                media_paths TEXT
+            )
+        ''')
+        print("✅ notes 表创建成功")
+        
+        # 创建用户表
+        print("👤 正在创建 users 表...")
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL
+            )
+        ''')
+        print("✅ users 表创建成功")
+        
+        # 创建默认管理员账户 (admin/admin)
+        try:
+            print("🔐 正在创建默认管理员账户...")
+            password_hash = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            cursor.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', ('admin', password_hash))
+            print("✅ 默认管理员账户创建成功 (admin/admin)")
+        except sqlite3.IntegrityError:
+            # 管理员账户已存在
+            print("ℹ️  管理员账户已存在，跳过创建")
+        
+        conn.commit()
+        
+        # 验证表是否创建成功
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+        print(f"📊 数据库中的表: {', '.join(tables)}")
+        
+        # 检查 notes 表中的记录数
+        cursor.execute("SELECT COUNT(*) FROM notes")
+        notes_count = cursor.fetchone()[0]
+        print(f"📝 notes 表中现有记录数: {notes_count}")
+        
+        conn.close()
+        print("✅ 数据库初始化完成！")
+        print("=" * 50)
+        
+    except Exception as e:
+        print("=" * 50)
+        print(f"❌ 数据库初始化失败！")
+        print(f"错误类型: {type(e).__name__}")
+        print(f"错误信息: {str(e)}")
+        print("=" * 50)
+        raise
 
 def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None, media_paths=None):
     """添加一条笔记记录"""
