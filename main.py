@@ -8,6 +8,7 @@ import os
 import threading
 import json
 import re
+import logging
 from datetime import datetime
 from database import add_note, init_database
 
@@ -22,6 +23,16 @@ WATCH_FILE = os.path.join(CONFIG_DIR, 'watch_config.json')
 # 确保配置和媒体目录存在
 os.makedirs(CONFIG_DIR, exist_ok=True)
 os.makedirs(MEDIA_DIR, exist_ok=True)
+
+# 配置日志系统
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -1724,36 +1735,64 @@ if acc is not None:
         try:
             # Validate message object and its attributes
             if not message or not hasattr(message, 'chat') or not message.chat:
+                logger.debug("跳过：消息对象无效或缺少 chat 属性")
                 return
             
             # Validate chat ID
             if not hasattr(message.chat, 'id') or message.chat.id is None:
+                logger.debug("跳过：消息缺少有效的 chat ID")
                 return
+            
+            # Log message reception
+            chat_id = message.chat.id
+            chat_title = getattr(message.chat, 'title', None) or getattr(message.chat, 'username', None) or str(chat_id)
+            message_preview = ""
+            if message.text:
+                message_preview = f"文本={message.text[:50]}..." if len(message.text) > 50 else f"文本={message.text}"
+            elif message.caption:
+                message_preview = f"标题={message.caption[:50]}..." if len(message.caption) > 50 else f"标题={message.caption}"
+            elif message.photo:
+                message_preview = "图片"
+            elif message.video:
+                message_preview = "视频"
+            elif message.document:
+                message_preview = "文档"
+            elif message.media_group_id:
+                message_preview = f"媒体组 (ID: {message.media_group_id})"
+            else:
+                message_preview = "其他类型"
+            
+            logger.info(f"📨 收到消息: chat_id={chat_id}, chat_name={chat_title}, 内容={message_preview}")
             
             # Ensure the peer is resolved to prevent "Peer id invalid" errors
             try:
-                chat_id = message.chat.id
                 # Skip if chat_id is invalid or zero
                 if not chat_id or chat_id == 0:
+                    logger.debug(f"跳过：chat_id 无效 (chat_id={chat_id})")
                     return
                 
                 # Try to get chat info to ensure it's cached
                 acc.get_chat(chat_id)
+                logger.debug(f"✅ 频道信息已缓存: {chat_id}")
             except (ValueError, KeyError) as e:
                 # Peer ID invalid or not found - skip this message silently
                 error_msg = str(e)
                 if "Peer id invalid" not in error_msg and "ID not found" not in error_msg:
-                    print(f"⚠️ 跳过无法解析的频道 ID {getattr(message.chat, 'id', 'unknown')}: {type(e).__name__}")
+                    logger.warning(f"⚠️ 跳过无法解析的频道 ID {chat_id}: {type(e).__name__}")
                 return
             except Exception as e:
                 # Other errors - log and skip
-                print(f"⚠️ 无法访问频道 {getattr(message.chat, 'id', 'unknown')}: {str(e)}")
+                logger.warning(f"⚠️ 无法访问频道 {chat_id}: {str(e)}")
                 return
             
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
             
+            logger.debug(f"🔍 检查监控配置: source_chat_id={source_chat_id}")
+            logger.debug(f"   当前配置中有 {len(watch_config)} 个用户的监控任务")
+            
             for user_id, watches in watch_config.items():
+                logger.debug(f"   检查用户 {user_id} 的监控任务 ({len(watches)} 个)")
                 # Iterate through all watch tasks for this user
                 for watch_key, watch_data in watches.items():
                     # Check if this task matches the source
@@ -1763,9 +1802,11 @@ if acc is not None:
                         
                         # Handle None value for task_source
                         if task_source is None:
+                            logger.debug(f"      跳过任务 {watch_key}: task_source 为 None")
                             continue
                         
                         if task_source != source_chat_id:
+                            logger.debug(f"      跳过任务 {watch_key}: 来源不匹配 (task_source={task_source} != {source_chat_id})")
                             continue
                         
                         dest_chat_id = watch_data.get("dest")
@@ -1777,9 +1818,13 @@ if acc is not None:
                         forward_mode = watch_data.get("forward_mode", "full")
                         extract_patterns = watch_data.get("extract_patterns", [])
                         record_mode = watch_data.get("record_mode", False)
+                        
+                        logger.info(f"✅ 找到匹配的监控任务: user_id={user_id}, watch_key={watch_key}")
+                        logger.info(f"   record_mode={record_mode}, dest={dest_chat_id}, forward_mode={forward_mode}")
                     else:
                         # Old format compatibility: key is source
                         if watch_key != source_chat_id:
+                            logger.debug(f"      跳过任务 {watch_key}: 来源不匹配 (旧格式)")
                             continue
                         
                         dest_chat_id = watch_data
@@ -1791,28 +1836,39 @@ if acc is not None:
                         forward_mode = "full"
                         extract_patterns = []
                         record_mode = False
+                        
+                        logger.info(f"✅ 找到匹配的监控任务 (旧格式): user_id={user_id}, watch_key={watch_key}")
                     
                     # Handle None value for dest_chat_id (skip if not in record mode)
                     if not record_mode and dest_chat_id is None:
+                        logger.debug(f"      跳过任务: 非记录模式但 dest_chat_id 为 None")
                         continue
                     
                     media_group_key = None
                     if message.media_group_id:
                         media_group_key = f"{user_id}_{watch_key}_{message.media_group_id}"
                         if media_group_key in processed_media_groups:
+                            logger.debug(f"   跳过：媒体组已处理 (media_group_key={media_group_key})")
                             continue
                     
                     message_text = message.text or message.caption or ""
+                    logger.debug(f"   消息文本长度: {len(message_text)}")
                     
                     # Check keyword whitelist
                     if whitelist:
                         if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
+                            logger.debug(f"   ⏭ 过滤：未匹配关键词白名单 {whitelist}")
                             continue
+                        else:
+                            logger.debug(f"   ✅ 通过关键词白名单检查")
                     
                     # Check keyword blacklist
                     if blacklist:
                         if any(keyword.lower() in message_text.lower() for keyword in blacklist):
+                            logger.debug(f"   ⏭ 过滤：匹配到关键词黑名单 {blacklist}")
                             continue
+                        else:
+                            logger.debug(f"   ✅ 通过关键词黑名单检查")
                     
                     # Check regex whitelist
                     if whitelist_regex:
@@ -1825,7 +1881,10 @@ if acc is not None:
                             except re.error:
                                 pass
                         if not match_found:
+                            logger.debug(f"   ⏭ 过滤：未匹配正则白名单 {whitelist_regex}")
                             continue
+                        else:
+                            logger.debug(f"   ✅ 通过正则白名单检查")
                     
                     # Check regex blacklist
                     if blacklist_regex:
@@ -1838,17 +1897,26 @@ if acc is not None:
                             except re.error:
                                 pass
                         if skip_message:
+                            logger.debug(f"   ⏭ 过滤：匹配到正则黑名单 {blacklist_regex}")
                             continue
+                        else:
+                            logger.debug(f"   ✅ 通过正则黑名单检查")
+                    
+                    logger.info(f"🎯 消息通过所有过滤规则，准备处理")
                     
                     try:
                         # Record mode - save to database
                         if record_mode:
-                            print(f"📝 记录模式：收到消息来自 {source_chat_id}")
+                            logger.info(f"📝 记录模式：开始处理消息")
+                            logger.info(f"   来源: {source_chat_id} ({getattr(message.chat, 'title', None) or getattr(message.chat, 'username', None)})")
                             source_name = message.chat.title or message.chat.username or source_chat_id
                             
                             # Handle text content with extraction
                             content_to_save = message_text
+                            logger.debug(f"   原始内容长度: {len(message_text)}")
+                            
                             if forward_mode == "extract" and extract_patterns:
+                                logger.debug(f"   应用提取模式: {extract_patterns}")
                                 extracted_content = []
                                 for pattern in extract_patterns:
                                     try:
@@ -1859,54 +1927,68 @@ if acc is not None:
                                                     extracted_content.extend(match_group)
                                             else:
                                                 extracted_content.extend(matches)
-                                    except re.error:
-                                        pass
+                                            logger.debug(f"   提取到内容: {len(matches)} 个匹配")
+                                    except re.error as e:
+                                        logger.warning(f"   正则表达式错误: {pattern} - {e}")
                                 
                                 if extracted_content:
                                     content_to_save = "\n".join(set(extracted_content))
+                                    logger.debug(f"   提取后内容长度: {len(content_to_save)}")
                                 else:
                                     content_to_save = ""
+                                    logger.debug(f"   未提取到任何内容")
                             
                             # Handle media
                             media_type = None
                             media_path = None
                             media_paths = []
                             
+                            logger.debug(f"   开始处理媒体")
+                            logger.debug(f"   - 是否有媒体组: {bool(message.media_group_id)}")
+                            logger.debug(f"   - 是否有图片: {bool(message.photo)}")
+                            logger.debug(f"   - 是否有视频: {bool(message.video)}")
+                            
                             # Check if this is a media group (multiple images)
                             if message.media_group_id:
                                 try:
                                     media_group = acc.get_media_group(message.chat.id, message.id)
                                     if media_group:
-                                        print(f"📝 记录模式：发现媒体组，共 {len(media_group)} 个媒体")
+                                        logger.info(f"   📷 发现媒体组，共 {len(media_group)} 个媒体")
                                         for idx, msg in enumerate(media_group):
                                             if msg.photo:
                                                 media_type = "photo"
                                                 file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                                 file_path = os.path.join(MEDIA_DIR, file_name)
+                                                logger.debug(f"   下载图片 {idx+1}: {file_name}")
                                                 acc.download_media(msg.photo.file_id, file_name=file_path)
                                                 media_paths.append(file_name)
                                                 if idx == 0:
                                                     media_path = file_name
                                                 # Limit to 9 images
                                                 if len(media_paths) >= 9:
-                                                    print(f"⚠️ 记录模式：媒体组超过9张图片，仅保存前9张")
+                                                    logger.warning(f"   ⚠️ 媒体组超过9张图片，仅保存前9张")
                                                     break
                                             # Capture caption if available and not already set (common on last item)
                                             if msg.caption and not content_to_save:
                                                 content_to_save = msg.caption
+                                                logger.debug(f"   从媒体组捕获标题")
+                                        logger.info(f"   ✅ 媒体组处理完成，共保存 {len(media_paths)} 个文件")
                                 except Exception as e:
-                                    print(f"Error fetching media group: {e}")
+                                    logger.error(f"   ❌ 获取媒体组失败: {e}", exc_info=True)
                                     # Fallback to single image
                                     if message.photo:
+                                        logger.info(f"   回退到单张图片处理")
                                         media_type = "photo"
                                         file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                         file_path = os.path.join(MEDIA_DIR, file_name)
                                         acc.download_media(message.photo.file_id, file_name=file_path)
                                         media_path = file_name
                                         media_paths = [file_name]
+                                        logger.debug(f"   保存单张图片: {file_name}")
                             
                             # Single photo
                             elif message.photo:
+                                logger.info(f"   📷 处理单张图片")
                                 media_type = "photo"
                                 photo = message.photo
                                 file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
@@ -1914,9 +1996,11 @@ if acc is not None:
                                 acc.download_media(photo.file_id, file_name=file_path)
                                 media_path = file_name
                                 media_paths = [file_name]
+                                logger.debug(f"   保存图片: {file_name}")
                             
                             # Single video
                             elif message.video:
+                                logger.info(f"   🎥 处理视频")
                                 media_type = "video"
                                 try:
                                     # Download video thumbnail
@@ -1927,14 +2011,21 @@ if acc is not None:
                                         acc.download_media(thumb.file_id, file_name=file_path)
                                         media_path = file_name
                                         media_paths = [file_name]
+                                        logger.debug(f"   保存视频缩略图: {file_name}")
+                                    else:
+                                        logger.debug(f"   视频没有缩略图")
                                 except Exception as e:
-                                    print(f"Error downloading video thumbnail: {e}")
+                                    logger.error(f"   ❌ 下载视频缩略图失败: {e}", exc_info=True)
                             
                             # Save to database
-                            print(f"💾 记录模式：准备保存笔记")
-                            print(f"   - 来源: {source_name} ({source_chat_id})")
-                            print(f"   - 文本: {bool(content_to_save)} ({len(content_to_save) if content_to_save else 0} 字符)")
-                            print(f"   - 媒体: {len(media_paths)} 个 ({media_type})")
+                            logger.info(f"💾 记录模式：准备保存笔记到数据库")
+                            logger.info(f"   - 用户ID: {user_id}")
+                            logger.info(f"   - 来源: {source_name} ({source_chat_id})")
+                            logger.info(f"   - 文本: {bool(content_to_save)} ({len(content_to_save) if content_to_save else 0} 字符)")
+                            logger.info(f"   - 媒体类型: {media_type}")
+                            logger.info(f"   - 媒体数量: {len(media_paths)} 个")
+                            logger.debug(f"   - 媒体路径: {media_paths}")
+                            
                             try:
                                 note_id = add_note(
                                     user_id=int(user_id),
@@ -1945,21 +2036,35 @@ if acc is not None:
                                     media_path=media_path,
                                     media_paths=media_paths if media_paths else None
                                 )
-                                print(f"✅ 记录模式：笔记保存成功 (ID: {note_id})")
+                                logger.info(f"✅ 记录模式：笔记保存成功！")
+                                logger.info(f"   笔记ID: {note_id}")
                             except Exception as e:
-                                print(f"❌ 记录模式：保存笔记失败！")
-                                print(f"   错误类型: {type(e).__name__}")
-                                print(f"   错误信息: {str(e)}")
+                                logger.error(f"❌ 记录模式：保存笔记失败！", exc_info=True)
+                                logger.error(f"   错误类型: {type(e).__name__}")
+                                logger.error(f"   错误信息: {str(e)}")
+                                logger.error(f"   参数详情:")
+                                logger.error(f"     - user_id: {user_id} (type: {type(user_id)})")
+                                logger.error(f"     - source_chat_id: {source_chat_id} (type: {type(source_chat_id)})")
+                                logger.error(f"     - source_name: {source_name}")
+                                logger.error(f"     - message_text: {content_to_save[:100] if content_to_save else None}...")
+                                logger.error(f"     - media_type: {media_type}")
+                                logger.error(f"     - media_path: {media_path}")
+                                logger.error(f"     - media_paths: {media_paths}")
                                 raise
                             
                             # Mark as processed
                             if media_group_key:
                                 register_processed_media_group(media_group_key)
+                                logger.debug(f"   标记媒体组为已处理: {media_group_key}")
                         
                         # Forward mode
                         else:
+                            logger.info(f"📤 转发模式：开始处理")
+                            logger.info(f"   目标: {dest_chat_id}")
+                            
                             # Extract mode
                             if forward_mode == "extract" and extract_patterns:
+                                logger.debug(f"   使用提取模式")
                                 extracted_content = []
                                 for pattern in extract_patterns:
                                     try:
@@ -1975,18 +2080,24 @@ if acc is not None:
                                 
                                 if extracted_content:
                                     extracted_text = "\n".join(set(extracted_content))
+                                    logger.info(f"   提取到内容，准备发送")
                                     if dest_chat_id == "me":
                                         acc.send_message("me", extracted_text)
                                     else:
                                         acc.send_message(int(dest_chat_id), extracted_text)
+                                    logger.info(f"   ✅ 提取内容已发送")
                                     if media_group_key:
                                         register_processed_media_group(media_group_key)
+                                else:
+                                    logger.debug(f"   未提取到任何内容，跳过发送")
                             
                             # Full forward mode
                             else:
+                                logger.debug(f"   使用完整转发模式")
                                 dest_id = "me" if dest_chat_id == "me" else int(dest_chat_id)
                                 
                                 if preserve_forward_source:
+                                    logger.debug(f"   保留转发来源")
                                     # Keep forward source - forward full media group when available
                                     if message.media_group_id:
                                         try:
@@ -1996,50 +2107,54 @@ if acc is not None:
                                             else:
                                                 message_ids = [message.id]
                                             acc.forward_messages(dest_id, message.chat.id, message_ids)
+                                            logger.info(f"   ✅ 媒体组已转发")
                                             if media_group_key:
                                                 register_processed_media_group(media_group_key)
                                         except Exception as e:
-                                            print(f"Warning: forward media group failed, fallback to single forward: {e}")
+                                            logger.warning(f"   转发媒体组失败，回退到单条转发: {e}")
                                             acc.forward_messages(dest_id, message.chat.id, message.id)
                                             if media_group_key:
                                                 register_processed_media_group(media_group_key)
                                     else:
                                         acc.forward_messages(dest_id, message.chat.id, message.id)
+                                        logger.info(f"   ✅ 消息已转发")
                                 else:
+                                    logger.debug(f"   隐藏转发来源")
                                     # Hide forward source - use copy for single messages or copy_media_group for albums
                                     if message.media_group_id:
                                         try:
                                             # Use copy_media_group to keep multiple images together
                                             acc.copy_media_group(dest_id, message.chat.id, message.id)
-                                            print(f"📤 转发模式：复制媒体组到 {dest_id}（隐藏引用）")
+                                            logger.info(f"   ✅ 媒体组已复制到 {dest_id}（隐藏引用）")
                                             # Mark as processed
                                             if media_group_key:
                                                 register_processed_media_group(media_group_key)
                                         except Exception as e:
-                                            print(f"Warning: copy_media_group failed, falling back to copy_message: {e}")
+                                            logger.warning(f"   复制媒体组失败，回退到复制单条: {e}")
                                             acc.copy_message(dest_id, message.chat.id, message.id)
                                             if media_group_key:
                                                 register_processed_media_group(media_group_key)
                                     else:
                                         # Single message - use copy_message
                                         acc.copy_message(dest_id, message.chat.id, message.id)
+                                        logger.info(f"   ✅ 消息已复制")
                     except (ValueError, KeyError) as e:
                         error_msg = str(e)
                         if "Peer id invalid" in error_msg or "ID not found" in error_msg:
                             # Silently skip invalid peer errors
-                            pass
+                            logger.debug(f"   跳过无效的 peer ID 错误: {error_msg}")
                         else:
-                            print(f"❌ 处理消息时出错: {type(e).__name__}: {e}")
+                            logger.error(f"❌ 处理消息时出错: {type(e).__name__}: {e}", exc_info=True)
                     except Exception as e:
-                        print(f"❌ 处理消息时出错: {e}")
+                        logger.error(f"❌ 处理消息时出错: {e}", exc_info=True)
         except (ValueError, KeyError) as e:
             # Catch Pyrogram peer resolution errors
             error_msg = str(e)
             if "Peer id invalid" not in error_msg and "ID not found" not in error_msg:
-                print(f"⚠️ auto_forward 错误: {type(e).__name__}: {e}")
+                logger.error(f"⚠️ auto_forward 错误: {type(e).__name__}: {e}", exc_info=True)
         except Exception as e:
             # Catch all other exceptions to prevent bot crash
-            print(f"⚠️ auto_forward 意外错误: {type(e).__name__}: {e}")
+            logger.error(f"⚠️ auto_forward 意外错误: {type(e).__name__}: {e}", exc_info=True)
 
 
 # 启动时加载并打印配置信息
@@ -2054,6 +2169,16 @@ def print_startup_config():
     else:
         total_tasks = sum(len(watches) for watches in watch_config.values())
         print(f"\n📋 已加载 {len(watch_config)} 个用户的 {total_tasks} 个监控任务：\n")
+        
+        # Count record mode tasks
+        record_mode_count = 0
+        for user_id, watches in watch_config.items():
+            for watch_key, watch_data in watches.items():
+                if isinstance(watch_data, dict) and watch_data.get("record_mode", False):
+                    record_mode_count += 1
+        
+        if record_mode_count > 0:
+            print(f"🔍 配置的记录模式任务: {record_mode_count} 个\n")
         
         # Collect all unique source IDs to pre-cache
         source_ids_to_cache = set()
