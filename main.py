@@ -1722,12 +1722,32 @@ if acc is not None:
     @acc.on_message(filters.channel | filters.group | filters.private)
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         try:
+            # Validate message object and its attributes
+            if not message or not hasattr(message, 'chat') or not message.chat:
+                return
+            
+            # Validate chat ID
+            if not hasattr(message.chat, 'id') or message.chat.id is None:
+                return
+            
             # Ensure the peer is resolved to prevent "Peer id invalid" errors
             try:
-                if message.chat.id:
-                    acc.get_chat(message.chat.id)
+                chat_id = message.chat.id
+                # Skip if chat_id is invalid or zero
+                if not chat_id or chat_id == 0:
+                    return
+                
+                # Try to get chat info to ensure it's cached
+                acc.get_chat(chat_id)
+            except (ValueError, KeyError) as e:
+                # Peer ID invalid or not found - skip this message silently
+                error_msg = str(e)
+                if "Peer id invalid" not in error_msg and "ID not found" not in error_msg:
+                    print(f"⚠️ 跳过无法解析的频道 ID {getattr(message.chat, 'id', 'unknown')}: {type(e).__name__}")
+                return
             except Exception as e:
-                print(f"Warning: Could not resolve peer {message.chat.id}: {e}")
+                # Other errors - log and skip
+                print(f"⚠️ 无法访问频道 {getattr(message.chat, 'id', 'unknown')}: {str(e)}")
                 return
             
             watch_config = load_watch_config()
@@ -1992,10 +2012,23 @@ if acc is not None:
                                     else:
                                         # Single message - use copy_message
                                         acc.copy_message(dest_id, message.chat.id, message.id)
+                    except (ValueError, KeyError) as e:
+                        error_msg = str(e)
+                        if "Peer id invalid" in error_msg or "ID not found" in error_msg:
+                            # Silently skip invalid peer errors
+                            pass
+                        else:
+                            print(f"❌ 处理消息时出错: {type(e).__name__}: {e}")
                     except Exception as e:
-                        print(f"Error processing message: {e}")
+                        print(f"❌ 处理消息时出错: {e}")
+        except (ValueError, KeyError) as e:
+            # Catch Pyrogram peer resolution errors
+            error_msg = str(e)
+            if "Peer id invalid" not in error_msg and "ID not found" not in error_msg:
+                print(f"⚠️ auto_forward 错误: {type(e).__name__}: {e}")
         except Exception as e:
-            print(f"Error in auto_forward: {e}")
+            # Catch all other exceptions to prevent bot crash
+            print(f"⚠️ auto_forward 意外错误: {type(e).__name__}: {e}")
 
 
 # 启动时加载并打印配置信息
