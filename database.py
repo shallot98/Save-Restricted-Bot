@@ -88,26 +88,72 @@ def init_database():
 
 def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None, media_paths=None):
     """添加一条笔记记录"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    # 将media_paths列表转换为JSON字符串
-    if media_paths:
-        if media_path is None:
-            media_path = media_paths[0]
-        media_paths_json = json.dumps(media_paths)
-    else:
-        media_paths_json = None
-    
-    cursor.execute('''
-        INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths_json))
-    
-    conn.commit()
-    note_id = cursor.lastrowid
-    conn.close()
-    return note_id
+    conn = None
+    try:
+        print(f"[add_note] 开始保存笔记")
+        print(f"[add_note] - user_id: {user_id} (type: {type(user_id).__name__})")
+        print(f"[add_note] - source_chat_id: {source_chat_id} (type: {type(source_chat_id).__name__})")
+        print(f"[add_note] - source_name: {source_name}")
+        print(f"[add_note] - message_text length: {len(message_text) if message_text else 0}")
+        print(f"[add_note] - media_type: {media_type}")
+        print(f"[add_note] - media_path: {media_path}")
+        print(f"[add_note] - media_paths: {media_paths}")
+        
+        # 验证必填字段
+        if user_id is None:
+            raise ValueError("user_id 不能为 None")
+        if source_chat_id is None:
+            raise ValueError("source_chat_id 不能为 None")
+        
+        # 确保 user_id 是整数
+        if not isinstance(user_id, int):
+            try:
+                user_id = int(user_id)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"user_id 必须是整数或可转换为整数的值: {user_id}") from e
+        
+        # 确保 source_chat_id 是字符串
+        if not isinstance(source_chat_id, str):
+            source_chat_id = str(source_chat_id)
+        
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        
+        # 将media_paths列表转换为JSON字符串
+        if media_paths:
+            if media_path is None:
+                media_path = media_paths[0]
+            media_paths_json = json.dumps(media_paths, ensure_ascii=False)
+            print(f"[add_note] - media_paths_json: {media_paths_json}")
+        else:
+            media_paths_json = None
+            print(f"[add_note] - media_paths_json: None")
+        
+        print(f"[add_note] 执行 SQL 插入...")
+        cursor.execute('''
+            INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths_json))
+        
+        print(f"[add_note] SQL 插入成功，准备提交...")
+        conn.commit()
+        note_id = cursor.lastrowid
+        print(f"[add_note] ✅ 提交成功！note_id: {note_id}")
+        conn.close()
+        
+        return note_id
+        
+    except sqlite3.Error as e:
+        print(f"[add_note] ❌ SQLite 错误: {type(e).__name__}: {e}")
+        print(f"[add_note] SQLite 错误详情: {str(e)}")
+        if conn:
+            conn.close()
+        raise
+    except Exception as e:
+        print(f"[add_note] ❌ 意外错误: {type(e).__name__}: {e}")
+        if conn:
+            conn.close()
+        raise
 
 def get_notes(user_id=None, source_chat_id=None, search_query=None, date_from=None, date_to=None, limit=50, offset=0):
     """获取笔记列表"""
