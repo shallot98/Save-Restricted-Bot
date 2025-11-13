@@ -11,19 +11,51 @@ import re
 from datetime import datetime
 from database import add_note
 
-with open('config.json', 'r') as f: DATA = json.load(f)
-def getenv(var): return os.environ.get(var) or DATA.get(var, None)
+# 数据目录 - 独立存储，防止更新时丢失
+DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
+DATA_DIR = os.environ.get('DATA_DIR', DEFAULT_DATA_DIR)
+CONFIG_DIR = os.path.join(DATA_DIR, 'config')
+MEDIA_DIR = os.path.join(DATA_DIR, 'media')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
+WATCH_FILE = os.path.join(CONFIG_DIR, 'watch_config.json')
 
-# Watch configurations file
-WATCH_FILE = 'watch_config.json'
+# 确保配置和媒体目录存在
+os.makedirs(CONFIG_DIR, exist_ok=True)
+os.makedirs(MEDIA_DIR, exist_ok=True)
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    config_data = {}
+    for key in ["TOKEN", "HASH", "ID", "STRING", "OWNER_ID"]:
+        value = os.environ.get(key)
+        if value:
+            config_data[key] = value
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(config_data, f, indent=4, ensure_ascii=False)
+    return config_data
+
+DATA = load_config()
+
+def getenv(var):
+    return os.environ.get(var) or DATA.get(var)
 
 # User state management for multi-step interactions
 user_states = {}
 
 def load_watch_config():
     if os.path.exists(WATCH_FILE):
-        with open(WATCH_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(WATCH_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    with open(WATCH_FILE, 'w', encoding='utf-8') as f:
+        json.dump({}, f, indent=4, ensure_ascii=False)
     return {}
 
 def save_watch_config(config):
@@ -1829,8 +1861,7 @@ if acc is not None:
                                             if msg.photo:
                                                 media_type = "photo"
                                                 file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                                                file_path = os.path.join("data", "media", file_name)
-                                                os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                                file_path = os.path.join(MEDIA_DIR, file_name)
                                                 acc.download_media(msg.photo.file_id, file_name=file_path)
                                                 media_paths.append(file_name)
                                                 if idx == 0:
@@ -1848,8 +1879,7 @@ if acc is not None:
                                     if message.photo:
                                         media_type = "photo"
                                         file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                                        file_path = os.path.join("data", "media", file_name)
-                                        os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                        file_path = os.path.join(MEDIA_DIR, file_name)
                                         acc.download_media(message.photo.file_id, file_name=file_path)
                                         media_path = file_name
                                         media_paths = [file_name]
@@ -1859,8 +1889,7 @@ if acc is not None:
                                 media_type = "photo"
                                 photo = message.photo
                                 file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                                file_path = os.path.join("data", "media", file_name)
-                                os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                file_path = os.path.join(MEDIA_DIR, file_name)
                                 acc.download_media(photo.file_id, file_name=file_path)
                                 media_path = file_name
                                 media_paths = [file_name]
@@ -1873,8 +1902,7 @@ if acc is not None:
                                     thumb = message.video.thumbs[0] if message.video.thumbs else None
                                     if thumb:
                                         file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
-                                        file_path = os.path.join("data", "media", file_name)
-                                        os.makedirs(os.path.join("data", "media"), exist_ok=True)
+                                        file_path = os.path.join(MEDIA_DIR, file_name)
                                         acc.download_media(thumb.file_id, file_name=file_path)
                                         media_path = file_name
                                         media_paths = [file_name]
