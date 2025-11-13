@@ -41,6 +41,18 @@ def init_database():
         ''')
         print("✅ notes 表创建成功")
         
+        # 检查并添加 media_paths 列（迁移旧数据库）
+        print("🔄 检查 media_paths 列是否存在...")
+        cursor.execute("PRAGMA table_info(notes)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'media_paths' not in columns:
+            print("➕ 添加 media_paths 列...")
+            cursor.execute("ALTER TABLE notes ADD COLUMN media_paths TEXT")
+            conn.commit()
+            print("✅ media_paths 列添加成功")
+        else:
+            print("✅ media_paths 列已存在")
+        
         # 创建用户表
         print("👤 正在创建 users 表...")
         cursor.execute('''
