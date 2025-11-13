@@ -2093,22 +2093,29 @@ if acc is not None:
                             
                             # Single video
                             elif message.video:
-                                logger.info(f"   🎥 处理视频")
+                                logger.info(f"   📹 处理视频消息")
                                 media_type = "video"
+                                logger.info(f"   - 视频时长: {message.video.duration}秒")
+                                logger.info(f"   - 视频尺寸: {message.video.width}x{message.video.height}")
+                                logger.info(f"   - 是否有缩略图: {bool(message.video.thumbs)}")
+                                
                                 try:
-                                    # Download video thumbnail
-                                    thumb = message.video.thumbs[0] if message.video.thumbs else None
-                                    if thumb:
+                                    # Try to download video thumbnail
+                                    if message.video.thumbs and len(message.video.thumbs) > 0:
+                                        # Get the largest thumbnail
+                                        thumb = message.video.thumbs[-1]
                                         file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
                                         file_path = os.path.join(MEDIA_DIR, file_name)
+                                        logger.info(f"   尝试下载视频缩略图: {file_name}")
                                         acc.download_media(thumb.file_id, file_name=file_path)
                                         media_path = file_name
                                         media_paths = [file_name]
-                                        logger.debug(f"   保存视频缩略图: {file_name}")
+                                        logger.info(f"   ✅ 视频缩略图已保存: {file_name}")
                                     else:
-                                        logger.debug(f"   视频没有缩略图")
+                                        logger.warning(f"   ⚠️ 视频没有缩略图，将只记录视频类型")
                                 except Exception as e:
-                                    logger.error(f"   ❌ 下载视频缩略图失败: {e}", exc_info=True)
+                                    logger.warning(f"   ⚠️ 下载视频缩略图失败: {e}")
+                                    logger.info(f"   视频类型信息将被保留，但无缩略图")
                             
                             # Save to database
                             logger.info(f"💾 记录模式：准备保存笔记到数据库")
@@ -2215,6 +2222,127 @@ if acc is not None:
                                         # Single message - use copy_message
                                         acc.copy_message(dest_id, message.chat.id, message.id)
                                         logger.info(f"   ✅ 消息已复制")
+                            
+                            # After forwarding, check if destination also has record mode configured
+                            if not record_mode and dest_chat_id and dest_chat_id != "me":
+                                logger.debug(f"🔍 检查目标频道 {dest_chat_id} 是否配置了记录模式")
+                                dest_chat_id_str = str(dest_chat_id)
+                                
+                                # Check all watch configs to see if dest has record mode
+                                for check_user_id, check_watches in watch_config.items():
+                                    for check_watch_key, check_watch_data in check_watches.items():
+                                        if isinstance(check_watch_data, dict):
+                                            check_source = str(check_watch_data.get("source", ""))
+                                            check_record_mode = check_watch_data.get("record_mode", False)
+                                            
+                                            # If dest has record mode, save this forwarded message
+                                            if check_source == dest_chat_id_str and check_record_mode:
+                                                logger.info(f"📝 目标频道记录模式：发现 {dest_chat_id} 配置了记录模式")
+                                                logger.info(f"   为用户 {check_user_id} 记录此转发的消息")
+                                                
+                                                try:
+                                                    # Get destination chat info for source_name
+                                                    try:
+                                                        dest_chat = acc.get_chat(int(dest_chat_id))
+                                                        dest_name = dest_chat.title or dest_chat.username or dest_chat_id_str
+                                                    except:
+                                                        dest_name = dest_chat_id_str
+                                                    
+                                                    # Prepare content for recording
+                                                    content_to_save = message_text
+                                                    check_forward_mode = check_watch_data.get("forward_mode", "full")
+                                                    check_extract_patterns = check_watch_data.get("extract_patterns", [])
+                                                    
+                                                    # Apply extraction if configured
+                                                    if check_forward_mode == "extract" and check_extract_patterns:
+                                                        logger.debug(f"   目标频道配置了提取模式")
+                                                        extracted_content = []
+                                                        for pattern in check_extract_patterns:
+                                                            try:
+                                                                matches = re.findall(pattern, message_text)
+                                                                if matches:
+                                                                    if isinstance(matches[0], tuple):
+                                                                        for match_group in matches:
+                                                                            extracted_content.extend(match_group)
+                                                                    else:
+                                                                        extracted_content.extend(matches)
+                                                            except re.error:
+                                                                pass
+                                                        if extracted_content:
+                                                            content_to_save = "\n".join(set(extracted_content))
+                                                        else:
+                                                            content_to_save = ""
+                                                    
+                                                    # Handle media
+                                                    record_media_type = None
+                                                    record_media_path = None
+                                                    record_media_paths = []
+                                                    
+                                                    # Check if message has media group
+                                                    if message.media_group_id:
+                                                        try:
+                                                            media_group = acc.get_media_group(message.chat.id, message.id)
+                                                            if media_group:
+                                                                logger.info(f"   📷 记录媒体组，共 {len(media_group)} 个媒体")
+                                                                for idx, msg in enumerate(media_group):
+                                                                    if msg.photo:
+                                                                        record_media_type = "photo"
+                                                                        file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                                                        file_path = os.path.join(MEDIA_DIR, file_name)
+                                                                        acc.download_media(msg.photo.file_id, file_name=file_path)
+                                                                        record_media_paths.append(file_name)
+                                                                        if idx == 0:
+                                                                            record_media_path = file_name
+                                                                        if len(record_media_paths) >= 9:
+                                                                            break
+                                                                    if msg.caption and not content_to_save:
+                                                                        content_to_save = msg.caption
+                                                        except Exception as e:
+                                                            logger.warning(f"   获取媒体组失败: {e}")
+                                                    
+                                                    # Single photo
+                                                    elif message.photo:
+                                                        logger.info(f"   📷 记录单张图片")
+                                                        record_media_type = "photo"
+                                                        photo = message.photo
+                                                        file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                                        file_path = os.path.join(MEDIA_DIR, file_name)
+                                                        acc.download_media(photo.file_id, file_name=file_path)
+                                                        record_media_path = file_name
+                                                        record_media_paths = [file_name]
+                                                    
+                                                    # Single video
+                                                    elif message.video:
+                                                        logger.info(f"   📹 记录视频")
+                                                        record_media_type = "video"
+                                                        try:
+                                                            if message.video.thumbs and len(message.video.thumbs) > 0:
+                                                                thumb = message.video.thumbs[-1]
+                                                                file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                                                                file_path = os.path.join(MEDIA_DIR, file_name)
+                                                                acc.download_media(thumb.file_id, file_name=file_path)
+                                                                record_media_path = file_name
+                                                                record_media_paths = [file_name]
+                                                                logger.info(f"   ✅ 视频缩略图已保存")
+                                                            else:
+                                                                logger.warning(f"   ⚠️ 视频没有缩略图")
+                                                        except Exception as e:
+                                                            logger.warning(f"   ⚠️ 视频缩略图下载失败: {e}")
+                                                    
+                                                    # Save to database
+                                                    note_id = add_note(
+                                                        user_id=int(check_user_id),
+                                                        source_chat_id=dest_chat_id_str,
+                                                        source_name=dest_name,
+                                                        message_text=content_to_save if content_to_save else None,
+                                                        media_type=record_media_type,
+                                                        media_path=record_media_path,
+                                                        media_paths=record_media_paths if record_media_paths else None
+                                                    )
+                                                    logger.info(f"   ✅ 目标频道记录模式：笔记已保存 (ID={note_id})")
+                                                    
+                                                except Exception as e:
+                                                    logger.error(f"   ❌ 目标频道记录模式：保存失败: {e}", exc_info=True)
                     except (ValueError, KeyError) as e:
                         error_msg = str(e)
                         if "Peer id invalid" in error_msg or "ID not found" in error_msg:

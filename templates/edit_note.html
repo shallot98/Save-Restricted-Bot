@@ -240,9 +240,9 @@
                 </div>
                 {% if note.media_type %}
                 <div class="note-info-item">
-                    <span>{% if note.media_type == 'photo' %}📷{% else %}🎬{% endif %}</span>
+                    <span>{% if note.media_type == 'photo' %}📷{% elif note.media_type == 'video' %}📹{% else %}📄{% endif %}</span>
                     <span class="note-info-label">媒体类型：</span>
-                    <span>{% if note.media_type == 'photo' %}图片{% else %}视频{% endif %}</span>
+                    <span>{% if note.media_type == 'photo' %}图片{% elif note.media_type == 'video' %}视频{% else %}{{ note.media_type }}{% endif %}</span>
                 </div>
                 {% endif %}
                 {% if note.media_paths and note.media_paths|length > 1 %}
@@ -262,15 +262,22 @@
                     {% endfor %}
                 </div>
                 {% if note.media_type == 'video' %}
-                <div class="media-badge">🎬 视频缩略图</div>
+                <div class="media-badge">📹 视频缩略图</div>
                 {% endif %}
             </div>
             {% elif note.media_path %}
             <div class="media-preview">
                 <img src="/media/{{ note.media_path }}" alt="Media preview">
                 {% if note.media_type == 'video' %}
-                <div class="media-badge">🎬 视频缩略图</div>
+                <div class="media-badge">📹 视频缩略图</div>
                 {% endif %}
+            </div>
+            {% elif note.media_type == 'video' %}
+            <div class="media-preview">
+                <div style="width: 200px; height: 200px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);">
+                    <span style="font-size: 80px;">🎬</span>
+                </div>
+                <div class="media-badge">📹 视频（无缩略图）</div>
             </div>
             {% endif %}
 

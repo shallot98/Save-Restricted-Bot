@@ -812,8 +812,14 @@
                     <img src="/media/{{ note.media_path }}" alt="Note image" class="note-image" onerror="this.style.display='none'">
                 {% elif note.media_type == 'video' %}
                     <div class="note-video-container">
-                        <img src="/media/{{ note.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
-                        <span class="video-badge">🎬 视频</span>
+                        {% if note.media_path %}
+                            <img src="/media/{{ note.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
+                        {% else %}
+                            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                <span style="font-size: 64px;">🎬</span>
+                            </div>
+                        {% endif %}
+                        <span class="video-badge">📹 视频</span>
                     </div>
                 {% endif %}
                 
