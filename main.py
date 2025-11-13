@@ -1992,6 +1992,11 @@ if acc is not None:
                     
                     logger.info(f"🎯 消息通过所有过滤规则，准备处理")
                     
+                    # Mark media group as processed immediately to prevent duplicate processing
+                    if media_group_key:
+                        register_processed_media_group(media_group_key)
+                        logger.debug(f"   ✅ 已标记媒体组为已处理: {media_group_key}")
+                    
                     try:
                         # Record mode - save to database
                         if record_mode:
@@ -2139,11 +2144,6 @@ if acc is not None:
                                 logger.error(f"     - media_path: {media_path}")
                                 logger.error(f"     - media_paths: {media_paths}")
                                 raise
-                            
-                            # Mark as processed
-                            if media_group_key:
-                                register_processed_media_group(media_group_key)
-                                logger.debug(f"   标记媒体组为已处理: {media_group_key}")
                         
                         # Forward mode
                         else:
@@ -2174,8 +2174,6 @@ if acc is not None:
                                     else:
                                         acc.send_message(int(dest_chat_id), extracted_text)
                                     logger.info(f"   ✅ 提取内容已发送")
-                                    if media_group_key:
-                                        register_processed_media_group(media_group_key)
                                 else:
                                     logger.debug(f"   未提取到任何内容，跳过发送")
                             
@@ -2196,13 +2194,9 @@ if acc is not None:
                                                 message_ids = [message.id]
                                             acc.forward_messages(dest_id, message.chat.id, message_ids)
                                             logger.info(f"   ✅ 媒体组已转发")
-                                            if media_group_key:
-                                                register_processed_media_group(media_group_key)
                                         except Exception as e:
                                             logger.warning(f"   转发媒体组失败，回退到单条转发: {e}")
                                             acc.forward_messages(dest_id, message.chat.id, message.id)
-                                            if media_group_key:
-                                                register_processed_media_group(media_group_key)
                                     else:
                                         acc.forward_messages(dest_id, message.chat.id, message.id)
                                         logger.info(f"   ✅ 消息已转发")
@@ -2214,14 +2208,9 @@ if acc is not None:
                                             # Use copy_media_group to keep multiple images together
                                             acc.copy_media_group(dest_id, message.chat.id, message.id)
                                             logger.info(f"   ✅ 媒体组已复制到 {dest_id}（隐藏引用）")
-                                            # Mark as processed
-                                            if media_group_key:
-                                                register_processed_media_group(media_group_key)
                                         except Exception as e:
                                             logger.warning(f"   复制媒体组失败，回退到复制单条: {e}")
                                             acc.copy_message(dest_id, message.chat.id, message.id)
-                                            if media_group_key:
-                                                register_processed_media_group(media_group_key)
                                     else:
                                         # Single message - use copy_message
                                         acc.copy_message(dest_id, message.chat.id, message.id)
