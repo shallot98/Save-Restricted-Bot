@@ -350,10 +350,8 @@ class MessageWorker:
                 # Check if this is a media group (multiple images)
                 if message.media_group_id:
                     try:
-                        media_group = self._run_async_with_timeout(
-                            acc.get_media_group(message.chat.id, message.id),
-                            timeout=30.0
-                        )
+                        # Call get_media_group directly - Pyrogram handles async/sync bridging
+                        media_group = acc.get_media_group(message.chat.id, message.id)
                         if media_group:
                             logger.info(f"   📷 发现媒体组，共 {len(media_group)} 个媒体")
                             for idx, msg in enumerate(media_group):
@@ -362,10 +360,8 @@ class MessageWorker:
                                     file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                     file_path = os.path.join(MEDIA_DIR, file_name)
                                     logger.debug(f"   下载图片 {idx+1}: {file_name}")
-                                    self._run_async_with_timeout(
-                                        acc.download_media(msg.photo.file_id, file_name=file_path),
-                                        timeout=60.0
-                                    )
+                                    # Call download_media directly - Pyrogram handles async/sync bridging
+                                    acc.download_media(msg.photo.file_id, file_name=file_path)
                                     media_paths.append(file_name)
                                     if idx == 0:
                                         media_path = file_name
@@ -386,10 +382,8 @@ class MessageWorker:
                             media_type = "photo"
                             file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                             file_path = os.path.join(MEDIA_DIR, file_name)
-                            self._run_async_with_timeout(
-                                acc.download_media(message.photo.file_id, file_name=file_path),
-                                timeout=60.0
-                            )
+                            # Call download_media directly - Pyrogram handles async/sync bridging
+                            acc.download_media(message.photo.file_id, file_name=file_path)
                             media_path = file_name
                             media_paths = [file_name]
                             logger.debug(f"   保存单张图片: {file_name}")
@@ -401,10 +395,8 @@ class MessageWorker:
                     photo = message.photo
                     file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                     file_path = os.path.join(MEDIA_DIR, file_name)
-                    self._run_async_with_timeout(
-                        acc.download_media(photo.file_id, file_name=file_path),
-                        timeout=60.0
-                    )
+                    # Call download_media directly - Pyrogram handles async/sync bridging
+                    acc.download_media(photo.file_id, file_name=file_path)
                     media_path = file_name
                     media_paths = [file_name]
                     logger.debug(f"   保存图片: {file_name}")
@@ -425,10 +417,8 @@ class MessageWorker:
                             file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
                             file_path = os.path.join(MEDIA_DIR, file_name)
                             logger.info(f"   尝试下载视频缩略图: {file_name}")
-                            self._run_async_with_timeout(
-                                acc.download_media(thumb.file_id, file_name=file_path),
-                                timeout=60.0
-                            )
+                            # Call download_media directly - Pyrogram handles async/sync bridging
+                            acc.download_media(thumb.file_id, file_name=file_path)
                             media_path = file_name
                             media_paths = [file_name]
                             logger.info(f"   ✅ 视频缩略图已保存: {file_name}")
@@ -511,10 +501,8 @@ class MessageWorker:
                         # Keep forward source - forward full media group when available
                         if message.media_group_id:
                             try:
-                                media_group = self._run_async_with_timeout(
-                                    acc.get_media_group(message.chat.id, message.id),
-                                    timeout=30.0
-                                )
+                                # Call get_media_group directly - Pyrogram handles async/sync bridging
+                                media_group = acc.get_media_group(message.chat.id, message.id)
                                 if media_group:
                                     message_ids = [msg.id for msg in media_group]
                                 else:
@@ -596,10 +584,8 @@ class MessageWorker:
                                     try:
                                         # Get destination chat info for source_name
                                         try:
-                                            dest_chat = self._run_async_with_timeout(
-                                                acc.get_chat(int(dest_chat_id)),
-                                                timeout=30.0
-                                            )
+                                            # Call get_chat directly - Pyrogram handles async/sync bridging
+                                            dest_chat = acc.get_chat(int(dest_chat_id))
                                             dest_name = dest_chat.title or dest_chat.username or dest_chat_id_str
                                         except:
                                             dest_name = dest_chat_id_str
@@ -637,10 +623,8 @@ class MessageWorker:
                                         # Check if message has media group
                                         if message.media_group_id:
                                             try:
-                                                media_group = self._run_async_with_timeout(
-                                                    acc.get_media_group(message.chat.id, message.id),
-                                                    timeout=30.0
-                                                )
+                                                # Call get_media_group directly - Pyrogram handles async/sync bridging
+                                                media_group = acc.get_media_group(message.chat.id, message.id)
                                                 if media_group:
                                                     logger.info(f"   📷 记录媒体组，共 {len(media_group)} 个媒体")
                                                     for idx, msg in enumerate(media_group):
@@ -648,10 +632,8 @@ class MessageWorker:
                                                             record_media_type = "photo"
                                                             file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                                             file_path = os.path.join(MEDIA_DIR, file_name)
-                                                            self._run_async_with_timeout(
-                                                                acc.download_media(msg.photo.file_id, file_name=file_path),
-                                                                timeout=60.0
-                                                            )
+                                                            # Call download_media directly - Pyrogram handles async/sync bridging
+                                                            acc.download_media(msg.photo.file_id, file_name=file_path)
                                                             record_media_paths.append(file_name)
                                                             if idx == 0:
                                                                 record_media_path = file_name
@@ -669,10 +651,8 @@ class MessageWorker:
                                             photo = message.photo
                                             file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                             file_path = os.path.join(MEDIA_DIR, file_name)
-                                            self._run_async_with_timeout(
-                                                acc.download_media(photo.file_id, file_name=file_path),
-                                                timeout=60.0
-                                            )
+                                            # Call download_media directly - Pyrogram handles async/sync bridging
+                                            acc.download_media(photo.file_id, file_name=file_path)
                                             record_media_path = file_name
                                             record_media_paths = [file_name]
                                         
@@ -685,10 +665,8 @@ class MessageWorker:
                                                     thumb = message.video.thumbs[-1]
                                                     file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
                                                     file_path = os.path.join(MEDIA_DIR, file_name)
-                                                    self._run_async_with_timeout(
-                                                        acc.download_media(thumb.file_id, file_name=file_path),
-                                                        timeout=60.0
-                                                    )
+                                                    # Call download_media directly - Pyrogram handles async/sync bridging
+                                                    acc.download_media(thumb.file_id, file_name=file_path)
                                                     record_media_path = file_name
                                                     record_media_paths = [file_name]
                                                     logger.info(f"   ✅ 视频缩略图已保存")
