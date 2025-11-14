@@ -39,6 +39,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class UnrecoverableError(Exception):
+    """Exception for unrecoverable errors that should not be retried"""
+    pass
+
+
 @dataclass
 class Message:
     """消息对象，封装消息元数据"""
@@ -62,6 +67,7 @@ class MessageWorker:
         self.max_retries = max_retries
         self.processed_count = 0
         self.failed_count = 0
+        self.skipped_count = 0  # Count of messages skipped due to unrecoverable errors
         self.retry_count = 0
         self.running = True
         self.last_stats_time = time.time()
@@ -84,21 +90,24 @@ class MessageWorker:
                     if time.time() - self.last_stats_time > 60:
                         queue_size = self.message_queue.qsize()
                         if queue_size > 0 or self.processed_count > 0:
-                            logger.info(f"📊 队列统计: 待处理={queue_size}, 已完成={self.processed_count}, 失败={self.failed_count}, 重试={self.retry_count}")
+                            logger.info(f"📊 队列统计: 待处理={queue_size}, 已完成={self.processed_count}, 跳过={self.skipped_count}, 失败={self.failed_count}, 重试={self.retry_count}")
                         self.last_stats_time = time.time()
                     continue
                 
                 # 记录队列统计信息
                 queue_size = self.message_queue.qsize()
-                logger.info(f"📥 从队列取出消息 (队列剩余: {queue_size}, 已处理: {self.processed_count}, 失败: {self.failed_count})")
+                logger.info(f"📥 从队列取出消息 (队列剩余: {queue_size}, 已处理: {self.processed_count}, 跳过: {self.skipped_count}, 失败: {self.failed_count})")
                 
                 # 处理消息
-                success = self.process_message(msg_obj)
+                result = self.process_message(msg_obj)
                 
-                if success:
+                if result == "success":
                     self.processed_count += 1
                     logger.info(f"✅ 消息处理成功 (总计: {self.processed_count})")
-                else:
+                elif result == "skip":
+                    self.skipped_count += 1
+                    logger.info(f"⏭️ 消息已跳过 (总计: {self.skipped_count})")
+                elif result == "retry":
                     # 失败处理：重试或放弃
                     if msg_obj.retry_count < self.max_retries:
                         msg_obj.retry_count += 1
@@ -162,7 +171,11 @@ class MessageWorker:
             timeout: Timeout in seconds for each attempt (default: 30)
             
         Returns:
-            True if operation succeeded, False if it failed
+            True if operation succeeded
+            
+        Raises:
+            UnrecoverableError: For errors that should not be retried (Peer ID invalid, etc.)
+            Exception: For other errors that may be retried
         """
         for flood_attempt in range(max_flood_retries):
             try:
@@ -179,25 +192,31 @@ class MessageWorker:
                     time.sleep(wait_time + 1)
                 else:
                     logger.error(f"❌ {operation_name}: FloodWait 重试次数已达上限，放弃操作")
-                    return False
+                    raise UnrecoverableError(f"FloodWait retry limit exceeded for {operation_name}")
             except asyncio.TimeoutError:
                 logger.error(f"❌ {operation_name}: 操作超时（{timeout}秒），跳过此消息")
-                return False
+                raise UnrecoverableError(f"Timeout ({timeout}s) for {operation_name}")
             except (ValueError, KeyError) as e:
                 error_msg = str(e)
                 if "Peer id invalid" in error_msg or "ID not found" in error_msg:
                     logger.warning(f"⚠️ {operation_name}: Peer ID 无效，跳过: {error_msg}")
-                    return False
+                    raise UnrecoverableError(f"Invalid Peer ID: {error_msg}")
                 else:
                     logger.error(f"❌ {operation_name} 执行失败: {type(e).__name__}: {e}")
                     raise
             except Exception as e:
                 logger.error(f"❌ {operation_name} 执行失败: {type(e).__name__}: {e}")
                 raise
-        return False
+        raise UnrecoverableError(f"Operation {operation_name} failed after {max_flood_retries} FloodWait retries")
     
-    def process_message(self, msg_obj: Message) -> bool:
-        """处理单条消息"""
+    def process_message(self, msg_obj: Message) -> str:
+        """处理单条消息
+        
+        Returns:
+            "success": Message processed successfully
+            "skip": Message skipped (filters or unrecoverable errors)
+            "retry": Message failed but can be retried
+        """
         try:
             logger.info(f"⚙️ 开始处理消息: user={msg_obj.user_id}, source={msg_obj.source_chat_id}")
             logger.debug(f"   重试次数: {msg_obj.retry_count}, 消息文本: {msg_obj.message_text[:100] if msg_obj.message_text else 'None'}...")
@@ -224,13 +243,13 @@ class MessageWorker:
             if whitelist:
                 if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
                     logger.debug(f"   ⏭ 过滤：未匹配关键词白名单 {whitelist}")
-                    return True  # 返回True表示成功处理（虽然跳过了）
+                    return "skip"  # Filtered out by whitelist
             
             # Check keyword blacklist
             if blacklist:
                 if any(keyword.lower() in message_text.lower() for keyword in blacklist):
                     logger.debug(f"   ⏭ 过滤：匹配到关键词黑名单 {blacklist}")
-                    return True
+                    return "skip"  # Filtered out by blacklist
             
             # Check regex whitelist
             if whitelist_regex:
@@ -244,7 +263,7 @@ class MessageWorker:
                         pass
                 if not match_found:
                     logger.debug(f"   ⏭ 过滤：未匹配正则白名单 {whitelist_regex}")
-                    return True
+                    return "skip"  # Filtered out by regex whitelist
             
             # Check regex blacklist
             if blacklist_regex:
@@ -258,7 +277,7 @@ class MessageWorker:
                         pass
                 if skip_message:
                     logger.debug(f"   ⏭ 过滤：匹配到正则黑名单 {blacklist_regex}")
-                    return True
+                    return "skip"  # Filtered out by regex blacklist
             
             logger.info(f"🎯 消息通过所有过滤规则，准备处理")
             
@@ -450,17 +469,12 @@ class MessageWorker:
                         
                         dest_id = "me" if dest_chat_id == "me" else int(dest_chat_id)
                         
-                        success = self._execute_with_flood_retry(
+                        self._execute_with_flood_retry(
                             "发送提取内容",
                             lambda: acc.send_message(dest_id, extracted_text)
                         )
-                        
-                        if success:
-                            logger.info(f"   ✅ 提取内容已发送")
-                            time.sleep(0.5)
-                        else:
-                            logger.error(f"   ❌ 发送提取内容失败")
-                            raise Exception("发送提取内容失败")
+                        logger.info(f"   ✅ 提取内容已发送")
+                        time.sleep(0.5)
                     else:
                         logger.debug(f"   未提取到任何内容，跳过发送")
                 
@@ -483,73 +497,58 @@ class MessageWorker:
                                 else:
                                     message_ids = [message.id]
                                 
-                                success = self._execute_with_flood_retry(
+                                self._execute_with_flood_retry(
                                     "转发媒体组",
                                     lambda: acc.forward_messages(dest_id, message.chat.id, message_ids)
                                 )
-                                
-                                if success:
-                                    logger.info(f"   ✅ 媒体组已转发")
-                                    time.sleep(0.5)
-                                else:
-                                    raise Exception("转发媒体组失败")
+                                logger.info(f"   ✅ 媒体组已转发")
+                                time.sleep(0.5)
+                            except UnrecoverableError:
+                                raise
                             except Exception as e:
                                 logger.warning(f"   转发媒体组失败，回退到单条转发: {e}")
-                                success = self._execute_with_flood_retry(
+                                self._execute_with_flood_retry(
                                     "转发单条消息",
                                     lambda: acc.forward_messages(dest_id, message.chat.id, message.id)
                                 )
-                                if success:
-                                    logger.info(f"   ✅ 消息已转发（单条）")
-                                    time.sleep(0.5)
-                                else:
-                                    raise Exception("转发单条消息失败")
+                                logger.info(f"   ✅ 消息已转发（单条）")
+                                time.sleep(0.5)
                         else:
-                            success = self._execute_with_flood_retry(
+                            self._execute_with_flood_retry(
                                 "转发消息",
                                 lambda: acc.forward_messages(dest_id, message.chat.id, message.id)
                             )
-                            if success:
-                                logger.info(f"   ✅ 消息已转发")
-                                time.sleep(0.5)
-                            else:
-                                raise Exception("转发消息失败")
+                            logger.info(f"   ✅ 消息已转发")
+                            time.sleep(0.5)
                     else:
                         logger.debug(f"   隐藏转发来源")
                         # Hide forward source - use copy for single messages or copy_media_group for albums
                         if message.media_group_id:
                             try:
-                                success = self._execute_with_flood_retry(
+                                self._execute_with_flood_retry(
                                     "复制媒体组",
                                     lambda: acc.copy_media_group(dest_id, message.chat.id, message.id)
                                 )
-                                if success:
-                                    logger.info(f"   ✅ 媒体组已复制到 {dest_id}（隐藏引用）")
-                                    time.sleep(0.5)
-                                else:
-                                    raise Exception("复制媒体组失败")
+                                logger.info(f"   ✅ 媒体组已复制到 {dest_id}（隐藏引用）")
+                                time.sleep(0.5)
+                            except UnrecoverableError:
+                                raise
                             except Exception as e:
                                 logger.warning(f"   复制媒体组失败，回退到复制单条: {e}")
-                                success = self._execute_with_flood_retry(
+                                self._execute_with_flood_retry(
                                     "复制单条消息",
                                     lambda: acc.copy_message(dest_id, message.chat.id, message.id)
                                 )
-                                if success:
-                                    logger.info(f"   ✅ 消息已复制（单条）")
-                                    time.sleep(0.5)
-                                else:
-                                    raise Exception("复制单条消息失败")
+                                logger.info(f"   ✅ 消息已复制（单条）")
+                                time.sleep(0.5)
                         else:
                             # Single message - use copy_message
-                            success = self._execute_with_flood_retry(
+                            self._execute_with_flood_retry(
                                 "复制消息",
                                 lambda: acc.copy_message(dest_id, message.chat.id, message.id)
                             )
-                            if success:
-                                logger.info(f"   ✅ 消息已复制")
-                                time.sleep(0.5)
-                            else:
-                                raise Exception("复制消息失败")
+                            logger.info(f"   ✅ 消息已复制")
+                            time.sleep(0.5)
                 
                 # After forwarding, check if destination also has record mode configured
                 if not record_mode and dest_chat_id and dest_chat_id != "me":
@@ -691,20 +690,24 @@ class MessageWorker:
                                         logger.error(f"   ❌ 目标频道记录模式：保存失败: {e}", exc_info=True)
             
             # 处理成功
-            return True
+            return "success"
             
+        except UnrecoverableError as e:
+            # Unrecoverable errors should not be retried
+            logger.warning(f"⚠️ 消息处理失败（不可恢复），跳过: {e}")
+            return "skip"  # Skip, don't retry
         except (ValueError, KeyError) as e:
             error_msg = str(e)
             if "Peer id invalid" in error_msg or "ID not found" in error_msg:
                 # Silently skip invalid peer errors - don't retry
-                logger.debug(f"   跳过无效的 peer ID 错误: {error_msg}")
-                return True  # 返回True表示不需要重试
+                logger.warning(f"⚠️ 跳过无效的 Peer ID 错误: {error_msg}")
+                return "skip"  # Skip, don't retry
             else:
                 logger.error(f"❌ 处理消息时出错: {type(e).__name__}: {e}", exc_info=True)
-                return False  # 返回False触发重试
+                return "retry"  # Trigger retry
         except Exception as e:
             logger.error(f"❌ 处理消息时出错: {e}", exc_info=True)
-            return False  # 返回False触发重试
+            return "retry"  # Trigger retry
     
     def stop(self):
         """停止工作线程"""
