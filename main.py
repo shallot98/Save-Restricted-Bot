@@ -1,9 +1,10 @@
 import pyrogram
 from pyrogram import Client, filters
-from pyrogram.errors import UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied, ChannelPrivate, UsernameInvalid
+from pyrogram.errors import UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied, ChannelPrivate, UsernameInvalid, FloodWait
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 import time
+import asyncio
 import os
 import threading
 import json
@@ -121,6 +122,35 @@ class MessageWorker:
                     pass
         
         logger.info("🛑 消息工作线程已停止")
+    
+    def _execute_with_flood_retry(self, operation_name: str, operation_func, max_flood_retries: int = 3):
+        """Execute operation with FloodWait retry handling
+        
+        Args:
+            operation_name: Name of the operation for logging
+            operation_func: Function to execute (should be callable)
+            max_flood_retries: Maximum number of retries for FloodWait errors
+            
+        Returns:
+            True if operation succeeded, False if it failed
+        """
+        for flood_attempt in range(max_flood_retries):
+            try:
+                operation_func()
+                return True
+            except FloodWait as e:
+                wait_time = e.value
+                if flood_attempt < max_flood_retries - 1:
+                    logger.warning(f"⏳ {operation_name}: 遇到限流 FLOOD_WAIT, 需等待 {wait_time} 秒")
+                    logger.info(f"   将在 {wait_time + 1} 秒后重试 (FloodWait 重试 {flood_attempt + 1}/{max_flood_retries})")
+                    time.sleep(wait_time + 1)
+                else:
+                    logger.error(f"❌ {operation_name}: FloodWait 重试次数已达上限，放弃操作")
+                    return False
+            except Exception as e:
+                logger.error(f"❌ {operation_name} 执行失败: {type(e).__name__}: {e}")
+                raise
+        return False
     
     def process_message(self, msg_obj: Message) -> bool:
         """处理单条消息"""
@@ -358,11 +388,20 @@ class MessageWorker:
                     if extracted_content:
                         extracted_text = "\n".join(set(extracted_content))
                         logger.info(f"   提取到内容，准备发送")
-                        if dest_chat_id == "me":
-                            acc.send_message("me", extracted_text)
+                        
+                        dest_id = "me" if dest_chat_id == "me" else int(dest_chat_id)
+                        
+                        success = self._execute_with_flood_retry(
+                            "发送提取内容",
+                            lambda: acc.send_message(dest_id, extracted_text)
+                        )
+                        
+                        if success:
+                            logger.info(f"   ✅ 提取内容已发送")
+                            time.sleep(0.5)
                         else:
-                            acc.send_message(int(dest_chat_id), extracted_text)
-                        logger.info(f"   ✅ 提取内容已发送")
+                            logger.error(f"   ❌ 发送提取内容失败")
+                            raise Exception("发送提取内容失败")
                     else:
                         logger.debug(f"   未提取到任何内容，跳过发送")
                 
@@ -381,29 +420,74 @@ class MessageWorker:
                                     message_ids = [msg.id for msg in media_group]
                                 else:
                                     message_ids = [message.id]
-                                acc.forward_messages(dest_id, message.chat.id, message_ids)
-                                logger.info(f"   ✅ 媒体组已转发")
+                                
+                                success = self._execute_with_flood_retry(
+                                    "转发媒体组",
+                                    lambda: acc.forward_messages(dest_id, message.chat.id, message_ids)
+                                )
+                                
+                                if success:
+                                    logger.info(f"   ✅ 媒体组已转发")
+                                    time.sleep(0.5)
+                                else:
+                                    raise Exception("转发媒体组失败")
                             except Exception as e:
                                 logger.warning(f"   转发媒体组失败，回退到单条转发: {e}")
-                                acc.forward_messages(dest_id, message.chat.id, message.id)
+                                success = self._execute_with_flood_retry(
+                                    "转发单条消息",
+                                    lambda: acc.forward_messages(dest_id, message.chat.id, message.id)
+                                )
+                                if success:
+                                    logger.info(f"   ✅ 消息已转发（单条）")
+                                    time.sleep(0.5)
+                                else:
+                                    raise Exception("转发单条消息失败")
                         else:
-                            acc.forward_messages(dest_id, message.chat.id, message.id)
-                            logger.info(f"   ✅ 消息已转发")
+                            success = self._execute_with_flood_retry(
+                                "转发消息",
+                                lambda: acc.forward_messages(dest_id, message.chat.id, message.id)
+                            )
+                            if success:
+                                logger.info(f"   ✅ 消息已转发")
+                                time.sleep(0.5)
+                            else:
+                                raise Exception("转发消息失败")
                     else:
                         logger.debug(f"   隐藏转发来源")
                         # Hide forward source - use copy for single messages or copy_media_group for albums
                         if message.media_group_id:
                             try:
-                                # Use copy_media_group to keep multiple images together
-                                acc.copy_media_group(dest_id, message.chat.id, message.id)
-                                logger.info(f"   ✅ 媒体组已复制到 {dest_id}（隐藏引用）")
+                                success = self._execute_with_flood_retry(
+                                    "复制媒体组",
+                                    lambda: acc.copy_media_group(dest_id, message.chat.id, message.id)
+                                )
+                                if success:
+                                    logger.info(f"   ✅ 媒体组已复制到 {dest_id}（隐藏引用）")
+                                    time.sleep(0.5)
+                                else:
+                                    raise Exception("复制媒体组失败")
                             except Exception as e:
                                 logger.warning(f"   复制媒体组失败，回退到复制单条: {e}")
-                                acc.copy_message(dest_id, message.chat.id, message.id)
+                                success = self._execute_with_flood_retry(
+                                    "复制单条消息",
+                                    lambda: acc.copy_message(dest_id, message.chat.id, message.id)
+                                )
+                                if success:
+                                    logger.info(f"   ✅ 消息已复制（单条）")
+                                    time.sleep(0.5)
+                                else:
+                                    raise Exception("复制单条消息失败")
                         else:
                             # Single message - use copy_message
-                            acc.copy_message(dest_id, message.chat.id, message.id)
-                            logger.info(f"   ✅ 消息已复制")
+                            success = self._execute_with_flood_retry(
+                                "复制消息",
+                                lambda: acc.copy_message(dest_id, message.chat.id, message.id)
+                            )
+                            if success:
+                                logger.info(f"   ✅ 消息已复制")
+                                time.sleep(0.5)
+                            else:
+                                raise Exception("复制消息失败")
                 
                 # After forwarding, check if destination also has record mode configured
                 if not record_mode and dest_chat_id and dest_chat_id != "me":
@@ -2448,6 +2532,14 @@ if acc is not None:
                     if not record_mode and dest_chat_id is None:
                         logger.debug(f"      跳过任务: 非记录模式但 dest_chat_id 为 None")
                         continue
+                    
+                    # Pre-cache destination peer to reduce API calls during forwarding
+                    if not record_mode and dest_chat_id and dest_chat_id != "me":
+                        try:
+                            acc.get_chat(int(dest_chat_id))
+                            logger.debug(f"   ✅ 目标频道已缓存: {dest_chat_id}")
+                        except Exception as e:
+                            logger.debug(f"   ⚠️ 无法缓存目标频道 {dest_chat_id}: {str(e)}")
                     
                     # Check media group deduplication
                     media_group_key = None
