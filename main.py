@@ -151,9 +151,24 @@ class MessageWorker:
             
         Raises:
             asyncio.TimeoutError: If operation times out
+            TypeError: If coro is not a coroutine or awaitable
+            RuntimeError: If event loop is not available
             Exception: Any exception from the coroutine
         """
+        # Validate that we have a proper coroutine or awaitable
+        if not asyncio.iscoroutine(coro) and not hasattr(coro, '__await__'):
+            error_msg = f"Expected coroutine or awaitable, got {type(coro).__name__}"
+            logger.error(f"❌ {error_msg}")
+            raise TypeError(error_msg)
+        
+        # Ensure event loop exists and is valid
+        if not self.loop or self.loop.is_closed():
+            error_msg = "Event loop not available or closed"
+            logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
+        
         try:
+            # Create timeout wrapper and execute
             return self.loop.run_until_complete(
                 asyncio.wait_for(coro, timeout=timeout)
             )
@@ -196,6 +211,14 @@ class MessageWorker:
             except asyncio.TimeoutError:
                 logger.error(f"❌ {operation_name}: 操作超时（{timeout}秒），跳过此消息")
                 raise UnrecoverableError(f"Timeout ({timeout}s) for {operation_name}")
+            except TypeError as e:
+                error_msg = str(e)
+                if "coroutine" in error_msg.lower() or "awaitable" in error_msg.lower():
+                    logger.error(f"❌ {operation_name}: 异步执行错误: {error_msg}")
+                    raise UnrecoverableError(f"Async execution error for {operation_name}: {error_msg}")
+                else:
+                    logger.error(f"❌ {operation_name} 执行失败: {type(e).__name__}: {e}")
+                    raise
             except (ValueError, KeyError) as e:
                 error_msg = str(e)
                 if "Peer id invalid" in error_msg or "ID not found" in error_msg:
