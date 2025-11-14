@@ -13,6 +13,7 @@ services:
       - HASH=${HASH}
       - STRING=${STRING}
       - DATA_DIR=/app/data
+      - TZ=Asia/Shanghai
     volumes:
       - ./downloads:/app/downloads
       - ./data:/app/data

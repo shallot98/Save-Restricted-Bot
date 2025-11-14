@@ -8,6 +8,10 @@ import sqlite3
 import os
 import sys
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+# 设置中国时区
+CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
 # 数据目录
 DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
@@ -32,7 +36,7 @@ def clean_duplicates():
     
     # 备份提示
     print("\n⚠️  建议在继续前备份数据库:")
-    print(f"   cp {DATABASE_FILE} {DATABASE_FILE}.bak.{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    print(f"   cp {DATABASE_FILE} {DATABASE_FILE}.bak.{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}")
     
     try:
         # 获取当前总记录数

@@ -1,8 +1,12 @@
 import sqlite3
 import bcrypt
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import os
 import json
+
+# 设置中国时区
+CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
 # 数据目录 - 独立存储，防止更新时丢失
 DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
@@ -185,11 +189,15 @@ def add_note(user_id, source_chat_id, source_name, message_text, media_type=None
             media_paths_json = None
             print(f"[add_note] - media_paths_json: None")
         
+        # 生成中国时区时间戳
+        china_timestamp = datetime.now(CHINA_TZ).strftime('%Y-%m-%d %H:%M:%S')
+        print(f"[add_note] - 时间戳 (中国时区): {china_timestamp}")
+        
         print(f"[add_note] 执行 SQL 插入...")
         cursor.execute('''
-            INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths, media_group_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths_json, media_group_id))
+            INSERT INTO notes (user_id, source_chat_id, source_name, message_text, timestamp, media_type, media_path, media_paths, media_group_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, source_chat_id, source_name, message_text, china_timestamp, media_type, media_path, media_paths_json, media_group_id))
         
         print(f"[add_note] SQL 插入成功，准备提交...")
         conn.commit()
