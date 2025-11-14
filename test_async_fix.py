@@ -110,6 +110,18 @@ class TestMessageWorker:
     
     def _run_async_with_timeout(self, coro, timeout: float = 30.0):
         """Execute async operation with timeout"""
+        # Validate that we have a proper coroutine or awaitable
+        if not asyncio.iscoroutine(coro) and not hasattr(coro, '__await__'):
+            error_msg = f"Expected coroutine or awaitable, got {type(coro).__name__}"
+            logger.error(f"❌ {error_msg}")
+            raise TypeError(error_msg)
+        
+        # Ensure event loop exists and is valid
+        if not self.loop or self.loop.is_closed():
+            error_msg = "Event loop not available or closed"
+            logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg)
+        
         try:
             return self.loop.run_until_complete(
                 asyncio.wait_for(coro, timeout=timeout)
