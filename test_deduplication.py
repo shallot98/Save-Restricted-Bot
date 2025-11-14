@@ -6,7 +6,7 @@ import time
 
 # Message deduplication cache
 processed_messages = {}
-MESSAGE_CACHE_TTL = 5
+MESSAGE_CACHE_TTL = 1
 
 
 def is_message_processed(message_id, chat_id):
@@ -66,9 +66,9 @@ def test_deduplication():
     print("✅ 通过：不同聊天的消息未被标记为重复\n")
     
     # Test 6: Test TTL expiration
-    print("测试 6: TTL过期测试 (等待6秒...)")
+    print("测试 6: TTL过期测试 (等待2秒...)")
     mark_message_processed(789, -1001234567890)
-    time.sleep(6)  # Wait for TTL to expire
+    time.sleep(2)  # Wait for TTL to expire (TTL is 1 second)
     assert not is_message_processed(789, -1001234567890), "❌ 失败：过期消息仍被标记为已处理"
     print("✅ 通过：过期消息正确清理\n")
     
@@ -77,7 +77,7 @@ def test_deduplication():
     mark_message_processed(111, -1001234567890)
     mark_message_processed(222, -1001234567890)
     mark_message_processed(333, -1001234567890)
-    time.sleep(6)  # Wait for TTL to expire
+    time.sleep(2)  # Wait for TTL to expire (TTL is 1 second)
     cleanup_old_messages()
     assert len(processed_messages) == 0, f"❌ 失败：清理后仍有 {len(processed_messages)} 条记录"
     print("✅ 通过：清理函数正常工作\n")
