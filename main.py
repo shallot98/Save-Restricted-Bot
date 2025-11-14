@@ -14,7 +14,11 @@ import queue
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from database import add_note, init_database
+
+# 设置中国时区
+CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
 # 数据目录 - 独立存储，防止更新时丢失
 DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
@@ -357,7 +361,7 @@ class MessageWorker:
                             for idx, msg in enumerate(media_group):
                                 if msg.photo:
                                     media_type = "photo"
-                                    file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                                    file_name = f"{msg.id}_{idx}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}.jpg"
                                     file_path = os.path.join(MEDIA_DIR, file_name)
                                     logger.debug(f"   下载图片 {idx+1}: {file_name}")
                                     # Call download_media directly - Pyrogram handles async/sync bridging
@@ -380,7 +384,7 @@ class MessageWorker:
                         if message.photo:
                             logger.info(f"   回退到单张图片处理")
                             media_type = "photo"
-                            file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                            file_name = f"{message.id}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}.jpg"
                             file_path = os.path.join(MEDIA_DIR, file_name)
                             # Call download_media directly - Pyrogram handles async/sync bridging
                             acc.download_media(message.photo.file_id, file_name=file_path)
@@ -393,7 +397,7 @@ class MessageWorker:
                     logger.info(f"   📷 处理单张图片")
                     media_type = "photo"
                     photo = message.photo
-                    file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                    file_name = f"{message.id}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}.jpg"
                     file_path = os.path.join(MEDIA_DIR, file_name)
                     # Call download_media directly - Pyrogram handles async/sync bridging
                     acc.download_media(photo.file_id, file_name=file_path)
@@ -414,7 +418,7 @@ class MessageWorker:
                         if message.video.thumbs and len(message.video.thumbs) > 0:
                             # Get the largest thumbnail
                             thumb = message.video.thumbs[-1]
-                            file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
+                            file_name = f"{message.id}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
                             file_path = os.path.join(MEDIA_DIR, file_name)
                             logger.info(f"   尝试下载视频缩略图: {file_name}")
                             # Call download_media directly - Pyrogram handles async/sync bridging
