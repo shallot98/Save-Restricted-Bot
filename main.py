@@ -2426,7 +2426,7 @@ def register_processed_media_group(key):
 
 # Message deduplication cache
 processed_messages = {}
-MESSAGE_CACHE_TTL = 5
+MESSAGE_CACHE_TTL = 1
 
 
 def is_message_processed(message_id, chat_id):
@@ -2545,26 +2545,29 @@ if acc is not None:
             
             logger.info(f"📨 收到消息: chat_id={chat_id}, chat_name={chat_title}, 内容={message_preview}")
             
-            # Ensure the peer is resolved to prevent "Peer id invalid" errors
+            # Skip if chat_id is invalid or zero
+            if not chat_id or chat_id == 0:
+                logger.debug(f"跳过：chat_id 无效 (chat_id={chat_id})")
+                return
+            
+            # Try to cache source channel info to reduce API calls
             try:
-                # Skip if chat_id is invalid or zero
-                if not chat_id or chat_id == 0:
-                    logger.debug(f"跳过：chat_id 无效 (chat_id={chat_id})")
-                    return
-                
-                # Try to get chat info to ensure it's cached
                 acc.get_chat(chat_id)
                 logger.debug(f"✅ 频道信息已缓存: {chat_id}")
+            except FloodWait as e:
+                # FLOOD_WAIT should not cause message loss - skip caching and continue
+                logger.warning(f"⚠️ FLOOD_WAIT {e.value}秒，跳过缓存继续处理消息")
             except (ValueError, KeyError) as e:
-                # Peer ID invalid or not found - skip this message silently
+                # Peer ID invalid or not found - this is unrecoverable, skip message
                 error_msg = str(e)
-                if "Peer id invalid" not in error_msg and "ID not found" not in error_msg:
-                    logger.warning(f"⚠️ 跳过无法解析的频道 ID {chat_id}: {type(e).__name__}")
+                if "Peer id invalid" in error_msg or "ID not found" in error_msg:
+                    logger.debug(f"跳过：Peer ID 无效 (chat_id={chat_id})")
+                    return
+                logger.warning(f"⚠️ 跳过无法解析的频道 ID {chat_id}: {type(e).__name__}")
                 return
             except Exception as e:
-                # Other errors - log and skip
-                logger.warning(f"⚠️ 无法访问频道 {chat_id}: {str(e)}")
-                return
+                # Other cache errors - log but continue processing
+                logger.warning(f"⚠️ 缓存频道信息失败 {chat_id}: {str(e)}，继续处理消息")
             
             watch_config = load_watch_config()
             source_chat_id = str(message.chat.id)
@@ -2619,18 +2622,25 @@ if acc is not None:
                         try:
                             acc.get_chat(int(dest_chat_id))
                             logger.debug(f"   ✅ 目标频道已缓存: {dest_chat_id}")
+                        except FloodWait as e:
+                            logger.debug(f"   ⚠️ FLOOD_WAIT: 跳过目标频道缓存 ({dest_chat_id})")
                         except Exception as e:
                             logger.debug(f"   ⚠️ 无法缓存目标频道 {dest_chat_id}: {str(e)}")
                     
-                    # Check media group deduplication
+                    # Check media group deduplication (only for forward mode)
                     media_group_key = None
                     if message.media_group_id:
                         media_group_key = f"{user_id}_{watch_key}_{message.media_group_id}"
-                        if media_group_key in processed_media_groups:
-                            logger.debug(f"   跳过：媒体组已处理 (media_group_key={media_group_key})")
-                            continue
-                        # Mark media group as processed immediately
-                        register_processed_media_group(media_group_key)
+                        
+                        # Only deduplicate in forward mode; record mode should save all media
+                        if not record_mode:
+                            if media_group_key in processed_media_groups:
+                                logger.debug(f"   跳过：媒体组已处理 (media_group_key={media_group_key})")
+                                continue
+                            # Mark media group as processed immediately
+                            register_processed_media_group(media_group_key)
+                        else:
+                            logger.debug(f"   记录模式：允许处理媒体组中的每条消息 (media_group_key={media_group_key})")
                     
                     # Extract message text for filtering
                     message_text = message.text or message.caption or ""
