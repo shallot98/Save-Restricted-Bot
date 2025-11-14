@@ -435,6 +435,7 @@ class MessageWorker:
                 logger.info(f"   - 文本: {bool(content_to_save)} ({len(content_to_save) if content_to_save else 0} 字符)")
                 logger.info(f"   - 媒体类型: {media_type}")
                 logger.info(f"   - 媒体数量: {len(media_paths)} 个")
+                logger.info(f"   - 媒体组ID: {message.media_group_id if message.media_group_id else 'None'}")
                 logger.debug(f"   - 媒体路径: {media_paths}")
                 
                 try:
@@ -445,7 +446,8 @@ class MessageWorker:
                         message_text=content_to_save if content_to_save else None,
                         media_type=media_type,
                         media_path=media_path,
-                        media_paths=media_paths if media_paths else None
+                        media_paths=media_paths if media_paths else None,
+                        media_group_id=str(message.media_group_id) if message.media_group_id else None
                     )
                     logger.info(f"✅ 记录模式：笔记保存成功！")
                     logger.info(f"   笔记ID: {note_id}")
@@ -683,7 +685,8 @@ class MessageWorker:
                                             message_text=content_to_save if content_to_save else None,
                                             media_type=record_media_type,
                                             media_path=record_media_path,
-                                            media_paths=record_media_paths if record_media_paths else None
+                                            media_paths=record_media_paths if record_media_paths else None,
+                                            media_group_id=str(message.media_group_id) if message.media_group_id else None
                                         )
                                         logger.info(f"   ✅ 目标频道记录模式：笔记已保存 (ID={note_id})")
                                         
@@ -2627,20 +2630,18 @@ if acc is not None:
                         except Exception as e:
                             logger.debug(f"   ⚠️ 无法缓存目标频道 {dest_chat_id}: {str(e)}")
                     
-                    # Check media group deduplication (only for forward mode)
+                    # Check media group deduplication (applies to both forward and record modes)
                     media_group_key = None
                     if message.media_group_id:
                         media_group_key = f"{user_id}_{watch_key}_{message.media_group_id}"
                         
-                        # Only deduplicate in forward mode; record mode should save all media
-                        if not record_mode:
-                            if media_group_key in processed_media_groups:
-                                logger.debug(f"   跳过：媒体组已处理 (media_group_key={media_group_key})")
-                                continue
-                            # Mark media group as processed immediately
-                            register_processed_media_group(media_group_key)
-                        else:
-                            logger.debug(f"   记录模式：允许处理媒体组中的每条消息 (media_group_key={media_group_key})")
+                        # Deduplicate media groups - only process first message in group
+                        if media_group_key in processed_media_groups:
+                            logger.debug(f"   跳过：媒体组已处理 (media_group_key={media_group_key})")
+                            continue
+                        # Mark media group as processed immediately
+                        register_processed_media_group(media_group_key)
+                        logger.debug(f"   媒体组首次处理 (media_group_key={media_group_key})")
                     
                     # Extract message text for filtering
                     message_text = message.text or message.caption or ""
