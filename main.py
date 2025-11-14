@@ -2431,6 +2431,9 @@ def register_processed_media_group(key):
         old_key = processed_media_groups_order.pop(0)
         processed_media_groups.discard(old_key)
 
+# Track cached destination peers (for forward mode)
+cached_dest_peers = set()
+
 # Message deduplication cache
 processed_messages = {}
 MESSAGE_CACHE_TTL = 1
@@ -2626,13 +2629,17 @@ if acc is not None:
                     
                     # Pre-cache destination peer to reduce API calls during forwarding
                     if not record_mode and dest_chat_id and dest_chat_id != "me":
-                        try:
-                            acc.get_chat(int(dest_chat_id))
-                            logger.debug(f"   ✅ 目标频道已缓存: {dest_chat_id}")
-                        except FloodWait as e:
-                            logger.debug(f"   ⚠️ FLOOD_WAIT: 跳过目标频道缓存 ({dest_chat_id})")
-                        except Exception as e:
-                            logger.debug(f"   ⚠️ 无法缓存目标频道 {dest_chat_id}: {str(e)}")
+                        if dest_chat_id not in cached_dest_peers:
+                            try:
+                                acc.get_chat(int(dest_chat_id))
+                                cached_dest_peers.add(dest_chat_id)
+                                logger.debug(f"   ✅ 目标Peer已缓存: {dest_chat_id}")
+                            except FloodWait as e:
+                                logger.warning(f"   ⚠️ 目标缓存触发限流: 等待 {e.value} 秒")
+                                # Don't interrupt processing, continue trying to forward
+                            except Exception as e:
+                                logger.warning(f"   ⚠️ 缓存目标失败: {str(e)}")
+                                # Continue trying to forward, might already be in cache
                     
                     # Check media group deduplication (applies to both forward and record modes)
                     media_group_key = None
@@ -2775,6 +2782,73 @@ def print_startup_config():
                 except Exception as e:
                     print(f"   ⚠️ 无法缓存 {source_id}: {str(e)}")
             print(f"📦 成功缓存 {cached_count}/{len(source_ids_to_cache)} 个频道\n")
+        
+        # Pre-cache all destination peers (including bots)
+        if acc is not None:
+            dest_ids_to_cache = set()
+            
+            # Extract all destination Peer IDs from watch_config
+            for user_id, watches in watch_config.items():
+                for watch_key, watch_data in watches.items():
+                    if isinstance(watch_data, dict):
+                        dest_id = watch_data.get("dest")
+                        record_mode = watch_data.get("record_mode", False)
+                        
+                        # Only cache destination peers for forward mode (record mode doesn't need caching)
+                        if not record_mode and dest_id and dest_id != "me":
+                            try:
+                                dest_id_int = int(dest_id)
+                                dest_ids_to_cache.add(dest_id)
+                            except (ValueError, TypeError):
+                                # Skip invalid ID formats
+                                pass
+            
+            # Execute caching
+            if dest_ids_to_cache:
+                print("🔄 预加载目标Peer信息到缓存...")
+                cached_dest_count = 0
+                failed_dests = []
+                
+                for dest_id in dest_ids_to_cache:
+                    try:
+                        dest_chat = acc.get_chat(int(dest_id))
+                        cached_dest_count += 1
+                        # Display bot/user/group/channel info
+                        if hasattr(dest_chat, 'type'):
+                            chat_type = dest_chat.type.name if hasattr(dest_chat.type, 'name') else str(dest_chat.type)
+                        else:
+                            chat_type = "未知"
+                        
+                        # Get appropriate name
+                        if hasattr(dest_chat, 'first_name') and dest_chat.first_name:
+                            chat_name = dest_chat.first_name
+                        elif hasattr(dest_chat, 'title') and dest_chat.title:
+                            chat_name = dest_chat.title
+                        elif hasattr(dest_chat, 'username') and dest_chat.username:
+                            chat_name = dest_chat.username
+                        else:
+                            chat_name = "Unknown"
+                        
+                        # Mark as bot if applicable
+                        is_bot = " 🤖" if hasattr(dest_chat, 'is_bot') and dest_chat.is_bot else ""
+                        print(f"   ✅ 已缓存目标: {dest_id} ({chat_name}{is_bot})")
+                        
+                        # Track cached destinations
+                        cached_dest_peers.add(dest_id)
+                    except FloodWait as e:
+                        print(f"   ⚠️ 限流: 目标 {dest_id}，等待 {e.value} 秒")
+                        failed_dests.append(dest_id)
+                    except Exception as e:
+                        print(f"   ⚠️ 无法缓存目标 {dest_id}: {str(e)}")
+                        failed_dests.append(dest_id)
+                
+                print(f"📦 成功缓存 {cached_dest_count}/{len(dest_ids_to_cache)} 个目标Peer")
+                
+                if failed_dests:
+                    print(f"💡 缓存失败的目标（共{len(failed_dests)}个）: {', '.join(failed_dests)}")
+                    print(f"   建议：请先让Bot与这些目标交互，或手动发送消息给目标\n")
+                else:
+                    print()
     
     print("="*60)
     print("✅ 机器人已就绪，正在监听消息...")
