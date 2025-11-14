@@ -65,10 +65,14 @@ class MessageWorker:
         self.retry_count = 0
         self.running = True
         self.last_stats_time = time.time()
+        self.loop = None
         
     def run(self):
         """主循环：持续处理队列消息"""
-        logger.info("🔧 消息工作线程已启动")
+        # Create event loop for this thread
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        logger.info("🔧 消息工作线程已启动（带事件循环）")
         
         while self.running:
             try:
@@ -121,22 +125,51 @@ class MessageWorker:
                 except ValueError:
                     pass
         
+        # Clean up event loop
+        if self.loop:
+            self.loop.close()
         logger.info("🛑 消息工作线程已停止")
     
-    def _execute_with_flood_retry(self, operation_name: str, operation_func, max_flood_retries: int = 3):
-        """Execute operation with FloodWait retry handling
+    def _run_async_with_timeout(self, coro, timeout: float = 30.0):
+        """Execute async operation with timeout in the worker thread
+        
+        Args:
+            coro: Coroutine to execute
+            timeout: Timeout in seconds (default: 30)
+            
+        Returns:
+            Result of the coroutine
+            
+        Raises:
+            asyncio.TimeoutError: If operation times out
+            Exception: Any exception from the coroutine
+        """
+        try:
+            return self.loop.run_until_complete(
+                asyncio.wait_for(coro, timeout=timeout)
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"❌ 操作超时（{timeout}秒）")
+            raise
+    
+    def _execute_with_flood_retry(self, operation_name: str, operation_func, max_flood_retries: int = 3, timeout: float = 30.0):
+        """Execute operation with FloodWait retry and timeout handling
         
         Args:
             operation_name: Name of the operation for logging
-            operation_func: Function to execute (should be callable)
+            operation_func: Function to execute (can return a coroutine or be a regular callable)
             max_flood_retries: Maximum number of retries for FloodWait errors
+            timeout: Timeout in seconds for each attempt (default: 30)
             
         Returns:
             True if operation succeeded, False if it failed
         """
         for flood_attempt in range(max_flood_retries):
             try:
-                operation_func()
+                result = operation_func()
+                # Check if result is a coroutine (async operation)
+                if asyncio.iscoroutine(result):
+                    self._run_async_with_timeout(result, timeout=timeout)
                 return True
             except FloodWait as e:
                 wait_time = e.value
@@ -147,6 +180,17 @@ class MessageWorker:
                 else:
                     logger.error(f"❌ {operation_name}: FloodWait 重试次数已达上限，放弃操作")
                     return False
+            except asyncio.TimeoutError:
+                logger.error(f"❌ {operation_name}: 操作超时（{timeout}秒），跳过此消息")
+                return False
+            except (ValueError, KeyError) as e:
+                error_msg = str(e)
+                if "Peer id invalid" in error_msg or "ID not found" in error_msg:
+                    logger.warning(f"⚠️ {operation_name}: Peer ID 无效，跳过: {error_msg}")
+                    return False
+                else:
+                    logger.error(f"❌ {operation_name} 执行失败: {type(e).__name__}: {e}")
+                    raise
             except Exception as e:
                 logger.error(f"❌ {operation_name} 执行失败: {type(e).__name__}: {e}")
                 raise
@@ -264,7 +308,10 @@ class MessageWorker:
                 # Check if this is a media group (multiple images)
                 if message.media_group_id:
                     try:
-                        media_group = acc.get_media_group(message.chat.id, message.id)
+                        media_group = self._run_async_with_timeout(
+                            acc.get_media_group(message.chat.id, message.id),
+                            timeout=30.0
+                        )
                         if media_group:
                             logger.info(f"   📷 发现媒体组，共 {len(media_group)} 个媒体")
                             for idx, msg in enumerate(media_group):
@@ -273,7 +320,10 @@ class MessageWorker:
                                     file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                     file_path = os.path.join(MEDIA_DIR, file_name)
                                     logger.debug(f"   下载图片 {idx+1}: {file_name}")
-                                    acc.download_media(msg.photo.file_id, file_name=file_path)
+                                    self._run_async_with_timeout(
+                                        acc.download_media(msg.photo.file_id, file_name=file_path),
+                                        timeout=60.0
+                                    )
                                     media_paths.append(file_name)
                                     if idx == 0:
                                         media_path = file_name
@@ -294,7 +344,10 @@ class MessageWorker:
                             media_type = "photo"
                             file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                             file_path = os.path.join(MEDIA_DIR, file_name)
-                            acc.download_media(message.photo.file_id, file_name=file_path)
+                            self._run_async_with_timeout(
+                                acc.download_media(message.photo.file_id, file_name=file_path),
+                                timeout=60.0
+                            )
                             media_path = file_name
                             media_paths = [file_name]
                             logger.debug(f"   保存单张图片: {file_name}")
@@ -306,7 +359,10 @@ class MessageWorker:
                     photo = message.photo
                     file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                     file_path = os.path.join(MEDIA_DIR, file_name)
-                    acc.download_media(photo.file_id, file_name=file_path)
+                    self._run_async_with_timeout(
+                        acc.download_media(photo.file_id, file_name=file_path),
+                        timeout=60.0
+                    )
                     media_path = file_name
                     media_paths = [file_name]
                     logger.debug(f"   保存图片: {file_name}")
@@ -327,7 +383,10 @@ class MessageWorker:
                             file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
                             file_path = os.path.join(MEDIA_DIR, file_name)
                             logger.info(f"   尝试下载视频缩略图: {file_name}")
-                            acc.download_media(thumb.file_id, file_name=file_path)
+                            self._run_async_with_timeout(
+                                acc.download_media(thumb.file_id, file_name=file_path),
+                                timeout=60.0
+                            )
                             media_path = file_name
                             media_paths = [file_name]
                             logger.info(f"   ✅ 视频缩略图已保存: {file_name}")
@@ -415,7 +474,10 @@ class MessageWorker:
                         # Keep forward source - forward full media group when available
                         if message.media_group_id:
                             try:
-                                media_group = acc.get_media_group(message.chat.id, message.id)
+                                media_group = self._run_async_with_timeout(
+                                    acc.get_media_group(message.chat.id, message.id),
+                                    timeout=30.0
+                                )
                                 if media_group:
                                     message_ids = [msg.id for msg in media_group]
                                 else:
@@ -512,7 +574,10 @@ class MessageWorker:
                                     try:
                                         # Get destination chat info for source_name
                                         try:
-                                            dest_chat = acc.get_chat(int(dest_chat_id))
+                                            dest_chat = self._run_async_with_timeout(
+                                                acc.get_chat(int(dest_chat_id)),
+                                                timeout=30.0
+                                            )
                                             dest_name = dest_chat.title or dest_chat.username or dest_chat_id_str
                                         except:
                                             dest_name = dest_chat_id_str
@@ -550,7 +615,10 @@ class MessageWorker:
                                         # Check if message has media group
                                         if message.media_group_id:
                                             try:
-                                                media_group = acc.get_media_group(message.chat.id, message.id)
+                                                media_group = self._run_async_with_timeout(
+                                                    acc.get_media_group(message.chat.id, message.id),
+                                                    timeout=30.0
+                                                )
                                                 if media_group:
                                                     logger.info(f"   📷 记录媒体组，共 {len(media_group)} 个媒体")
                                                     for idx, msg in enumerate(media_group):
@@ -558,7 +626,10 @@ class MessageWorker:
                                                             record_media_type = "photo"
                                                             file_name = f"{msg.id}_{idx}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                                             file_path = os.path.join(MEDIA_DIR, file_name)
-                                                            acc.download_media(msg.photo.file_id, file_name=file_path)
+                                                            self._run_async_with_timeout(
+                                                                acc.download_media(msg.photo.file_id, file_name=file_path),
+                                                                timeout=60.0
+                                                            )
                                                             record_media_paths.append(file_name)
                                                             if idx == 0:
                                                                 record_media_path = file_name
@@ -576,7 +647,10 @@ class MessageWorker:
                                             photo = message.photo
                                             file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                                             file_path = os.path.join(MEDIA_DIR, file_name)
-                                            acc.download_media(photo.file_id, file_name=file_path)
+                                            self._run_async_with_timeout(
+                                                acc.download_media(photo.file_id, file_name=file_path),
+                                                timeout=60.0
+                                            )
                                             record_media_path = file_name
                                             record_media_paths = [file_name]
                                         
@@ -589,7 +663,10 @@ class MessageWorker:
                                                     thumb = message.video.thumbs[-1]
                                                     file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
                                                     file_path = os.path.join(MEDIA_DIR, file_name)
-                                                    acc.download_media(thumb.file_id, file_name=file_path)
+                                                    self._run_async_with_timeout(
+                                                        acc.download_media(thumb.file_id, file_name=file_path),
+                                                        timeout=60.0
+                                                    )
                                                     record_media_path = file_name
                                                     record_media_paths = [file_name]
                                                     logger.info(f"   ✅ 视频缩略图已保存")
