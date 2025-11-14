@@ -36,7 +36,8 @@ def init_database():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 media_type TEXT,
                 media_path TEXT,
-                media_paths TEXT
+                media_paths TEXT,
+                media_group_id TEXT
             )
         ''')
         print("✅ notes 表创建成功")
@@ -52,6 +53,18 @@ def init_database():
             print("✅ media_paths 列添加成功")
         else:
             print("✅ media_paths 列已存在")
+        
+        # 检查并添加 media_group_id 列（迁移旧数据库）
+        print("🔄 检查 media_group_id 列是否存在...")
+        cursor.execute("PRAGMA table_info(notes)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'media_group_id' not in columns:
+            print("➕ 添加 media_group_id 列...")
+            cursor.execute("ALTER TABLE notes ADD COLUMN media_group_id TEXT")
+            conn.commit()
+            print("✅ media_group_id 列添加成功")
+        else:
+            print("✅ media_group_id 列已存在")
         
         # 创建用户表
         print("👤 正在创建 users 表...")
@@ -98,7 +111,7 @@ def init_database():
         print("=" * 50)
         raise
 
-def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None, media_paths=None):
+def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None, media_paths=None, media_group_id=None):
     """添加一条笔记记录"""
     conn = None
     try:
@@ -110,6 +123,7 @@ def add_note(user_id, source_chat_id, source_name, message_text, media_type=None
         print(f"[add_note] - media_type: {media_type}")
         print(f"[add_note] - media_path: {media_path}")
         print(f"[add_note] - media_paths: {media_paths}")
+        print(f"[add_note] - media_group_id: {media_group_id}")
         
         # 验证必填字段
         if user_id is None:
@@ -131,6 +145,36 @@ def add_note(user_id, source_chat_id, source_name, message_text, media_type=None
         conn = sqlite3.connect(DATABASE_FILE)
         cursor = conn.cursor()
         
+        # Check for duplicate media groups
+        if media_group_id:
+            print(f"[add_note] 检查媒体组去重: media_group_id={media_group_id}")
+            cursor.execute(
+                "SELECT id FROM notes WHERE user_id=? AND source_chat_id=? AND media_group_id=? LIMIT 1",
+                (user_id, source_chat_id, media_group_id)
+            )
+            existing = cursor.fetchone()
+            if existing:
+                existing_id = existing[0]
+                print(f"[add_note] ⏭️ 媒体组已存在，跳过重复保存 (existing_id={existing_id})")
+                conn.close()
+                return existing_id
+        
+        # Check for duplicate messages (same user, source, text within 5 seconds)
+        if message_text and not media_group_id:
+            print(f"[add_note] 检查消息去重: 5秒内相同文本")
+            cursor.execute("""
+                SELECT id FROM notes 
+                WHERE user_id=? AND source_chat_id=? AND message_text=? 
+                AND datetime(timestamp) > datetime('now', '-5 seconds')
+                LIMIT 1
+            """, (user_id, source_chat_id, message_text))
+            existing = cursor.fetchone()
+            if existing:
+                existing_id = existing[0]
+                print(f"[add_note] ⏭️ 消息在5秒内已保存，跳过重复 (existing_id={existing_id})")
+                conn.close()
+                return existing_id
+        
         # 将media_paths列表转换为JSON字符串
         if media_paths:
             if media_path is None:
@@ -143,9 +187,9 @@ def add_note(user_id, source_chat_id, source_name, message_text, media_type=None
         
         print(f"[add_note] 执行 SQL 插入...")
         cursor.execute('''
-            INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths_json))
+            INSERT INTO notes (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths, media_group_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, source_chat_id, source_name, message_text, media_type, media_path, media_paths_json, media_group_id))
         
         print(f"[add_note] SQL 插入成功，准备提交...")
         conn.commit()
