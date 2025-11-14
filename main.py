@@ -2637,7 +2637,10 @@ if acc is not None:
                     # Check media group deduplication (applies to both forward and record modes)
                     media_group_key = None
                     if message.media_group_id:
-                        media_group_key = f"{user_id}_{watch_key}_{message.media_group_id}"
+                        # 修复：让每个任务独立去重，加入dest和mode标识
+                        dest_suffix = f"_{dest_chat_id}" if dest_chat_id else "_none"
+                        mode_suffix = "_record" if record_mode else "_forward"
+                        media_group_key = f"{user_id}_{watch_key}{dest_suffix}{mode_suffix}_{message.media_group_id}"
                         
                         # Deduplicate media groups - only process first message in group
                         if media_group_key in processed_media_groups:
