@@ -608,20 +608,21 @@ class MessageWorker:
                             logger.info(f"   ✅ 消息已复制")
                             time.sleep(0.5)
                 
-                # After forwarding, check if destination also has record mode configured
+                # After forwarding, check if destination also has any configured tasks (record mode or forward mode)
                 if not record_mode and dest_chat_id and dest_chat_id != "me":
-                    logger.debug(f"🔍 检查目标频道 {dest_chat_id} 是否配置了记录模式")
+                    logger.debug(f"🔍 检查目标频道 {dest_chat_id} 是否配置了任务（记录/转发/提取）")
                     dest_chat_id_str = str(dest_chat_id)
                     
                     # Reload watch config to get latest settings
                     watch_config = load_watch_config()
                     
-                    # Check all watch configs to see if dest has record mode
+                    # Check all watch configs to see if dest has any configured tasks
                     for check_user_id, check_watches in watch_config.items():
                         for check_watch_key, check_watch_data in check_watches.items():
                             if isinstance(check_watch_data, dict):
                                 check_source = str(check_watch_data.get("source", ""))
                                 check_record_mode = check_watch_data.get("record_mode", False)
+                                check_dest = check_watch_data.get("dest")
                                 
                                 # If dest has record mode, save this forwarded message
                                 if check_source == dest_chat_id_str and check_record_mode:
@@ -737,6 +738,116 @@ class MessageWorker:
                                         
                                     except Exception as e:
                                         logger.error(f"   ❌ 目标频道记录模式：保存失败: {e}", exc_info=True)
+                                
+                                # If dest has forward mode (with possible extract), forward/extract the message
+                                elif check_source == dest_chat_id_str and not check_record_mode and check_dest:
+                                    logger.info(f"📤 目标频道转发模式：发现 {dest_chat_id} 配置了转发任务")
+                                    logger.info(f"   为用户 {check_user_id} 转发/提取此消息到 {check_dest}")
+                                    
+                                    try:
+                                        check_forward_mode = check_watch_data.get("forward_mode", "full")
+                                        check_extract_patterns = check_watch_data.get("extract_patterns", [])
+                                        check_whitelist = check_watch_data.get("whitelist", [])
+                                        check_blacklist = check_watch_data.get("blacklist", [])
+                                        check_whitelist_regex = check_watch_data.get("whitelist_regex", [])
+                                        check_blacklist_regex = check_watch_data.get("blacklist_regex", [])
+                                        
+                                        # Apply filters
+                                        # Check blacklists first (higher priority)
+                                        skip_message = False
+                                        
+                                        if check_blacklist:
+                                            for keyword in check_blacklist:
+                                                if keyword.lower() in message_text.lower():
+                                                    logger.debug(f"   ⏭ 过滤：匹配到关键词黑名单 '{keyword}'")
+                                                    skip_message = True
+                                                    break
+                                        
+                                        if not skip_message and check_blacklist_regex:
+                                            for pattern in check_blacklist_regex:
+                                                try:
+                                                    if re.search(pattern, message_text):
+                                                        logger.debug(f"   ⏭ 过滤：匹配到正则黑名单 '{pattern}'")
+                                                        skip_message = True
+                                                        break
+                                                except re.error as e:
+                                                    logger.warning(f"   ⚠️ 正则黑名单表达式错误 '{pattern}': {e}")
+                                        
+                                        # Check whitelists
+                                        if not skip_message and check_whitelist:
+                                            matched = False
+                                            for keyword in check_whitelist:
+                                                if keyword.lower() in message_text.lower():
+                                                    matched = True
+                                                    break
+                                            if not matched:
+                                                logger.debug(f"   ⏭ 过滤：未匹配关键词白名单")
+                                                skip_message = True
+                                        
+                                        if not skip_message and check_whitelist_regex:
+                                            matched = False
+                                            for pattern in check_whitelist_regex:
+                                                try:
+                                                    if re.search(pattern, message_text):
+                                                        matched = True
+                                                        break
+                                                except re.error as e:
+                                                    logger.warning(f"   ⚠️ 正则白名单表达式错误 '{pattern}': {e}")
+                                            if not matched:
+                                                logger.debug(f"   ⏭ 过滤：未匹配正则白名单")
+                                                skip_message = True
+                                        
+                                        if skip_message:
+                                            logger.debug(f"   消息被目标频道的过滤规则过滤，跳过")
+                                            continue
+                                        
+                                        # Extract mode
+                                        if check_forward_mode == "extract" and check_extract_patterns:
+                                            logger.info(f"   🔍 目标频道配置了提取模式")
+                                            extracted_content = []
+                                            for pattern in check_extract_patterns:
+                                                try:
+                                                    matches = re.findall(pattern, message_text)
+                                                    if matches:
+                                                        if isinstance(matches[0], tuple):
+                                                            for match_group in matches:
+                                                                extracted_content.extend(match_group)
+                                                        else:
+                                                            extracted_content.extend(matches)
+                                                        logger.debug(f"   提取模式 '{pattern}' 匹配到 {len(matches)} 个结果")
+                                                except re.error as e:
+                                                    logger.warning(f"   ⚠️ 提取模式正则错误 '{pattern}': {e}")
+                                            
+                                            if extracted_content:
+                                                extracted_text = "\n".join(set(extracted_content))
+                                                logger.info(f"   ✅ 提取到内容，准备发送到 {check_dest}")
+                                                
+                                                check_dest_id = "me" if check_dest == "me" else int(check_dest)
+                                                
+                                                self._execute_with_flood_retry(
+                                                    "发送提取内容（目标频道提取）",
+                                                    lambda: acc.send_message(check_dest_id, extracted_text)
+                                                )
+                                                logger.info(f"   ✅ 提取内容已发送到 {check_dest}")
+                                                time.sleep(0.5)
+                                            else:
+                                                logger.debug(f"   未提取到任何内容，跳过发送")
+                                        
+                                        # Full forward mode (not extract)
+                                        else:
+                                            logger.debug(f"   目标频道配置了完整转发模式")
+                                            # For simplicity, just copy the message to avoid nested forwards
+                                            check_dest_id = "me" if check_dest == "me" else int(check_dest)
+                                            
+                                            self._execute_with_flood_retry(
+                                                "复制消息（目标频道转发）",
+                                                lambda: acc.copy_message(check_dest_id, message.chat.id, message.id)
+                                            )
+                                            logger.info(f"   ✅ 消息已复制到 {check_dest}")
+                                            time.sleep(0.5)
+                                    
+                                    except Exception as e:
+                                        logger.error(f"   ❌ 目标频道转发/提取失败: {e}", exc_info=True)
             
             # 处理成功
             return "success"
