@@ -921,9 +921,46 @@ def load_watch_config():
         json.dump({}, f, indent=4, ensure_ascii=False)
     return {}
 
-def save_watch_config(config):
+def build_monitored_sources():
+    """Build a set of all monitored source chat IDs from watch config"""
+    watch_config = load_watch_config()
+    sources = set()
+    
+    for user_id, watches in watch_config.items():
+        for watch_key, watch_data in watches.items():
+            if isinstance(watch_data, dict):
+                source = watch_data.get('source')
+            else:
+                # Old format: key is the source
+                source = watch_key
+            
+            # Add to set if valid (exclude None and special values like "me")
+            if source and source != 'me':
+                sources.add(str(source))
+    
+    return sources
+
+def reload_monitored_sources():
+    """Reload the monitored sources set (call after config changes)"""
+    global monitored_sources
+    monitored_sources = build_monitored_sources()
+    logger.info(f"🔄 监控源已更新: {monitored_sources if monitored_sources else '无'}")
+
+def save_watch_config(config, auto_reload=True):
+    """Save watch config to file and optionally reload monitored sources
+    
+    Args:
+        config: Configuration dictionary to save
+        auto_reload: If True, automatically reload monitored sources after save (default: True)
+    """
     with open(WATCH_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    
+    # Automatically reload monitored sources to keep them in sync
+    if auto_reload:
+        reload_monitored_sources()
 
 bot_token = getenv("TOKEN") 
 api_hash = getenv("HASH") 
@@ -1426,7 +1463,6 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                 del watch_config[user_id]
             
             save_watch_config(watch_config)
-            reload_monitored_sources()
             
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
             text = f"**✅ 监控任务已删除**\n\n来源：`{source_id}`\n目标：`{dest_id}`"
@@ -2183,7 +2219,6 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
             "record_mode": False
         }
         save_watch_config(watch_config)
-        reload_monitored_sources()
         
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
         
@@ -2246,7 +2281,6 @@ def complete_watch_setup_single(chat_id, message_id, user_id, whitelist, blackli
             "record_mode": True
         }
         save_watch_config(watch_config)
-        reload_monitored_sources()
         
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
         
@@ -2776,33 +2810,7 @@ def cleanup_old_messages():
     for key in expired_keys:
         del processed_messages[key]
 
-# Build set of monitored source channels for efficient filtering
-def build_monitored_sources():
-    """Build a set of all monitored source chat IDs from watch config"""
-    watch_config = load_watch_config()
-    sources = set()
-    
-    for user_id, watches in watch_config.items():
-        for watch_key, watch_data in watches.items():
-            if isinstance(watch_data, dict):
-                source = watch_data.get('source')
-            else:
-                # Old format: key is the source
-                source = watch_key
-            
-            # Add to set if valid (exclude None and special values like "me")
-            if source and source != 'me':
-                sources.add(str(source))
-    
-    return sources
-
-def reload_monitored_sources():
-    """Reload the monitored sources set (call after config changes)"""
-    global monitored_sources
-    monitored_sources = build_monitored_sources()
-    logger.info(f"🔄 监控源已更新: {monitored_sources if monitored_sources else '无'}")
-
-# Initialize monitored sources set
+# Initialize monitored sources set (functions defined earlier near load_watch_config)
 monitored_sources = build_monitored_sources()
 if monitored_sources:
     logger.info(f"📋 正在监控的源频道: {monitored_sources}")
