@@ -783,7 +783,18 @@ def load_config():
 DATA = load_config()
 
 def getenv(var):
-    return os.environ.get(var) or DATA.get(var)
+    """Get configuration value, prioritizing config file over environment variables
+    
+    Priority:
+    1. config.json (DATA) - configuration saved by setup.py
+    2. Environment variables - fallback if config.json doesn't have the value
+    """
+    # Prioritize config file (DATA) first
+    config_value = DATA.get(var)
+    if config_value:
+        return config_value
+    # Fallback to environment variable
+    return os.environ.get(var)
 
 # User state management for multi-step interactions
 user_states = {}
@@ -808,11 +819,20 @@ api_hash = getenv("HASH")
 api_id = getenv("ID")
 bot = Client("mybot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
+# 获取 session string，优先从 config.json 读取
 ss = getenv("STRING")
 if ss is not None:
+    # 记录 session string 来源
+    if DATA.get("STRING"):
+        logger.info("✅ 使用 config.json 中的 session string")
+    else:
+        logger.info("✅ 使用环境变量 STRING 中的 session string")
+    
     acc = Client("myacc" ,api_id=api_id, api_hash=api_hash, session_string=ss)
     acc.start()
-else: acc = None
+else: 
+    logger.warning("⚠️ 未找到 session string，acc 客户端未初始化")
+    acc = None
 
 # Initialize message queue and worker thread
 message_queue = queue.Queue()
