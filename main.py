@@ -266,45 +266,55 @@ class MessageWorker:
             record_mode = watch_data.get("record_mode", False)
             
             # 再次验证过滤规则（防止配置在入队后被修改）
-            # Check keyword whitelist
-            if whitelist:
-                if not any(keyword.lower() in message_text.lower() for keyword in whitelist):
-                    logger.debug(f"   ⏭ 过滤：未匹配关键词白名单 {whitelist}")
-                    return "skip"  # Filtered out by whitelist
+            # Priority: blacklist > whitelist (blacklist has higher priority)
+            
+            # Step 1: Check blacklists first (higher priority)
             
             # Check keyword blacklist
             if blacklist:
-                if any(keyword.lower() in message_text.lower() for keyword in blacklist):
-                    logger.debug(f"   ⏭ 过滤：匹配到关键词黑名单 {blacklist}")
-                    return "skip"  # Filtered out by blacklist
-            
-            # Check regex whitelist
-            if whitelist_regex:
-                match_found = False
-                for pattern in whitelist_regex:
-                    try:
-                        if re.search(pattern, message_text):
-                            match_found = True
-                            break
-                    except re.error:
-                        pass
-                if not match_found:
-                    logger.debug(f"   ⏭ 过滤：未匹配正则白名单 {whitelist_regex}")
-                    return "skip"  # Filtered out by regex whitelist
+                for keyword in blacklist:
+                    if keyword.lower() in message_text.lower():
+                        logger.debug(f"   ⏭ 过滤：匹配到关键词黑名单 '{keyword}'")
+                        return "skip"  # Filtered out by blacklist
             
             # Check regex blacklist
             if blacklist_regex:
-                skip_message = False
                 for pattern in blacklist_regex:
                     try:
                         if re.search(pattern, message_text):
-                            skip_message = True
+                            logger.debug(f"   ⏭ 过滤：匹配到正则黑名单 '{pattern}'")
+                            return "skip"  # Filtered out by regex blacklist
+                    except re.error as e:
+                        logger.warning(f"   ⚠️ 正则黑名单表达式错误 '{pattern}': {e}")
+            
+            # Step 2: Check whitelists
+            
+            # Check keyword whitelist
+            if whitelist:
+                matched = False
+                for keyword in whitelist:
+                    if keyword.lower() in message_text.lower():
+                        matched = True
+                        break
+                
+                if not matched:
+                    logger.debug(f"   ⏭ 过滤：未匹配关键词白名单 {whitelist}")
+                    return "skip"  # Filtered out by whitelist
+            
+            # Check regex whitelist
+            if whitelist_regex:
+                matched = False
+                for pattern in whitelist_regex:
+                    try:
+                        if re.search(pattern, message_text):
+                            matched = True
                             break
-                    except re.error:
-                        pass
-                if skip_message:
-                    logger.debug(f"   ⏭ 过滤：匹配到正则黑名单 {blacklist_regex}")
-                    return "skip"  # Filtered out by regex blacklist
+                    except re.error as e:
+                        logger.warning(f"   ⚠️ 正则白名单表达式错误 '{pattern}': {e}")
+                
+                if not matched:
+                    logger.debug(f"   ⏭ 过滤：未匹配正则白名单 {whitelist_regex}")
+                    return "skip"  # Filtered out by regex whitelist
             
             logger.info(f"🎯 消息通过所有过滤规则，准备处理")
             
@@ -1387,6 +1397,60 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             complete_watch_setup_single(msg.chat.id, msg.id, user_id, [], [], [], [])
             callback_query.answer()
         
+        elif data == "filter_done":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+            
+            # Continue to next step (preserve source options)
+            show_preserve_source_options(chat_id, message_id, user_id)
+            callback_query.answer("✅ 过滤规则已保存")
+        
+        elif data == "filter_done_single":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+            
+            whitelist = user_states[user_id].get("whitelist", [])
+            blacklist = user_states[user_id].get("blacklist", [])
+            whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+            blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+            
+            msg = bot.send_message(chat_id, "⏳ 正在完成设置...")
+            bot.delete_messages(chat_id, [message_id])
+            complete_watch_setup_single(msg.chat.id, msg.id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex)
+            callback_query.answer("✅ 过滤规则已保存")
+        
+        elif data == "clear_filters":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+            
+            # Clear all filter rules
+            user_states[user_id]["whitelist"] = []
+            user_states[user_id]["blacklist"] = []
+            user_states[user_id]["whitelist_regex"] = []
+            user_states[user_id]["blacklist_regex"] = []
+            
+            # Refresh the menu to show cleared filters
+            show_filter_options(chat_id, message_id, user_id)
+            callback_query.answer("✅ 已清空所有过滤规则")
+        
+        elif data == "clear_filters_single":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+            
+            # Clear all filter rules
+            user_states[user_id]["whitelist"] = []
+            user_states[user_id]["blacklist"] = []
+            user_states[user_id]["whitelist_regex"] = []
+            user_states[user_id]["blacklist_regex"] = []
+            
+            # Refresh the menu to show cleared filters
+            show_filter_options_single(chat_id, message_id, user_id)
+            callback_query.answer("✅ 已清空所有过滤规则")
+        
         elif data == "filter_regex_whitelist":
             user_states[user_id]["action"] = "add_regex_whitelist"
             
@@ -1425,7 +1489,10 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             if user_id in user_states:
                 user_states[user_id]["whitelist_regex"] = []
                 msg = bot.send_message(chat_id, "⏳ 继续设置...")
-                show_filter_options(chat_id, msg.id, user_id)
+                if user_states[user_id].get("record_mode"):
+                    show_filter_options_single(chat_id, msg.id, user_id)
+                else:
+                    show_filter_options(chat_id, msg.id, user_id)
                 bot.delete_messages(chat_id, [message_id])
                 callback_query.answer("已跳过正则白名单")
         
@@ -1433,7 +1500,10 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             if user_id in user_states:
                 user_states[user_id]["blacklist_regex"] = []
                 msg = bot.send_message(chat_id, "⏳ 继续设置...")
-                show_filter_options(chat_id, msg.id, user_id)
+                if user_states[user_id].get("record_mode"):
+                    show_filter_options_single(chat_id, msg.id, user_id)
+                else:
+                    show_filter_options(chat_id, msg.id, user_id)
                 bot.delete_messages(chat_id, [message_id])
                 callback_query.answer("已跳过正则黑名单")
         
@@ -1475,7 +1545,10 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             if user_id in user_states:
                 user_states[user_id]["whitelist"] = []
                 msg = bot.send_message(chat_id, "⏳ 继续设置...")
-                show_filter_options(chat_id, msg.id, user_id)
+                if user_states[user_id].get("record_mode"):
+                    show_filter_options_single(chat_id, msg.id, user_id)
+                else:
+                    show_filter_options(chat_id, msg.id, user_id)
                 bot.delete_messages(chat_id, [message_id])
                 callback_query.answer("已跳过关键词白名单")
         
@@ -1483,7 +1556,10 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             if user_id in user_states:
                 user_states[user_id]["blacklist"] = []
                 msg = bot.send_message(chat_id, "⏳ 继续设置...")
-                show_filter_options(chat_id, msg.id, user_id)
+                if user_states[user_id].get("record_mode"):
+                    show_filter_options_single(chat_id, msg.id, user_id)
+                else:
+                    show_filter_options(chat_id, msg.id, user_id)
                 bot.delete_messages(chat_id, [message_id])
                 callback_query.answer("已跳过关键词黑名单")
         
@@ -1773,52 +1849,123 @@ def show_filter_options(chat_id, message_id, user_id):
     source_name = user_states[user_id].get("source_name", "未知")
     dest_name = user_states[user_id].get("dest_name", "未知")
     
+    # Get current filter settings
+    whitelist = user_states[user_id].get("whitelist", [])
+    blacklist = user_states[user_id].get("blacklist", [])
+    whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+    blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+    
+    # Build filter status text
+    filter_status = "📋 **已设置的规则：**\n"
+    has_filters = False
+    
+    if whitelist:
+        filter_status += f"🟢 关键词白名单: `{', '.join(whitelist)}`\n"
+        has_filters = True
+    
+    if blacklist:
+        filter_status += f"🔴 关键词黑名单: `{', '.join(blacklist)}`\n"
+        has_filters = True
+    
+    if whitelist_regex:
+        filter_status += f"🟢 正则白名单: `{', '.join(whitelist_regex)}`\n"
+        has_filters = True
+    
+    if blacklist_regex:
+        filter_status += f"🔴 正则黑名单: `{', '.join(blacklist_regex)}`\n"
+        has_filters = True
+    
+    if not has_filters:
+        filter_status = "📋 **暂未设置过滤规则**\n"
+    
+    # Build keyboard with new options
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🟢 关键词白名单", callback_data="filter_whitelist")],
         [InlineKeyboardButton("🔴 关键词黑名单", callback_data="filter_blacklist")],
         [InlineKeyboardButton("🟢 正则白名单", callback_data="filter_regex_whitelist")],
         [InlineKeyboardButton("🔴 正则黑名单", callback_data="filter_regex_blacklist")],
-        [InlineKeyboardButton("⏭ 不设置过滤", callback_data="filter_none")],
+        [InlineKeyboardButton("✅ 完成设置", callback_data="filter_done")],
+        [InlineKeyboardButton("🗑️ 清空规则", callback_data="clear_filters")],
         [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
     ])
     
     text = "**➕ 添加监控任务**\n\n"
     text += f"来源：`{source_name}`\n"
     text += f"目标：`{dest_name}`\n\n"
-    text += "**步骤 3：** 是否需要过滤规则？\n\n"
+    text += f"{filter_status}\n"
+    text += "**步骤 3：** 是否需要设置/修改过滤规则？\n\n"
     text += "🟢 **关键词白名单** - 包含关键词才转发\n"
     text += "🔴 **关键词黑名单** - 包含关键词不转发\n"
     text += "🟢 **正则白名单** - 匹配正则才转发\n"
-    text += "🔴 **正则黑名单** - 匹配正则不转发\n"
-    text += "⏭ **不设置** - 转发所有消息\n\n"
-    text += "💡 可以设置多种规则，按顺序生效"
+    text += "🔴 **正则黑名单** - 匹配正则不转发\n\n"
+    text += "✅ **完成设置** - 保存并继续\n"
+    text += "🗑️ **清空规则** - 清空所有过滤规则\n\n"
+    text += "💡 可以设置多种规则，黑名单优先于白名单"
     
-    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+    try:
+        bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+    except:
+        bot.send_message(chat_id, text, reply_markup=keyboard)
 
 def show_filter_options_single(chat_id, message_id, user_id):
     source_name = user_states[user_id].get("source_name", "未知")
+    
+    # Get current filter settings
+    whitelist = user_states[user_id].get("whitelist", [])
+    blacklist = user_states[user_id].get("blacklist", [])
+    whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+    blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+    
+    # Build filter status text
+    filter_status = "📋 **已设置的规则：**\n"
+    has_filters = False
+    
+    if whitelist:
+        filter_status += f"🟢 关键词白名单: `{', '.join(whitelist)}`\n"
+        has_filters = True
+    
+    if blacklist:
+        filter_status += f"🔴 关键词黑名单: `{', '.join(blacklist)}`\n"
+        has_filters = True
+    
+    if whitelist_regex:
+        filter_status += f"🟢 正则白名单: `{', '.join(whitelist_regex)}`\n"
+        has_filters = True
+    
+    if blacklist_regex:
+        filter_status += f"🔴 正则黑名单: `{', '.join(blacklist_regex)}`\n"
+        has_filters = True
+    
+    if not has_filters:
+        filter_status = "📋 **暂未设置过滤规则**\n"
     
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🟢 关键词白名单", callback_data="filter_whitelist")],
         [InlineKeyboardButton("🔴 关键词黑名单", callback_data="filter_blacklist")],
         [InlineKeyboardButton("🟢 正则白名单", callback_data="filter_regex_whitelist")],
         [InlineKeyboardButton("🔴 正则黑名单", callback_data="filter_regex_blacklist")],
-        [InlineKeyboardButton("⏭ 不设置过滤", callback_data="filter_none_single")],
+        [InlineKeyboardButton("✅ 完成设置", callback_data="filter_done_single")],
+        [InlineKeyboardButton("🗑️ 清空规则", callback_data="clear_filters_single")],
         [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
     ])
     
     text = "**➕ 添加监控任务（记录模式）**\n\n"
     text += f"来源：`{source_name}`\n"
     text += f"模式：📝 **记录模式**（保存到网页笔记）\n\n"
-    text += "**步骤 3：** 是否需要过滤规则？\n\n"
+    text += f"{filter_status}\n"
+    text += "**步骤 3：** 是否需要设置/修改过滤规则？\n\n"
     text += "🟢 **关键词白名单** - 包含关键词才记录\n"
     text += "🔴 **关键词黑名单** - 包含关键词不记录\n"
     text += "🟢 **正则白名单** - 匹配正则才记录\n"
-    text += "🔴 **正则黑名单** - 匹配正则不记录\n"
-    text += "⏭ **不设置** - 记录所有消息\n\n"
-    text += "💡 可以设置多种规则，按顺序生效"
+    text += "🔴 **正则黑名单** - 匹配正则不记录\n\n"
+    text += "✅ **完成设置** - 保存并继续\n"
+    text += "🗑️ **清空规则** - 清空所有过滤规则\n\n"
+    text += "💡 可以设置多种规则，黑名单优先于白名单"
     
-    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+    try:
+        bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+    except:
+        bot.send_message(chat_id, text, reply_markup=keyboard)
 
 def show_preserve_source_options(chat_id, message_id, user_id):
     source_name = user_states[user_id].get("source_name", "未知")
@@ -2102,7 +2249,8 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
             if keywords:
                 user_states[user_id]["whitelist"] = keywords
-                msg = bot.send_message(message.chat.id, f"✅ 关键词白名单已设置：`{', '.join(keywords)}`\n\n⏳ 继续设置...")
+                bot.send_message(message.chat.id, f"✅ 关键词白名单已设置：`{', '.join(keywords)}`")
+                msg = bot.send_message(message.chat.id, "⏳ 继续设置...")
                 if user_states[user_id].get("record_mode"):
                     show_filter_options_single(message.chat.id, msg.id, user_id)
                 else:
@@ -2115,10 +2263,10 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
             if keywords:
                 user_states[user_id]["blacklist"] = keywords
-                msg = bot.send_message(message.chat.id, f"✅ 关键词黑名单已设置：`{', '.join(keywords)}`\n\n⏳ 继续设置...")
+                bot.send_message(message.chat.id, f"✅ 关键词黑名单已设置：`{', '.join(keywords)}`")
             else:
                 user_states[user_id]["blacklist"] = []
-                msg = bot.send_message(message.chat.id, "⏳ 继续设置...")
+            msg = bot.send_message(message.chat.id, "⏳ 继续设置...")
             if user_states[user_id].get("record_mode"):
                 show_filter_options_single(message.chat.id, msg.id, user_id)
             else:
@@ -2132,7 +2280,8 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                     for pattern in patterns:
                         re.compile(pattern)
                     user_states[user_id]["whitelist_regex"] = patterns
-                    msg = bot.send_message(message.chat.id, f"✅ 正则白名单已设置：`{', '.join(patterns)}`\n\n⏳ 继续设置...")
+                    bot.send_message(message.chat.id, f"✅ 正则白名单已设置：`{', '.join(patterns)}`")
+                    msg = bot.send_message(message.chat.id, "⏳ 继续设置...")
                     if user_states[user_id].get("record_mode"):
                         show_filter_options_single(message.chat.id, msg.id, user_id)
                     else:
@@ -2150,7 +2299,8 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                     for pattern in patterns:
                         re.compile(pattern)
                     user_states[user_id]["blacklist_regex"] = patterns
-                    msg = bot.send_message(message.chat.id, f"✅ 正则黑名单已设置：`{', '.join(patterns)}`\n\n⏳ 继续设置...")
+                    bot.send_message(message.chat.id, f"✅ 正则黑名单已设置：`{', '.join(patterns)}`")
+                    msg = bot.send_message(message.chat.id, "⏳ 继续设置...")
                     if user_states[user_id].get("record_mode"):
                         show_filter_options_single(message.chat.id, msg.id, user_id)
                     else:
