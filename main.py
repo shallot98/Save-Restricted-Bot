@@ -432,6 +432,38 @@ class MessageWorker:
                         logger.warning(f"   ⚠️ 下载视频缩略图失败: {e}")
                         logger.info(f"   视频类型信息将被保留，但无缩略图")
                 
+                # Single animation (GIF)
+                elif message.animation:
+                    logger.info(f"   🎞️ 处理GIF动图消息")
+                    media_type = "animation"
+                    logger.info(f"   - 动图时长: {message.animation.duration}秒")
+                    logger.info(f"   - 动图尺寸: {message.animation.width}x{message.animation.height}")
+                    logger.info(f"   - 是否有缩略图: {bool(message.animation.thumbs)}")
+
+                    try:
+                        # Try to download animation thumbnail
+                        if message.animation.thumbs and len(message.animation.thumbs) > 0:
+                            # Get the largest thumbnail
+                            thumb = message.animation.thumbs[-1]
+                            file_name = f"{message.id}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}_gif_thumb.jpg"
+                            file_path = os.path.join(MEDIA_DIR, file_name)
+                            logger.info(f"   尝试下载GIF缩略图: {file_name}")
+                            
+                            # Download the thumbnail
+                            acc.download_media(thumb.file_id, file_name=file_path)
+                            media_path = file_name
+                            media_paths = [file_name]
+                            logger.info(f"   ✅ GIF缩略图已保存: {file_name}")
+                        else:
+                            logger.warning(f"   ⚠️ GIF动图没有缩略图，将只记录动图类型")
+                            media_path = None
+                            media_paths = []
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ 下载GIF缩略图失败: {e}")
+                        logger.info(f"   GIF类型信息将被保留，但无缩略图")
+                        media_path = None
+                        media_paths = []
+                
                 # Save to database
                 logger.info(f"💾 记录模式：准备保存笔记到数据库")
                 logger.info(f"   - 用户ID: {user_id}")
@@ -680,6 +712,25 @@ class MessageWorker:
                                                     logger.warning(f"   ⚠️ 视频没有缩略图")
                                             except Exception as e:
                                                 logger.warning(f"   ⚠️ 视频缩略图下载失败: {e}")
+                                        
+                                        # Single animation (GIF)
+                                        elif message.animation:
+                                            logger.info(f"   🎞️ 记录GIF动图")
+                                            record_media_type = "animation"
+                                            try:
+                                                if message.animation.thumbs and len(message.animation.thumbs) > 0:
+                                                    thumb = message.animation.thumbs[-1]
+                                                    file_name = f"{message.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_gif_thumb.jpg"
+                                                    file_path = os.path.join(MEDIA_DIR, file_name)
+                                                    # Call download_media directly - Pyrogram handles async/sync bridging
+                                                    acc.download_media(thumb.file_id, file_name=file_path)
+                                                    record_media_path = file_name
+                                                    record_media_paths = [file_name]
+                                                    logger.info(f"   ✅ GIF缩略图已保存")
+                                                else:
+                                                    logger.warning(f"   ⚠️ GIF动图没有缩略图")
+                                            except Exception as e:
+                                                logger.warning(f"   ⚠️ GIF缩略图下载失败: {e}")
                                         
                                         # Save to database
                                         note_id = add_note(
@@ -2320,7 +2371,44 @@ def handle_private(message: pyrogram.types.messages_and_media.message.Message, c
             if thumb != None: os.remove(thumb)
 
         elif "Animation" == msg_type:
-            bot.send_animation(message.chat.id, file)
+            logger.info(f"   📤 转发Animation(GIF)到私聊: {message.chat.id}")
+            
+            try:
+                # Try to get animation thumbnail
+                thumb = None
+                try:
+                    if msg.animation and msg.animation.thumbs and len(msg.animation.thumbs) > 0:
+                        thumb = acc.download_media(msg.animation.thumbs[0].file_id)
+                        logger.debug(f"   ✅ Animation缩略图已下载")
+                except Exception as e:
+                    logger.debug(f"   ⚠️ Animation缩略图下载失败: {e}")
+                    thumb = None
+                
+                # Send animation with all parameters
+                bot.send_animation(
+                    message.chat.id, 
+                    file,
+                    duration=msg.animation.duration if msg.animation else None,
+                    width=msg.animation.width if msg.animation else None,
+                    height=msg.animation.height if msg.animation else None,
+                    thumb=thumb,
+                    caption=msg.caption,
+                    caption_entities=msg.caption_entities,
+                    progress=progress,
+                    progress_args=[message, "up"]
+                )
+                logger.info(f"   ✅ Animation转发完成")
+                
+                # Clean up thumbnail
+                if thumb is not None:
+                    try:
+                        os.remove(thumb)
+                        logger.debug(f"   🗑️ 临时缩略图已删除")
+                    except:
+                        pass
+            
+            except Exception as e:
+                logger.error(f"   ❌ Animation转发失败: {e}", exc_info=True)
                
         elif "Sticker" == msg_type:
             bot.send_sticker(message.chat.id, file)
@@ -2546,6 +2634,8 @@ if acc is not None:
                 message_preview = "图片"
             elif message.video:
                 message_preview = "视频"
+            elif message.animation:
+                message_preview = "🎞️ GIF动画"
             elif message.document:
                 message_preview = "文档"
             elif message.media_group_id:
