@@ -432,6 +432,37 @@ class MessageWorker:
                         logger.warning(f"   ⚠️ 下载视频缩略图失败: {e}")
                         logger.info(f"   视频类型信息将被保留，但无缩略图")
                 
+                # Single animation (GIF)
+                elif message.animation:
+                    logger.info(f"   🎞️ 处理GIF动图消息")
+                    media_type = "animation"
+                    logger.info(f"   - 动图时长: {message.animation.duration}秒")
+                    logger.info(f"   - 动图尺寸: {message.animation.width}x{message.animation.height}")
+                    logger.info(f"   - 是否有缩略图: {bool(message.animation.thumbs)}")
+                    
+                    try:
+                        # Try to download animation thumbnail
+                        if message.animation.thumbs and len(message.animation.thumbs) > 0:
+                            # Get the largest thumbnail
+                            thumb = message.animation.thumbs[-1]
+                            file_name = f"{message.id}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}_gif_thumb.jpg"
+                            file_path = os.path.join(MEDIA_DIR, file_name)
+                            logger.info(f"   尝试下载GIF缩略图: {file_name}")
+                            # Call download_media directly - Pyrogram handles async/sync bridging
+                            acc.download_media(thumb.file_id, file_name=file_path)
+                            media_path = file_name
+                            media_paths = [file_name]
+                            logger.info(f"   ✅ GIF缩略图已保存: {file_name}")
+                        else:
+                            logger.warning(f"   ⚠️ GIF动图没有缩略图，将只记录动图类型")
+                            media_path = None
+                            media_paths = []
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ 下载GIF缩略图失败: {e}")
+                        logger.info(f"   GIF类型信息将被保留，但无缩略图")
+                        media_path = None
+                        media_paths = []
+                
                 # Save to database
                 logger.info(f"💾 记录模式：准备保存笔记到数据库")
                 logger.info(f"   - 用户ID: {user_id}")
