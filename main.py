@@ -2680,8 +2680,9 @@ else:
 
 # Auto-forward handler for watched channels (lightweight - just enqueue messages)
 if acc is not None:
-    @acc.on_message(filters.channel | filters.group | filters.private)
+    @acc.on_message((filters.channel | filters.group | filters.private) & (filters.incoming | filters.outgoing))
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+        """处理频道/群组/私聊消息，包括转发的消息"""
         try:
             # Validate message object and its attributes
             if not message or not hasattr(message, 'chat') or not message.chat:
@@ -2735,6 +2736,12 @@ if acc is not None:
                 message_preview = "其他类型"
             
             logger.info(f"📨 收到消息: chat_id={chat_id}, chat_name={chat_title}, 内容={message_preview}")
+            
+            # 记录消息来源类型
+            if message.outgoing:
+                logger.debug(f"   📤 outgoing消息（由Bot转发）")
+            else:
+                logger.debug(f"   📥 incoming消息（外部来源）")
             
             # Skip if chat_id is invalid or zero
             if not chat_id or chat_id == 0:
