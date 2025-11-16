@@ -74,12 +74,14 @@ set_bot_instance(bot)
 set_acc_instance(acc)
 
 # Initialize message queue and worker thread
+from constants import MAX_RETRIES
+
 message_queue = queue.Queue()
 message_worker = None
 worker_thread = None
 
 if acc is not None:
-    message_worker = MessageWorker(message_queue, acc, max_retries=3)
+    message_worker = MessageWorker(message_queue, acc, max_retries=MAX_RETRIES)
     worker_thread = threading.Thread(target=message_worker.run, daemon=True, name="MessageWorker")
     worker_thread.start()
     logger.info("✅ 消息队列和工作线程已初始化")
@@ -137,7 +139,8 @@ if acc is not None:
             
             # Periodically clean up old message records
             from bot.utils.dedup import processed_messages
-            if len(processed_messages) > 1000:
+            from constants import MESSAGE_CACHE_CLEANUP_THRESHOLD
+            if len(processed_messages) > MESSAGE_CACHE_CLEANUP_THRESHOLD:
                 cleanup_old_messages()
             
             # Log message type
@@ -245,6 +248,165 @@ if acc is not None:
             logger.error(f"⚠️ auto_forward 意外错误: {type(e).__name__}: {e}", exc_info=True)
 
 
+def _collect_source_ids(watch_config):
+    """Collect source channel IDs that need to be cached"""
+    source_ids = set()
+    
+    for user_id, watches in watch_config.items():
+        for watch_key, watch_data in watches.items():
+            if isinstance(watch_data, dict):
+                source_id = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+            else:
+                source_id = watch_key
+            
+            # Add valid channel IDs (negative IDs, excluding special values)
+            if source_id and source_id not in ["未知来源", "me"]:
+                try:
+                    if int(source_id) < 0:
+                        source_ids.add(source_id)
+                except (ValueError, TypeError):
+                    pass
+    
+    return source_ids
+
+
+def _collect_dest_ids(watch_config):
+    """Collect destination channel IDs that need to be cached"""
+    dest_ids = set()
+    
+    for user_id, watches in watch_config.items():
+        for watch_key, watch_data in watches.items():
+            if isinstance(watch_data, dict):
+                dest_id = watch_data.get("dest")
+                record_mode = watch_data.get("record_mode", False)
+                
+                # Only cache forward mode destinations
+                if not record_mode and dest_id and dest_id != "me":
+                    try:
+                        int(dest_id)  # Validate it's a numeric ID
+                        dest_ids.add(dest_id)
+                    except (ValueError, TypeError):
+                        pass
+    
+    return dest_ids
+
+
+def _cache_channels(acc, channel_ids, channel_type="频道"):
+    """Cache channel IDs to avoid Peer ID errors
+    
+    Args:
+        acc: User client instance
+        channel_ids: Set of channel IDs to cache
+        channel_type: Type description for logging
+        
+    Returns:
+        Tuple of (cached_count, total_count)
+    """
+    if not channel_ids:
+        return 0, 0
+    
+    print(f"🔄 预加载{channel_type}信息到缓存...")
+    cached_count = 0
+    
+    for channel_id in channel_ids:
+        try:
+            acc.get_chat(int(channel_id))
+            cached_count += 1
+            print(f"   ✅ 已缓存: {channel_id}")
+        except Exception as e:
+            print(f"   ⚠️ 无法缓存 {channel_id}: {str(e)}")
+    
+    print(f"📦 成功缓存 {cached_count}/{len(channel_ids)} 个{channel_type}\n")
+    return cached_count, len(channel_ids)
+
+
+def _cache_dest_peers(acc, dest_ids):
+    """Cache destination peers with detailed information
+    
+    Args:
+        acc: User client instance
+        dest_ids: Set of destination IDs to cache
+        
+    Returns:
+        Tuple of (cached_count, total_count, failed_list)
+    """
+    if not dest_ids:
+        return 0, 0, []
+    
+    print("🔄 预加载目标Peer信息到缓存...")
+    cached_count = 0
+    failed_dests = []
+    
+    for dest_id in dest_ids:
+        try:
+            dest_chat = acc.get_chat(int(dest_id))
+            cached_count += 1
+            
+            # Extract chat name
+            if hasattr(dest_chat, 'first_name') and dest_chat.first_name:
+                chat_name = dest_chat.first_name
+            elif hasattr(dest_chat, 'title') and dest_chat.title:
+                chat_name = dest_chat.title
+            elif hasattr(dest_chat, 'username') and dest_chat.username:
+                chat_name = dest_chat.username
+            else:
+                chat_name = "Unknown"
+            
+            is_bot = " 🤖" if hasattr(dest_chat, 'is_bot') and dest_chat.is_bot else ""
+            print(f"   ✅ 已缓存目标: {dest_id} ({chat_name}{is_bot})")
+            
+            mark_dest_cached(dest_id)
+        except FloodWait as e:
+            print(f"   ⚠️ 限流: 目标 {dest_id}，等待 {e.value} 秒")
+            failed_dests.append(dest_id)
+        except Exception as e:
+            print(f"   ⚠️ 无法缓存目标 {dest_id}: {str(e)}")
+            failed_dests.append(dest_id)
+    
+    print(f"📦 成功缓存 {cached_count}/{len(dest_ids)} 个目标Peer")
+    
+    if failed_dests:
+        print(f"💡 缓存失败的目标（共{len(failed_dests)}个）: {', '.join(failed_dests)}")
+        print(f"   建议：请先让Bot与这些目标交互，或手动发送消息给目标\n")
+    else:
+        print()
+    
+    return cached_count, len(dest_ids), failed_dests
+
+
+def _print_watch_tasks(watch_config):
+    """Print configured watch tasks"""
+    record_mode_count = sum(
+        1 for watches in watch_config.values()
+        for watch_data in watches.values()
+        if isinstance(watch_data, dict) and watch_data.get("record_mode", False)
+    )
+    
+    if record_mode_count > 0:
+        print(f"🔍 配置的记录模式任务: {record_mode_count} 个\n")
+    
+    for user_id, watches in watch_config.items():
+        print(f"👤 用户 {user_id}:")
+        for watch_key, watch_data in watches.items():
+            if isinstance(watch_data, dict):
+                source_id = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
+                dest_id = watch_data.get("dest", "未知")
+                record_mode = watch_data.get("record_mode", False)
+                
+                source_id = source_id or "未知来源"
+                dest_id = dest_id or "未知目标"
+                
+                if record_mode:
+                    print(f"   📝 {source_id} → 记录模式")
+                else:
+                    print(f"   📤 {source_id} → {dest_id}")
+            else:
+                source_display = watch_key or "未知来源"
+                dest_display = watch_data or "未知目标"
+                print(f"   📤 {source_display} → {dest_display}")
+        print()
+
+
 def print_startup_config():
     """Print startup configuration"""
     print("\n" + "="*60)
@@ -254,7 +416,8 @@ def print_startup_config():
     if acc is not None:
         print("\n🔧 消息队列系统已启用")
         print("   - 消息处理模式：队列 + 工作线程")
-        print("   - 最大重试次数：3 次")
+        from constants import MAX_RETRIES
+        print(f"   - 最大重试次数：{MAX_RETRIES} 次")
         print("   - 自动故障恢复：是")
     
     watch_config = load_watch_config()
@@ -264,128 +427,17 @@ def print_startup_config():
         total_tasks = sum(len(watches) for watches in watch_config.values())
         print(f"\n📋 已加载 {len(watch_config)} 个用户的 {total_tasks} 个监控任务：\n")
         
-        record_mode_count = 0
-        for user_id, watches in watch_config.items():
-            for watch_key, watch_data in watches.items():
-                if isinstance(watch_data, dict) and watch_data.get("record_mode", False):
-                    record_mode_count += 1
+        # Print watch tasks
+        _print_watch_tasks(watch_config)
         
-        if record_mode_count > 0:
-            print(f"🔍 配置的记录模式任务: {record_mode_count} 个\n")
-        
-        # Collect and cache source IDs
-        source_ids_to_cache = set()
-        
-        for user_id, watches in watch_config.items():
-            print(f"👤 用户 {user_id}:")
-            for watch_key, watch_data in watches.items():
-                if isinstance(watch_data, dict):
-                    source_id = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
-                    dest_id = watch_data.get("dest", "未知")
-                    record_mode = watch_data.get("record_mode", False)
-                    
-                    if source_id is None:
-                        source_id = "未知来源"
-                    if dest_id is None:
-                        dest_id = "未知目标"
-                    
-                    # Add to cache list
-                    if source_id not in ["未知来源", "me"] and source_id:
-                        try:
-                            chat_id_int = int(source_id)
-                            if chat_id_int < 0:
-                                source_ids_to_cache.add(source_id)
-                        except (ValueError, TypeError):
-                            pass
-                    
-                    if record_mode:
-                        print(f"   📝 {source_id} → 记录模式")
-                    else:
-                        print(f"   📤 {source_id} → {dest_id}")
-                else:
-                    source_display = watch_key if watch_key is not None else "未知来源"
-                    dest_display = watch_data if watch_data is not None else "未知目标"
-                    
-                    if watch_key not in ["未知来源", "me", None] and watch_key:
-                        try:
-                            chat_id_int = int(watch_key)
-                            if chat_id_int < 0:
-                                source_ids_to_cache.add(watch_key)
-                        except (ValueError, TypeError):
-                            pass
-                    
-                    print(f"   📤 {source_display} → {dest_display}")
-            print()
-        
-        # Pre-cache source channels
-        if acc is not None and source_ids_to_cache:
-            print("🔄 预加载频道信息到缓存...")
-            cached_count = 0
-            for source_id in source_ids_to_cache:
-                try:
-                    acc.get_chat(int(source_id))
-                    cached_count += 1
-                    print(f"   ✅ 已缓存: {source_id}")
-                except Exception as e:
-                    print(f"   ⚠️ 无法缓存 {source_id}: {str(e)}")
-            print(f"📦 成功缓存 {cached_count}/{len(source_ids_to_cache)} 个频道\n")
-        
-        # Pre-cache destination peers
+        # Cache source channels
         if acc is not None:
-            dest_ids_to_cache = set()
+            source_ids = _collect_source_ids(watch_config)
+            _cache_channels(acc, source_ids, "源频道")
             
-            for user_id, watches in watch_config.items():
-                for watch_key, watch_data in watches.items():
-                    if isinstance(watch_data, dict):
-                        dest_id = watch_data.get("dest")
-                        record_mode = watch_data.get("record_mode", False)
-                        
-                        if not record_mode and dest_id and dest_id != "me":
-                            try:
-                                dest_id_int = int(dest_id)
-                                dest_ids_to_cache.add(dest_id)
-                            except (ValueError, TypeError):
-                                pass
-            
-            if dest_ids_to_cache:
-                print("🔄 预加载目标Peer信息到缓存...")
-                cached_dest_count = 0
-                failed_dests = []
-                
-                for dest_id in dest_ids_to_cache:
-                    try:
-                        dest_chat = acc.get_chat(int(dest_id))
-                        cached_dest_count += 1
-                        
-                        chat_type = dest_chat.type.name if hasattr(dest_chat.type, 'name') else str(dest_chat.type)
-                        
-                        if hasattr(dest_chat, 'first_name') and dest_chat.first_name:
-                            chat_name = dest_chat.first_name
-                        elif hasattr(dest_chat, 'title') and dest_chat.title:
-                            chat_name = dest_chat.title
-                        elif hasattr(dest_chat, 'username') and dest_chat.username:
-                            chat_name = dest_chat.username
-                        else:
-                            chat_name = "Unknown"
-                        
-                        is_bot = " 🤖" if hasattr(dest_chat, 'is_bot') and dest_chat.is_bot else ""
-                        print(f"   ✅ 已缓存目标: {dest_id} ({chat_name}{is_bot})")
-                        
-                        mark_dest_cached(dest_id)
-                    except FloodWait as e:
-                        print(f"   ⚠️ 限流: 目标 {dest_id}，等待 {e.value} 秒")
-                        failed_dests.append(dest_id)
-                    except Exception as e:
-                        print(f"   ⚠️ 无法缓存目标 {dest_id}: {str(e)}")
-                        failed_dests.append(dest_id)
-                
-                print(f"📦 成功缓存 {cached_dest_count}/{len(dest_ids_to_cache)} 个目标Peer")
-                
-                if failed_dests:
-                    print(f"💡 缓存失败的目标（共{len(failed_dests)}个）: {', '.join(failed_dests)}")
-                    print(f"   建议：请先让Bot与这些目标交互，或手动发送消息给目标\n")
-                else:
-                    print()
+            # Cache destination peers
+            dest_ids = _collect_dest_ids(watch_config)
+            _cache_dest_peers(acc, dest_ids)
     
     print("="*60)
     print("✅ 机器人已就绪，正在监听消息...")

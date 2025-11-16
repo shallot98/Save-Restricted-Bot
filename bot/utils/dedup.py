@@ -5,23 +5,23 @@ Prevents duplicate processing of messages and media groups
 import time
 import logging
 import threading
-from typing import Dict, Set
+from typing import Dict
+from collections import OrderedDict
+from constants import MESSAGE_CACHE_TTL, MAX_MEDIA_GROUP_CACHE, MEDIA_GROUP_CLEANUP_BATCH_SIZE
 
 logger = logging.getLogger(__name__)
 
 # Message deduplication cache
-MESSAGE_CACHE_TTL = 1  # seconds
 processed_messages: Dict[str, float] = {}
 _message_lock = threading.Lock()
 
-# Media group deduplication cache (LRU with max 300 entries)
-MAX_MEDIA_GROUP_CACHE = 300
-processed_media_groups: Set[str] = set()
+# Media group deduplication cache (LRU with OrderedDict for efficient cleanup)
+processed_media_groups: OrderedDict[str, bool] = OrderedDict()
 _media_group_lock = threading.Lock()
 
 
 def register_processed_media_group(key: str):
-    """Register a media group as processed (thread-safe)
+    """Register a media group as processed (thread-safe, LRU cache)
     
     Args:
         key: Media group key in format "user_id_watch_key_dest_chat_id_mode_suffix_media_group_id"
@@ -31,16 +31,27 @@ def register_processed_media_group(key: str):
         return
     
     with _media_group_lock:
-        global processed_media_groups
+        # Move to end if exists (refresh LRU position)
+        if key in processed_media_groups:
+            processed_media_groups.move_to_end(key)
+        else:
+            processed_media_groups[key] = True
         
-        processed_media_groups.add(key)
-        
-        # LRU cleanup: keep only last 300 entries
+        # LRU cleanup: remove oldest entries if cache exceeds limit
         if len(processed_media_groups) > MAX_MEDIA_GROUP_CACHE:
-            # Convert to list, remove first 50 items (oldest), convert back to set
-            items = list(processed_media_groups)
-            processed_media_groups = set(items[50:])
-            logger.debug(f"🧹 媒体组缓存清理: 移除最旧的50个条目，当前大小={len(processed_media_groups)}")
+            # Remove oldest entries efficiently with loop protection
+            removed_count = 0
+            max_iterations = MEDIA_GROUP_CLEANUP_BATCH_SIZE
+            
+            for _ in range(max_iterations):
+                if len(processed_media_groups) > MAX_MEDIA_GROUP_CACHE:
+                    processed_media_groups.popitem(last=False)  # Remove oldest (FIFO)
+                    removed_count += 1
+                else:
+                    break
+            
+            if removed_count > 0:
+                logger.debug(f"🧹 媒体组缓存清理: 移除最旧的 {removed_count} 个条目，当前大小={len(processed_media_groups)}")
 
 
 def is_media_group_processed(key: str) -> bool:
