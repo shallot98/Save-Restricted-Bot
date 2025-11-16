@@ -228,7 +228,7 @@ def test_file_compilation():
     
     import py_compile
     
-    files = ["main.py", "main_old.py", "config.py"]
+    files = ["main.py", "config.py", "database.py", "constants.py"]
     
     passed = 0
     failed = 0

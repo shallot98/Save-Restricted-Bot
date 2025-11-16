@@ -56,10 +56,10 @@ class TestBugFix1(unittest.TestCase):
 
 
 class TestBugFix2(unittest.TestCase):
-    """Test Bug #2: main_old.py import doesn't run bot"""
+    """Test Bug #2: main_old.py import doesn't run bot - OBSOLETE (main_old.py removed)"""
     
-    def test_import_main_old_does_not_start_bot(self):
-        """Test that importing main_old doesn't start the bot"""
+    def test_handlers_importable_from_new_modules(self):
+        """Test that handlers can be imported from new modular structure"""
         import signal
         
         def timeout_handler(signum, frame):
@@ -71,7 +71,8 @@ class TestBugFix2(unittest.TestCase):
         
         try:
             # This should complete quickly without starting bot
-            from main_old import callback_handler, save, handle_private
+            from bot.handlers.callbacks import callback_handler
+            from bot.handlers.messages import save, handle_private
             signal.alarm(0)  # Cancel alarm
             
             # If we get here, import was successful and fast
@@ -81,14 +82,14 @@ class TestBugFix2(unittest.TestCase):
         finally:
             signal.alarm(0)
     
-    def test_main_old_has_main_guard(self):
-        """Test that main_old.py has proper if __name__ == '__main__' guard"""
-        with open('main_old.py', 'r', encoding='utf-8') as f:
+    def test_main_has_proper_structure(self):
+        """Test that main.py has proper module structure"""
+        with open('main.py', 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Should have if __name__ == "__main__": guard
-        self.assertIn('if __name__ == "__main__":', content)
-        self.assertIn('def main():', content)
+        # Should have proper imports from new modules
+        self.assertIn('from bot.handlers.callbacks import callback_handler', content)
+        self.assertIn('from bot.handlers.messages import save, handle_private', content)
 
 
 class TestBugFix3(unittest.TestCase):

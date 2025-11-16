@@ -12,6 +12,7 @@ from .dedup import (
 from .progress import downstatus, upstatus, progress
 from .status import get_user_state, set_user_state, clear_user_state, update_user_state, user_states
 from .peer import is_dest_cached, mark_dest_cached, cache_peer, cached_dest_peers
+from .helpers import get_message_type
 
 __all__ = [
     'register_processed_media_group',
@@ -32,4 +33,5 @@ __all__ = [
     'mark_dest_cached',
     'cache_peer',
     'cached_dest_peers',
+    'get_message_type',
 ]
