@@ -34,7 +34,7 @@ from bot.utils import (
     is_message_processed, mark_message_processed, cleanup_old_messages,
     user_states, cached_dest_peers
 )
-from bot.utils.peer import cache_peer, is_dest_cached, mark_dest_cached
+from bot.utils.peer import cache_peer, is_dest_cached, mark_dest_cached, mark_peer_failed, get_failed_peers
 from bot.utils.progress import progress, downstatus, upstatus
 
 # Import workers
@@ -162,16 +162,13 @@ if acc is not None:
             logger.info(f"🔔 监控源消息: chat_id={source_chat_id}, message_id={message.id}")
             
             # Cache source peer to avoid "Peer id invalid" errors
-            try:
-                if not is_dest_cached(source_chat_id):
-                    cache_peer(acc, source_chat_id, "源频道")
-                    mark_dest_cached(source_chat_id)
-            except FloodWait as e:
-                logger.warning(f"⚠️ 缓存源频道时遇到限流，等待 {e.value} 秒")
-                # Don't return - continue processing even if caching fails
-            except Exception as e:
-                logger.warning(f"⚠️ 无法缓存源频道 {source_chat_id}: {e}")
-                # Don't return - continue processing
+            if not is_dest_cached(source_chat_id):
+                logger.info(f"🔄 源频道未缓存，尝试延迟加载: {source_chat_id}")
+                success = cache_peer(acc, source_chat_id, "源频道")
+                if not success:
+                    logger.warning(f"⚠️ 延迟加载源频道失败，继续处理（记录模式不受影响）")
+                else:
+                    logger.info(f"✅ 延迟加载源频道成功: {source_chat_id}")
             
             # Get message text
             message_text = message.text or message.caption or ""
@@ -195,17 +192,27 @@ if acc is not None:
                         
                         # Cache destination peer if in forward mode
                         dest_chat_id = dest if not record_mode else None
+                        dest_peer_ready = True  # Assume ready for record mode
+                        
                         if dest_chat_id and dest_chat_id != "me":
-                            try:
-                                if not is_dest_cached(dest_chat_id):
-                                    cache_peer(acc, dest_chat_id, "目标频道")
-                                    mark_dest_cached(dest_chat_id)
-                            except FloodWait as e:
-                                logger.warning(f"⚠️ 缓存目标频道时遇到限流，等待 {e.value} 秒")
-                                # Don't return - continue processing
-                            except Exception as e:
-                                logger.warning(f"⚠️ 无法缓存目标频道 {dest_chat_id}: {e}")
-                                # Don't return - continue processing
+                            # Forward mode - must have destination peer cached
+                            if not is_dest_cached(dest_chat_id):
+                                logger.info(f"🔄 目标频道未缓存，尝试延迟加载: {dest_chat_id}")
+                                success = cache_peer(acc, dest_chat_id, "目标频道")
+                                if success:
+                                    logger.info(f"✅ 延迟加载目标频道成功: {dest_chat_id}")
+                                    dest_peer_ready = True
+                                else:
+                                    logger.error(f"❌ 延迟加载目标频道失败: {dest_chat_id}")
+                                    logger.error(f"   消息将被跳过，等待下次重试（60秒后）")
+                                    dest_peer_ready = False
+                            else:
+                                logger.debug(f"✓ 目标频道已缓存: {dest_chat_id}")
+                        
+                        # Skip enqueuing if destination peer is not ready for forward mode
+                        if not dest_peer_ready:
+                            logger.warning(f"⏭️ 跳过消息（目标频道未就绪）: user={user_id}, dest={dest_chat_id}")
+                            continue
                         
                         # Media group deduplication
                         from bot.utils.dedup import is_media_group_processed, register_processed_media_group
@@ -361,15 +368,17 @@ def _cache_dest_peers(acc, dest_ids):
         except FloodWait as e:
             print(f"   ⚠️ 限流: 目标 {dest_id}，等待 {e.value} 秒")
             failed_dests.append(dest_id)
+            mark_peer_failed(dest_id)
         except Exception as e:
             print(f"   ⚠️ 无法缓存目标 {dest_id}: {str(e)}")
             failed_dests.append(dest_id)
+            mark_peer_failed(dest_id)
     
     print(f"📦 成功缓存 {cached_count}/{len(dest_ids)} 个目标Peer")
     
     if failed_dests:
         print(f"💡 缓存失败的目标（共{len(failed_dests)}个）: {', '.join(failed_dests)}")
-        print(f"   建议：请先让Bot与这些目标交互，或手动发送消息给目标\n")
+        print(f"   这些目标将在接收到第一条消息时自动重试延迟加载\n")
     else:
         print()
     
@@ -440,8 +449,19 @@ def print_startup_config():
             # Cache destination peers
             dest_ids = _collect_dest_ids(watch_config)
             _cache_dest_peers(acc, dest_ids)
+            
+            # Show failed peers summary
+            failed = get_failed_peers()
+            if failed:
+                print("\n" + "="*60)
+                print("⚠️  Peer缓存失败摘要")
+                print("="*60)
+                print(f"共 {len(failed)} 个Peer缓存失败，将在接收消息时自动重试：")
+                for peer_id in failed.keys():
+                    print(f"   • {peer_id}")
+                print("="*60)
     
-    print("="*60)
+    print("\n" + "="*60)
     print("✅ 机器人已就绪，正在监听消息...")
     print("="*60 + "\n")
 
