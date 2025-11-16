@@ -6,7 +6,8 @@ from .dedup import (
     is_media_group_processed,
     is_message_processed,
     mark_message_processed,
-    cleanup_old_messages
+    cleanup_old_messages,
+    get_cache_stats
 )
 from .progress import downstatus, upstatus, progress
 from .status import get_user_state, set_user_state, clear_user_state, update_user_state, user_states
@@ -18,6 +19,7 @@ __all__ = [
     'is_message_processed',
     'mark_message_processed',
     'cleanup_old_messages',
+    'get_cache_stats',
     'downstatus',
     'upstatus',
     'progress',
