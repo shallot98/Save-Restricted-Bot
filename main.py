@@ -431,6 +431,7 @@ def print_startup_config():
         print(f"   - 最大重试次数：{MAX_RETRIES} 次")
         print("   - 自动故障恢复：是")
     
+    reload_monitored_sources()
     watch_config = load_watch_config()
     if not watch_config:
         print("\n📋 当前没有监控任务")
