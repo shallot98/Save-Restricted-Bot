@@ -76,7 +76,14 @@ def load_watch_config() -> Dict[str, Any]:
 
 def build_monitored_sources() -> Set[str]:
     """Build a set of all monitored source chat IDs from watch config"""
-    watch_config = load_watch_config()
+    try:
+        watch_config = load_watch_config()
+        logger.info(f"📂 读取watch_config文件: {WATCH_FILE}")
+        logger.info(f"   配置文件状态: {'有内容' if watch_config else '为空'}")
+    except Exception as e:
+        logger.error(f"❌ 加载watch_config失败: {e}")
+        return set()
+    
     sources = set()
     
     for user_id, watches in watch_config.items():
@@ -102,7 +109,12 @@ def reload_monitored_sources():
 
 
 def get_monitored_sources() -> Set[str]:
-    """Get the current set of monitored sources"""
+    """Get the current set of monitored sources（懒加载）"""
+    global _monitored_sources
+    if not _monitored_sources:  # 首次访问时才加载
+        logger.info("⏳ 首次访问监控源，立即加载配置...")
+        _monitored_sources = build_monitored_sources()
+        logger.info(f"📋 监控源已加载: {len(_monitored_sources)} 个频道")
     return _monitored_sources
 
 
@@ -123,9 +135,5 @@ def save_watch_config(config: Dict[str, Any], auto_reload: bool = True):
         reload_monitored_sources()
 
 
-# Initialize monitored sources on module import
-_monitored_sources = build_monitored_sources()
-if _monitored_sources:
-    logger.info(f"📋 正在监控的源频道: {_monitored_sources}")
-else:
-    logger.info(f"📋 当前没有配置监控源")
+# 延迟初始化，首次使用时才加载（懒加载）
+_monitored_sources = set()
