@@ -3181,18 +3181,27 @@ def print_startup_config():
     print("✅ 机器人已就绪，正在监听消息...")
     print("="*60 + "\n")
 
-# 初始化数据库
-print("\n🔧 初始化数据库系统...")
-try:
-    init_database()
-except Exception as e:
-    print(f"⚠️ 数据库初始化时发生错误: {e}")
-    print("⚠️ 继续启动，但记录模式可能无法工作")
 
-# 打印启动配置
-print_startup_config()
+# 主函数：仅在直接运行时执行
+def main():
+    """Main entry point for running the bot"""
+    # 初始化数据库
+    print("\n🔧 初始化数据库系统...")
+    try:
+        init_database()
+    except Exception as e:
+        print(f"⚠️ 数据库初始化时发生错误: {e}")
+        print("⚠️ 继续启动，但记录模式可能无法工作")
+    
+    # 打印启动配置
+    print_startup_config()
+    
+    # infinty polling
+    bot.run()
+    if acc is not None:
+        acc.stop()
 
-# infinty polling
-bot.run()
-if acc is not None:
-    acc.stop()
+
+# 仅在直接运行时执行，不在导入时执行
+if __name__ == "__main__":
+    main()

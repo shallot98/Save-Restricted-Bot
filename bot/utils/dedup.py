@@ -39,13 +39,19 @@ def register_processed_media_group(key: str):
         
         # LRU cleanup: remove oldest entries if cache exceeds limit
         if len(processed_media_groups) > MAX_MEDIA_GROUP_CACHE:
-            # Remove oldest entries efficiently
-            for _ in range(MEDIA_GROUP_CLEANUP_BATCH_SIZE):
+            # Remove oldest entries efficiently with loop protection
+            removed_count = 0
+            max_iterations = MEDIA_GROUP_CLEANUP_BATCH_SIZE
+            
+            for _ in range(max_iterations):
                 if len(processed_media_groups) > MAX_MEDIA_GROUP_CACHE:
                     processed_media_groups.popitem(last=False)  # Remove oldest (FIFO)
+                    removed_count += 1
                 else:
                     break
-            logger.debug(f"🧹 媒体组缓存清理: 移除最旧的 {MEDIA_GROUP_CLEANUP_BATCH_SIZE} 个条目，当前大小={len(processed_media_groups)}")
+            
+            if removed_count > 0:
+                logger.debug(f"🧹 媒体组缓存清理: 移除最旧的 {removed_count} 个条目，当前大小={len(processed_media_groups)}")
 
 
 def is_media_group_processed(key: str) -> bool:
