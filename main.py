@@ -385,6 +385,100 @@ def _cache_dest_peers(acc, dest_ids):
     return cached_count, len(dest_ids), failed_dests
 
 
+def initialize_peer_cache_on_startup(acc):
+    """启动时强制初始化所有Peer缓存
+    
+    这确保所有配置的源和目标频道都被加载到Pyrogram的内部缓存中，
+    避免后续"Peer id invalid"错误
+    
+    Args:
+        acc: User client instance
+    """
+    try:
+        watch_config = load_watch_config()
+        all_peers = set()
+        
+        # 第一步：收集所有源和目标频道ID
+        for user_id, watches in watch_config.items():
+            for watch_key, watch_data in watches.items():
+                if isinstance(watch_data, dict):
+                    source_id = watch_data.get("source")
+                    dest_id = watch_data.get("dest")
+                    
+                    if source_id:
+                        try:
+                            all_peers.add(int(source_id))
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    if dest_id and dest_id != "me":
+                        try:
+                            all_peers.add(int(dest_id))
+                        except (ValueError, TypeError):
+                            pass
+        
+        if not all_peers:
+            logger.info("📭 没有配置的Peer需要初始化")
+            return
+        
+        # 第二步：真正初始化Peer缓存
+        logger.info("="*60)
+        logger.info(f"⚡ 启动时初始化 {len(all_peers)} 个Peer缓存...")
+        logger.info("="*60)
+        
+        success_count = 0
+        failed_peers_list = []
+        
+        for peer_id in sorted(all_peers):
+            try:
+                # 关键：这个调用会将频道信息存入Pyrogram内部缓存
+                chat = acc.get_chat(peer_id)
+                success_count += 1
+                
+                # Extract chat name
+                if hasattr(chat, 'title') and chat.title:
+                    chat_name = chat.title
+                elif hasattr(chat, 'first_name') and chat.first_name:
+                    chat_name = chat.first_name
+                elif hasattr(chat, 'username') and chat.username:
+                    chat_name = f"@{chat.username}"
+                else:
+                    chat_name = "Unknown"
+                
+                # Check if bot
+                is_bot = " 🤖" if hasattr(chat, 'is_bot') and chat.is_bot else ""
+                
+                logger.info(f"   ✅ {peer_id}: {chat_name}{is_bot}")
+                
+                # Mark as cached in our tracking system
+                mark_dest_cached(str(peer_id))
+                
+            except FloodWait as e:
+                failed_peers_list.append((peer_id, f"限流 {e.value}s"))
+                logger.warning(f"   ⚠️ {peer_id}: 限流，等待 {e.value} 秒")
+                mark_peer_failed(str(peer_id))
+            except Exception as e:
+                error_msg = str(e)[:60]
+                failed_peers_list.append((peer_id, error_msg))
+                logger.warning(f"   ⚠️ {peer_id}: {error_msg}")
+                mark_peer_failed(str(peer_id))
+        
+        logger.info("="*60)
+        logger.info(f"✅ Peer缓存初始化完成: {success_count}/{len(all_peers)} 成功")
+        
+        if failed_peers_list:
+            logger.warning(f"⚠️ 失败的Peer (共{len(failed_peers_list)}个):")
+            for peer_id, error in failed_peers_list:
+                logger.warning(f"   - {peer_id}: {error}")
+            logger.info(f"💡 失败的Peer将在接收到第一条消息时自动重试延迟加载")
+        
+        logger.info("="*60)
+        logger.info("")  # 空行便于日志阅读
+        
+    except Exception as e:
+        logger.error(f"❌ Peer缓存初始化失败: {e}", exc_info=True)
+
+
 def _print_watch_tasks(watch_config):
     """Print configured watch tasks"""
     record_mode_count = sum(
@@ -447,25 +541,10 @@ def print_startup_config():
         # Print watch tasks
         _print_watch_tasks(watch_config)
         
-        # Cache source channels
+        # Force initialize peer cache on startup
         if acc is not None:
-            source_ids = _collect_source_ids(watch_config)
-            _cache_channels(acc, source_ids, "源频道")
-            
-            # Cache destination peers
-            dest_ids = _collect_dest_ids(watch_config)
-            _cache_dest_peers(acc, dest_ids)
-            
-            # Show failed peers summary
-            failed = get_failed_peers()
-            if failed:
-                print("\n" + "="*60)
-                print("⚠️  Peer缓存失败摘要")
-                print("="*60)
-                print(f"共 {len(failed)} 个Peer缓存失败，将在接收消息时自动重试：")
-                for peer_id in failed.keys():
-                    print(f"   • {peer_id}")
-                print("="*60)
+            print("")  # 空行分隔
+            initialize_peer_cache_on_startup(acc)
     
     print("\n" + "="*60)
     print("✅ 机器人已就绪，正在监听消息...")
