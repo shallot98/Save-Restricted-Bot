@@ -420,8 +420,11 @@ def _print_watch_tasks(watch_config):
 
 def print_startup_config():
     """Print startup configuration"""
-    # Force reload monitored sources on startup
+    # ⚡ 启动时强制重新加载监控源，确保使用最新配置
     reload_monitored_sources()
+    
+    monitored = get_monitored_sources()
+    logger.info(f"🔄 启动时已加载 {len(monitored)} 个监控源频道")
     
     print("\n" + "="*60)
     print("🤖 Telegram Save-Restricted Bot 启动成功")
