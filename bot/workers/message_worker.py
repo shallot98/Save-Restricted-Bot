@@ -581,19 +581,19 @@ class MessageWorker:
         try:
             check_forward_mode = check_watch_data.get("forward_mode", "full")
             check_extract_patterns = check_watch_data.get("extract_patterns", [])
-            check_whitelist = check_watch_data.get("whitelist", [])
-            check_blacklist = check_watch_data.get("blacklist", [])
-            check_whitelist_regex = check_watch_data.get("whitelist_regex", [])
-            check_blacklist_regex = check_watch_data.get("blacklist_regex", [])
+            dest_whitelist = check_watch_data.get("whitelist", [])
+            dest_blacklist = check_watch_data.get("blacklist", [])
+            dest_whitelist_regex = check_watch_data.get("whitelist_regex", [])
+            dest_blacklist_regex = check_watch_data.get("blacklist_regex", [])
             
             # Apply filters
-            if check_blacklist(message_text, check_blacklist):
+            if check_blacklist(message_text, dest_blacklist):
                 return
-            if check_blacklist_regex(message_text, check_blacklist_regex):
+            if check_blacklist_regex(message_text, dest_blacklist_regex):
                 return
-            if not check_whitelist(message_text, check_whitelist):
+            if not check_whitelist(message_text, dest_whitelist):
                 return
-            if not check_whitelist_regex(message_text, check_whitelist_regex):
+            if not check_whitelist_regex(message_text, dest_whitelist_regex):
                 return
             
             # Extract mode
