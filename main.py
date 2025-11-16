@@ -89,15 +89,17 @@ if acc is not None:
 # Register command handlers
 register_command_handlers(bot, acc)
 
-# Import the remaining handlers from main_old for now
-# These will be gradually refactored in future iterations
-from main_old import (
-    callback_handler, save, handle_private, get_message_type,
-    USAGE, show_filter_options, show_filter_options_single,
+# Import handlers from new modular structure
+from bot.handlers.callbacks import callback_handler
+from bot.handlers.messages import save, handle_private
+from bot.handlers.watch_setup import (
+    show_filter_options, show_filter_options_single,
     show_preserve_source_options, show_forward_mode_options,
     complete_watch_setup, complete_watch_setup_single,
     handle_add_source, handle_add_dest
 )
+from bot.utils.helpers import get_message_type
+from constants import USAGE
 
 # Register callback handler
 @bot.on_callback_query()
