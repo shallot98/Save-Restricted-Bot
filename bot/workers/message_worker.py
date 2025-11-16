@@ -18,6 +18,10 @@ from pyrogram.errors import FloodWait
 from database import add_note
 from config import load_watch_config, MEDIA_DIR
 from bot.filters import check_whitelist, check_blacklist, check_whitelist_regex, check_blacklist_regex, extract_content
+from constants import (
+    MAX_RETRIES, MAX_FLOOD_RETRIES, OPERATION_TIMEOUT, 
+    WORKER_STATS_INTERVAL, RATE_LIMIT_DELAY, get_backoff_time, MAX_MEDIA_PER_GROUP
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,7 @@ class Message:
 class MessageWorker:
     """消息工作线程，处理队列中的消息"""
     
-    def __init__(self, message_queue: queue.Queue, acc_client, max_retries: int = 3):
+    def __init__(self, message_queue: queue.Queue, acc_client, max_retries: int = MAX_RETRIES):
         self.message_queue = message_queue
         self.acc = acc_client
         self.max_retries = max_retries
@@ -73,8 +77,8 @@ class MessageWorker:
                 try:
                     msg_obj = self.message_queue.get(timeout=1)
                 except queue.Empty:
-                    # Periodically log statistics (every 60 seconds)
-                    if time.time() - self.last_stats_time > 60:
+                    # Periodically log statistics
+                    if time.time() - self.last_stats_time > WORKER_STATS_INTERVAL:
                         queue_size = self.message_queue.qsize()
                         if queue_size > 0 or self.processed_count > 0:
                             logger.info(f"📊 队列统计: 待处理={queue_size}, 已完成={self.processed_count}, 跳过={self.skipped_count}, 失败={self.failed_count}, 重试={self.retry_count}")
@@ -99,8 +103,8 @@ class MessageWorker:
                     if msg_obj.retry_count < self.max_retries:
                         msg_obj.retry_count += 1
                         self.retry_count += 1
-                        # 计算退避时间：1秒、2秒、4秒
-                        backoff_time = 2 ** (msg_obj.retry_count - 1)
+                        # Calculate exponential backoff time
+                        backoff_time = get_backoff_time(msg_obj.retry_count)
                         logger.warning(f"⚠️ 消息处理失败，将在 {backoff_time} 秒后重试 (第 {msg_obj.retry_count}/{self.max_retries} 次)")
                         time.sleep(backoff_time)
                         # 重新入队
@@ -126,7 +130,7 @@ class MessageWorker:
             self.loop.close()
         logger.info("🛑 消息工作线程已停止")
     
-    def _run_async_with_timeout(self, coro, timeout: float = 30.0):
+    def _run_async_with_timeout(self, coro, timeout: float = OPERATION_TIMEOUT):
         """Execute async operation with timeout in the worker thread"""
         # Validate that we have a proper coroutine or awaitable
         if not asyncio.iscoroutine(coro) and not hasattr(coro, '__await__'):
@@ -148,7 +152,7 @@ class MessageWorker:
             logger.error(f"❌ 操作超时（{timeout}秒）")
             raise
     
-    def _execute_with_flood_retry(self, operation_name: str, operation_func, max_flood_retries: int = 3, timeout: float = 30.0):
+    def _execute_with_flood_retry(self, operation_name: str, operation_func, max_flood_retries: int = MAX_FLOOD_RETRIES, timeout: float = OPERATION_TIMEOUT):
         """Execute operation with FloodWait retry and timeout handling"""
         for flood_attempt in range(max_flood_retries):
             try:
@@ -342,8 +346,8 @@ class MessageWorker:
                         media_paths.append(file_name)
                         if idx == 0:
                             media_path = file_name
-                        if len(media_paths) >= 9:
-                            logger.warning(f"   ⚠️ 媒体组超过9张图片，仅保存前9张")
+                        if len(media_paths) >= MAX_MEDIA_PER_GROUP:
+                            logger.warning(f"   ⚠️ 媒体组超过{MAX_MEDIA_PER_GROUP}张图片，仅保存前{MAX_MEDIA_PER_GROUP}张")
                             break
                     if msg.caption and not content_to_save:
                         content_to_save = msg.caption
@@ -426,7 +430,7 @@ class MessageWorker:
                     lambda: self.acc.send_message(dest_id, extracted_text)
                 )
                 logger.info(f"   ✅ 提取内容已发送")
-                time.sleep(0.5)
+                time.sleep(RATE_LIMIT_DELAY)
             else:
                 logger.debug(f"   未提取到任何内容，跳过发送")
         
@@ -457,7 +461,7 @@ class MessageWorker:
                     lambda: self.acc.forward_messages(dest_id, message.chat.id, message_ids)
                 )
                 logger.info(f"   ✅ 媒体组已转发")
-                time.sleep(0.5)
+                time.sleep(RATE_LIMIT_DELAY)
             except UnrecoverableError:
                 raise
             except Exception as e:
@@ -467,14 +471,14 @@ class MessageWorker:
                     lambda: self.acc.forward_messages(dest_id, message.chat.id, message.id)
                 )
                 logger.info(f"   ✅ 消息已转发（单条）")
-                time.sleep(0.5)
+                time.sleep(RATE_LIMIT_DELAY)
         else:
             self._execute_with_flood_retry(
                 "转发消息",
                 lambda: self.acc.forward_messages(dest_id, message.chat.id, message.id)
             )
             logger.info(f"   ✅ 消息已转发")
-            time.sleep(0.5)
+            time.sleep(RATE_LIMIT_DELAY)
     
     def _copy_without_source(self, message, dest_id):
         """Copy message hiding source"""
@@ -486,7 +490,7 @@ class MessageWorker:
                     lambda: self.acc.copy_media_group(dest_id, message.chat.id, message.id)
                 )
                 logger.info(f"   ✅ 媒体组已复制（隐藏引用）")
-                time.sleep(0.5)
+                time.sleep(RATE_LIMIT_DELAY)
             except UnrecoverableError:
                 raise
             except Exception as e:
@@ -496,14 +500,14 @@ class MessageWorker:
                     lambda: self.acc.copy_message(dest_id, message.chat.id, message.id)
                 )
                 logger.info(f"   ✅ 消息已复制（单条）")
-                time.sleep(0.5)
+                time.sleep(RATE_LIMIT_DELAY)
         else:
             self._execute_with_flood_retry(
                 "复制消息",
                 lambda: self.acc.copy_message(dest_id, message.chat.id, message.id)
             )
             logger.info(f"   ✅ 消息已复制")
-            time.sleep(0.5)
+            time.sleep(RATE_LIMIT_DELAY)
     
     def _check_dest_tasks(self, message, dest_chat_id, message_text):
         """Check if destination has configured tasks (multi-hop chains)"""

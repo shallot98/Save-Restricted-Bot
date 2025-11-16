@@ -4,6 +4,11 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import os
 import json
+import logging
+from contextlib import contextmanager
+from constants import DB_DEDUP_WINDOW
+
+logger = logging.getLogger(__name__)
 
 # 设置中国时区
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
@@ -12,6 +17,20 @@ CHINA_TZ = ZoneInfo("Asia/Shanghai")
 DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
 DATA_DIR = os.environ.get('DATA_DIR', DEFAULT_DATA_DIR)
 DATABASE_FILE = os.path.join(DATA_DIR, 'notes.db')
+
+
+@contextmanager
+def get_db_connection():
+    """Database connection context manager"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 def init_database():
     """初始化数据库，创建必要的表"""
@@ -115,304 +134,275 @@ def init_database():
         print("=" * 50)
         raise
 
+def _validate_and_convert_params(user_id, source_chat_id):
+    """Validate and convert note parameters"""
+    if user_id is None:
+        raise ValueError("user_id 不能为 None")
+    if source_chat_id is None:
+        raise ValueError("source_chat_id 不能为 None")
+    
+    # 确保 user_id 是整数
+    if not isinstance(user_id, int):
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"user_id 必须是整数或可转换为整数的值: {user_id}") from e
+    
+    # 确保 source_chat_id 是字符串
+    if not isinstance(source_chat_id, str):
+        source_chat_id = str(source_chat_id)
+    
+    return user_id, source_chat_id
+
+
+def _check_duplicate_media_group(cursor, user_id, source_chat_id, media_group_id):
+    """Check for duplicate media groups"""
+    cursor.execute(
+        "SELECT id FROM notes WHERE user_id=? AND source_chat_id=? AND media_group_id=? LIMIT 1",
+        (user_id, source_chat_id, media_group_id)
+    )
+    existing = cursor.fetchone()
+    if existing:
+        existing_id = existing[0]
+        logger.debug(f"媒体组已存在，跳过重复保存 (existing_id={existing_id})")
+        return existing_id
+    return None
+
+
+def _check_duplicate_message(cursor, user_id, source_chat_id, message_text):
+    """Check for duplicate messages within time window"""
+    cursor.execute(f"""
+        SELECT id FROM notes 
+        WHERE user_id=? AND source_chat_id=? AND message_text=? 
+        AND datetime(timestamp) > datetime('now', '-{DB_DEDUP_WINDOW} seconds')
+        LIMIT 1
+    """, (user_id, source_chat_id, message_text))
+    existing = cursor.fetchone()
+    if existing:
+        existing_id = existing[0]
+        logger.debug(f"消息在{DB_DEDUP_WINDOW}秒内已保存，跳过重复 (existing_id={existing_id})")
+        return existing_id
+    return None
+
+
 def add_note(user_id, source_chat_id, source_name, message_text, media_type=None, media_path=None, media_paths=None, media_group_id=None):
     """添加一条笔记记录"""
-    conn = None
     try:
-        print(f"[add_note] 开始保存笔记")
-        print(f"[add_note] - user_id: {user_id} (type: {type(user_id).__name__})")
-        print(f"[add_note] - source_chat_id: {source_chat_id} (type: {type(source_chat_id).__name__})")
-        print(f"[add_note] - source_name: {source_name}")
-        print(f"[add_note] - message_text length: {len(message_text) if message_text else 0}")
-        print(f"[add_note] - media_type: {media_type}")
-        print(f"[add_note] - media_path: {media_path}")
-        print(f"[add_note] - media_paths: {media_paths}")
-        print(f"[add_note] - media_group_id: {media_group_id}")
+        logger.debug(f"开始保存笔记: user_id={user_id}, source={source_chat_id}, media_type={media_type}")
         
-        # 验证必填字段
-        if user_id is None:
-            raise ValueError("user_id 不能为 None")
-        if source_chat_id is None:
-            raise ValueError("source_chat_id 不能为 None")
+        # 验证和转换参数
+        user_id, source_chat_id = _validate_and_convert_params(user_id, source_chat_id)
         
-        # 确保 user_id 是整数
-        if not isinstance(user_id, int):
-            try:
-                user_id = int(user_id)
-            except (ValueError, TypeError) as e:
-                raise ValueError(f"user_id 必须是整数或可转换为整数的值: {user_id}") from e
-        
-        # 确保 source_chat_id 是字符串
-        if not isinstance(source_chat_id, str):
-            source_chat_id = str(source_chat_id)
-        
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        
-        # Check for duplicate media groups
-        if media_group_id:
-            print(f"[add_note] 检查媒体组去重: media_group_id={media_group_id}")
-            cursor.execute(
-                "SELECT id FROM notes WHERE user_id=? AND source_chat_id=? AND media_group_id=? LIMIT 1",
-                (user_id, source_chat_id, media_group_id)
-            )
-            existing = cursor.fetchone()
-            if existing:
-                existing_id = existing[0]
-                print(f"[add_note] ⏭️ 媒体组已存在，跳过重复保存 (existing_id={existing_id})")
-                conn.close()
-                return existing_id
-        
-        # Check for duplicate messages (same user, source, text within 5 seconds)
-        if message_text and not media_group_id:
-            print(f"[add_note] 检查消息去重: 5秒内相同文本")
-            cursor.execute("""
-                SELECT id FROM notes 
-                WHERE user_id=? AND source_chat_id=? AND message_text=? 
-                AND datetime(timestamp) > datetime('now', '-5 seconds')
-                LIMIT 1
-            """, (user_id, source_chat_id, message_text))
-            existing = cursor.fetchone()
-            if existing:
-                existing_id = existing[0]
-                print(f"[add_note] ⏭️ 消息在5秒内已保存，跳过重复 (existing_id={existing_id})")
-                conn.close()
-                return existing_id
-        
-        # 将media_paths列表转换为JSON字符串
-        if media_paths:
-            if media_path is None:
-                media_path = media_paths[0]
-            media_paths_json = json.dumps(media_paths, ensure_ascii=False)
-            print(f"[add_note] - media_paths_json: {media_paths_json}")
-        else:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check for duplicate media groups
+            if media_group_id:
+                existing_id = _check_duplicate_media_group(cursor, user_id, source_chat_id, media_group_id)
+                if existing_id:
+                    return existing_id
+            
+            # Check for duplicate messages
+            if message_text and not media_group_id:
+                existing_id = _check_duplicate_message(cursor, user_id, source_chat_id, message_text)
+                if existing_id:
+                    return existing_id
+            
+            # Prepare media paths JSON
             media_paths_json = None
-            print(f"[add_note] - media_paths_json: None")
-        
-        # 生成中国时区时间戳
-        china_timestamp = datetime.now(CHINA_TZ).strftime('%Y-%m-%d %H:%M:%S')
-        print(f"[add_note] - 时间戳 (中国时区): {china_timestamp}")
-        
-        print(f"[add_note] 执行 SQL 插入...")
-        cursor.execute('''
-            INSERT INTO notes (user_id, source_chat_id, source_name, message_text, timestamp, media_type, media_path, media_paths, media_group_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, source_chat_id, source_name, message_text, china_timestamp, media_type, media_path, media_paths_json, media_group_id))
-        
-        print(f"[add_note] SQL 插入成功，准备提交...")
-        conn.commit()
-        note_id = cursor.lastrowid
-        print(f"[add_note] ✅ 提交成功！note_id: {note_id}")
-        conn.close()
-        
-        return note_id
+            if media_paths:
+                if media_path is None:
+                    media_path = media_paths[0]
+                media_paths_json = json.dumps(media_paths, ensure_ascii=False)
+            
+            # Generate China timezone timestamp
+            china_timestamp = datetime.now(CHINA_TZ).strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Insert note
+            cursor.execute('''
+                INSERT INTO notes (user_id, source_chat_id, source_name, message_text, timestamp, media_type, media_path, media_paths, media_group_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (user_id, source_chat_id, source_name, message_text, china_timestamp, media_type, media_path, media_paths_json, media_group_id))
+            
+            note_id = cursor.lastrowid
+            logger.info(f"✅ 笔记保存成功！note_id={note_id}")
+            return note_id
         
     except sqlite3.Error as e:
-        print(f"[add_note] ❌ SQLite 错误: {type(e).__name__}: {e}")
-        print(f"[add_note] SQLite 错误详情: {str(e)}")
-        if conn:
-            conn.close()
+        logger.error(f"SQLite 错误: {type(e).__name__}: {e}")
         raise
     except Exception as e:
-        print(f"[add_note] ❌ 意外错误: {type(e).__name__}: {e}")
-        if conn:
-            conn.close()
+        logger.error(f"保存笔记失败: {type(e).__name__}: {e}")
         raise
+
+def _parse_media_paths(note):
+    """Parse media paths from JSON string"""
+    if note.get('media_paths'):
+        try:
+            note['media_paths'] = json.loads(note['media_paths'])
+        except (json.JSONDecodeError, TypeError):
+            note['media_paths'] = []
+    else:
+        note['media_paths'] = []
+    
+    # Fallback: if media_paths is empty but media_path exists
+    if not note['media_paths'] and note.get('media_path'):
+        note['media_paths'] = [note['media_path']]
+    
+    return note
+
 
 def get_notes(user_id=None, source_chat_id=None, search_query=None, date_from=None, date_to=None, limit=50, offset=0):
     """获取笔记列表"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    query = 'SELECT * FROM notes WHERE 1=1'
-    params = []
-    
-    if user_id:
-        query += ' AND user_id = ?'
-        params.append(user_id)
-    
-    if source_chat_id:
-        query += ' AND source_chat_id = ?'
-        params.append(source_chat_id)
-    
-    if search_query:
-        query += ' AND (message_text LIKE ? OR source_name LIKE ?)'
-        search_pattern = f'%{search_query}%'
-        params.extend([search_pattern, search_pattern])
-    
-    if date_from:
-        query += ' AND DATE(timestamp) >= ?'
-        params.append(date_from)
-    
-    if date_to:
-        query += ' AND DATE(timestamp) <= ?'
-        params.append(date_to)
-    
-    query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?'
-    params.extend([limit, offset])
-    
-    cursor.execute(query, params)
-    notes = []
-    for row in cursor.fetchall():
-        note = dict(row)
-        # 解析media_paths JSON字符串为列表
-        if note.get('media_paths'):
-            try:
-                note['media_paths'] = json.loads(note['media_paths'])
-            except:
-                note['media_paths'] = []
-        else:
-            note['media_paths'] = []
-        if note['media_paths'] == [] and note.get('media_path'):
-            note['media_paths'] = [note['media_path']]
-        notes.append(note)
-    conn.close()
-    return notes
+    with get_db_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        query = 'SELECT * FROM notes WHERE 1=1'
+        params = []
+        
+        if user_id:
+            query += ' AND user_id = ?'
+            params.append(user_id)
+        
+        if source_chat_id:
+            query += ' AND source_chat_id = ?'
+            params.append(source_chat_id)
+        
+        if search_query:
+            query += ' AND (message_text LIKE ? OR source_name LIKE ?)'
+            search_pattern = f'%{search_query}%'
+            params.extend([search_pattern, search_pattern])
+        
+        if date_from:
+            query += ' AND DATE(timestamp) >= ?'
+            params.append(date_from)
+        
+        if date_to:
+            query += ' AND DATE(timestamp) <= ?'
+            params.append(date_to)
+        
+        query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?'
+        params.extend([limit, offset])
+        
+        cursor.execute(query, params)
+        notes = [_parse_media_paths(dict(row)) for row in cursor.fetchall()]
+        return notes
 
 def get_note_count(user_id=None, source_chat_id=None, search_query=None, date_from=None, date_to=None):
     """获取笔记总数"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    query = 'SELECT COUNT(*) FROM notes WHERE 1=1'
-    params = []
-    
-    if user_id:
-        query += ' AND user_id = ?'
-        params.append(user_id)
-    
-    if source_chat_id:
-        query += ' AND source_chat_id = ?'
-        params.append(source_chat_id)
-    
-    if search_query:
-        query += ' AND (message_text LIKE ? OR source_name LIKE ?)'
-        search_pattern = f'%{search_query}%'
-        params.extend([search_pattern, search_pattern])
-    
-    if date_from:
-        query += ' AND DATE(timestamp) >= ?'
-        params.append(date_from)
-    
-    if date_to:
-        query += ' AND DATE(timestamp) <= ?'
-        params.append(date_to)
-    
-    cursor.execute(query, params)
-    count = cursor.fetchone()[0]
-    conn.close()
-    return count
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        query = 'SELECT COUNT(*) FROM notes WHERE 1=1'
+        params = []
+        
+        if user_id:
+            query += ' AND user_id = ?'
+            params.append(user_id)
+        
+        if source_chat_id:
+            query += ' AND source_chat_id = ?'
+            params.append(source_chat_id)
+        
+        if search_query:
+            query += ' AND (message_text LIKE ? OR source_name LIKE ?)'
+            search_pattern = f'%{search_query}%'
+            params.extend([search_pattern, search_pattern])
+        
+        if date_from:
+            query += ' AND DATE(timestamp) >= ?'
+            params.append(date_from)
+        
+        if date_to:
+            query += ' AND DATE(timestamp) <= ?'
+            params.append(date_to)
+        
+        cursor.execute(query, params)
+        return cursor.fetchone()[0]
 
 def get_sources(user_id=None):
     """获取所有来源的列表"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    query = 'SELECT DISTINCT source_chat_id, source_name FROM notes WHERE 1=1'
-    params = []
-    
-    if user_id:
-        query += ' AND user_id = ?'
-        params.append(user_id)
-    
-    cursor.execute(query, params)
-    sources = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return sources
+    with get_db_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        query = 'SELECT DISTINCT source_chat_id, source_name FROM notes WHERE 1=1'
+        params = []
+        
+        if user_id:
+            query += ' AND user_id = ?'
+            params.append(user_id)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
 
 def verify_user(username, password):
     """验证用户登录"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
-    result = cursor.fetchone()
-    conn.close()
-    
-    if result:
-        password_hash = result[0]
-        return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
-    return False
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
+        result = cursor.fetchone()
+        
+        if result:
+            password_hash = result[0]
+            return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+        return False
+
 
 def update_password(username, new_password):
     """更新用户密码"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    cursor.execute('UPDATE users SET password_hash = ? WHERE username = ?', (password_hash, username))
-    
-    conn.commit()
-    conn.close()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cursor.execute('UPDATE users SET password_hash = ? WHERE username = ?', (password_hash, username))
+
 
 def get_note_by_id(note_id):
     """根据ID获取单条笔记"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM notes WHERE id = ?', (note_id,))
-    row = cursor.fetchone()
-    conn.close()
-    
-    if row:
-        note = dict(row)
-        # 解析media_paths JSON字符串为列表
-        if note.get('media_paths'):
-            try:
-                note['media_paths'] = json.loads(note['media_paths'])
-            except:
-                note['media_paths'] = []
-        else:
-            note['media_paths'] = []
-        if note['media_paths'] == [] and note.get('media_path'):
-            note['media_paths'] = [note['media_path']]
-        return note
-    return None
+    with get_db_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM notes WHERE id = ?', (note_id,))
+        row = cursor.fetchone()
+        
+        if row:
+            return _parse_media_paths(dict(row))
+        return None
+
 
 def update_note(note_id, message_text):
     """更新笔记内容"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    cursor.execute('UPDATE notes SET message_text = ? WHERE id = ?', (message_text, note_id))
-    
-    conn.commit()
-    affected = cursor.rowcount
-    conn.close()
-    return affected > 0
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('UPDATE notes SET message_text = ? WHERE id = ?', (message_text, note_id))
+        return cursor.rowcount > 0
+
 
 def delete_note(note_id):
     """删除笔记"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    # 先获取笔记信息以删除关联的媒体文件
-    cursor.execute('SELECT media_path, media_paths FROM notes WHERE id = ?', (note_id,))
-    result = cursor.fetchone()
-    
-    media_files = set()
-    if result:
-        single_path = result[0]
-        media_paths_json = result[1]
-        if single_path:
-            media_files.add(single_path)
-        if media_paths_json:
-            try:
-                for path in json.loads(media_paths_json):
-                    if path:
-                        media_files.add(path)
-            except:
-                pass
-    
-    # 删除数据库记录
-    cursor.execute('DELETE FROM notes WHERE id = ?', (note_id,))
-    
-    conn.commit()
-    affected = cursor.rowcount
-    conn.close()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 先获取笔记信息以删除关联的媒体文件
+        cursor.execute('SELECT media_path, media_paths FROM notes WHERE id = ?', (note_id,))
+        result = cursor.fetchone()
+        
+        media_files = set()
+        if result:
+            single_path, media_paths_json = result
+            if single_path:
+                media_files.add(single_path)
+            if media_paths_json:
+                try:
+                    media_files.update(path for path in json.loads(media_paths_json) if path)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        
+        # 删除数据库记录
+        cursor.execute('DELETE FROM notes WHERE id = ?', (note_id,))
+        affected = cursor.rowcount
     
     # 删除关联的媒体文件
     for media_path in media_files:
@@ -421,7 +411,7 @@ def delete_note(note_id):
             if os.path.exists(full_media_path):
                 os.remove(full_media_path)
         except Exception as e:
-            print(f"Error deleting media file: {e}")
+            logger.warning(f"删除媒体文件失败: {e}")
     
     return affected > 0
 
