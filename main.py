@@ -65,8 +65,8 @@ if ss is not None:
 
     # 先尝试使用已有的 session 文件（包含 Peer 缓存）
     import os
-    os.makedirs("sessions", exist_ok=True)
-    session_file = "sessions/myacc"
+    os.makedirs("session-storage", exist_ok=True)
+    session_file = "session-storage/myacc"
     if os.path.exists(f"{session_file}.session"):
         logger.info("📂 发现已有 Session 文件，将保留 Peer 缓存")
         acc = Client(session_file, api_id=api_id, api_hash=api_hash)

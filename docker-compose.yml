@@ -17,7 +17,7 @@ services:
     volumes:
       - ./downloads:/app/downloads
       - ./data:/app/data
-      - session-data:/app/sessions
+      - session-data:/app/session-storage
 
 volumes:
   session-data:
