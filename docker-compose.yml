@@ -17,4 +17,5 @@ services:
     volumes:
       - ./downloads:/app/downloads
       - ./data:/app/data
-      - ./sessions:/app/sessions
+      - ./myacc.session:/app/sessions/myacc.session
+      - ./myacc.session-journal:/app/sessions/myacc.session-journal
