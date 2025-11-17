@@ -553,40 +553,15 @@ def import_watch_config_on_startup(acc):
                         dest_id = watch_data
                         record_mode = False
                     
-                    # 初始化源频道 - 复用手动添加的逻辑
+                    # 记录配置信息（不强制初始化，改为延迟加载）
                     if source_id and source_id != "me":
-                        try:
-                            # 这就是手动添加时调用的函数：acc.get_chat()
-                            source_chat = acc.get_chat(int(source_id))
-                            source_name = source_chat.title or source_chat.username or str(source_id)
-                            logger.info(f"   ✅ 源频道: {source_name} ({source_id})")
-                            
-                            # 标记为已缓存（复用现有逻辑）
-                            mark_dest_cached(source_id)
-                        except Exception as e:
-                            logger.warning(f"   ⚠️ 源频道初始化失败 {source_id}: {str(e)[:50]}")
-                            mark_peer_failed(source_id)
-                    
-                    # 初始化目标频道 - 复用手动添加的逻辑
+                        logger.info(f"   📌 源频道: {source_id} (将在收到消息时自动初始化)")
+
                     if not record_mode and dest_id and dest_id != "me":
-                        try:
-                            # 这就是手动添加时调用的函数：acc.get_chat()
-                            dest_chat = acc.get_chat(int(dest_id))
-                            dest_name = dest_chat.title or dest_chat.username or str(dest_id)
-                            is_bot = " 🤖" if hasattr(dest_chat, 'is_bot') and dest_chat.is_bot else ""
-                            logger.info(f"   ✅ 目标频道: {dest_name}{is_bot} ({dest_id})")
-                            
-                            # 标记为已缓存（复用现有逻辑）
-                            mark_dest_cached(dest_id)
-                        except Exception as e:
-                            logger.warning(f"   ⚠️ 目标频道初始化失败 {dest_id}: {str(e)[:50]}")
-                            mark_peer_failed(dest_id)
+                        logger.info(f"   📌 目标频道: {dest_id} (将在转发时自动初始化)")
+                    elif record_mode:
+                        logger.info(f"   📝 目标: 记录模式")
                     
-                    # 记录配置类型
-                    if record_mode:
-                        logger.info(f"   📝 模式: 记录模式")
-                    else:
-                        logger.info(f"   📤 模式: 转发模式")
                     
                     success_count += 1
                     
