@@ -512,6 +512,108 @@ def initialize_peer_cache_on_startup_with_retry(acc, max_retries=3):
         return False
 
 
+def import_watch_config_on_startup(acc):
+    """在启动时导入配置，复用手动添加的逻辑
+    
+    该函数模拟手动添加监控时的初始化流程，确保使用相同的代码路径
+    """
+    import time
+    
+    logger.info("="*60)
+    logger.info("🔄 开始导入监控配置...")
+    logger.info("="*60)
+    
+    try:
+        watch_config = load_watch_config()
+        
+        if not watch_config:
+            logger.info("📭 没有监控配置需要导入")
+            return True
+        
+        # 统计配置数量
+        total_configs = sum(len(watches) for watches in watch_config.values())
+        logger.info(f"📋 找到 {total_configs} 个监控配置")
+        
+        success_count = 0
+        failed_count = 0
+        
+        for user_id, watches in watch_config.items():
+            logger.info(f"\n👤 用户 {user_id} 的配置:")
+            
+            for watch_key, watch_data in watches.items():
+                try:
+                    # 解析配置
+                    if isinstance(watch_data, dict):
+                        source_id = watch_data.get("source")
+                        dest_id = watch_data.get("dest")
+                        record_mode = watch_data.get("record_mode", False)
+                    else:
+                        # 旧格式兼容
+                        source_id = watch_key
+                        dest_id = watch_data
+                        record_mode = False
+                    
+                    # 初始化源频道 - 复用手动添加的逻辑
+                    if source_id and source_id != "me":
+                        try:
+                            # 这就是手动添加时调用的函数：acc.get_chat()
+                            source_chat = acc.get_chat(int(source_id))
+                            source_name = source_chat.title or source_chat.username or str(source_id)
+                            logger.info(f"   ✅ 源频道: {source_name} ({source_id})")
+                            
+                            # 标记为已缓存（复用现有逻辑）
+                            mark_dest_cached(source_id)
+                        except Exception as e:
+                            logger.warning(f"   ⚠️ 源频道初始化失败 {source_id}: {str(e)[:50]}")
+                            mark_peer_failed(source_id)
+                    
+                    # 初始化目标频道 - 复用手动添加的逻辑
+                    if not record_mode and dest_id and dest_id != "me":
+                        try:
+                            # 这就是手动添加时调用的函数：acc.get_chat()
+                            dest_chat = acc.get_chat(int(dest_id))
+                            dest_name = dest_chat.title or dest_chat.username or str(dest_id)
+                            is_bot = " 🤖" if hasattr(dest_chat, 'is_bot') and dest_chat.is_bot else ""
+                            logger.info(f"   ✅ 目标频道: {dest_name}{is_bot} ({dest_id})")
+                            
+                            # 标记为已缓存（复用现有逻辑）
+                            mark_dest_cached(dest_id)
+                        except Exception as e:
+                            logger.warning(f"   ⚠️ 目标频道初始化失败 {dest_id}: {str(e)[:50]}")
+                            mark_peer_failed(dest_id)
+                    
+                    # 记录配置类型
+                    if record_mode:
+                        logger.info(f"   📝 模式: 记录模式")
+                    else:
+                        logger.info(f"   📤 模式: 转发模式")
+                    
+                    success_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"   ❌ 配置导入失败 {watch_key}: {str(e)}")
+                    failed_count += 1
+                
+                # 避免触发限流，添加小延迟
+                time.sleep(0.2)
+        
+        logger.info("")
+        logger.info("="*60)
+        logger.info(f"✅ 配置导入完成: {success_count}/{total_configs} 成功")
+        
+        if failed_count > 0:
+            logger.warning(f"⚠️ {failed_count} 个配置初始化失败，将在接收消息时自动重试")
+        
+        logger.info("="*60)
+        logger.info("")
+        
+        return success_count > 0
+        
+    except Exception as e:
+        logger.error(f"❌ 导入配置时发生错误: {e}", exc_info=True)
+        return False
+
+
 def _print_watch_tasks(watch_config):
     """Print configured watch tasks"""
     record_mode_count = sum(
@@ -574,15 +676,15 @@ def print_startup_config():
         # Print watch tasks
         _print_watch_tasks(watch_config)
         
-        # Force initialize peer cache on startup with retry mechanism
+        # 启动时自动导入配置 - 复用手动添加的逻辑
         if acc is not None:
             import time
             print("")  # 空行分隔
             logger.info("⏳ 等待Session完全建立...")
             time.sleep(2)
             
-            # 带重试的初始化
-            initialize_peer_cache_on_startup_with_retry(acc, max_retries=3)
+            # 使用简化的导入逻辑，复用手动添加的代码路径
+            import_watch_config_on_startup(acc)
     
     print("\n" + "="*60)
     print("✅ 机器人已就绪，正在监听消息...")
