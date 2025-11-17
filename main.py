@@ -681,8 +681,8 @@ def print_startup_config():
             import time
             print("")  # 空行分隔
             logger.info("⏳ 等待Session完全建立...")
-            time.sleep(2)
-            
+            time.sleep(8)
+
             # 使用简化的导入逻辑，复用手动添加的代码路径
             import_watch_config_on_startup(acc)
     
