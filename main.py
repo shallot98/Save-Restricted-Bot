@@ -62,8 +62,17 @@ if ss is not None:
         logger.info("✅ 使用 config.json 中的 session string")
     else:
         logger.info("✅ 使用环境变量 STRING 中的 session string")
-    
-    acc = Client("myacc", api_id=api_id, api_hash=api_hash, session_string=ss)
+
+    # 先尝试使用已有的 session 文件（包含 Peer 缓存）
+    import os
+    session_file = "myacc"
+    if os.path.exists(f"{session_file}.session"):
+        logger.info("📂 发现已有 Session 文件，将保留 Peer 缓存")
+        acc = Client(session_file, api_id=api_id, api_hash=api_hash)
+    else:
+        logger.info("📝 首次启动，使用 Session String 创建 Session 文件")
+        acc = Client(session_file, api_id=api_id, api_hash=api_hash, session_string=ss)
+
     acc.start()
 else:
     logger.warning("⚠️ 未找到 session string，acc 客户端未初始化")
