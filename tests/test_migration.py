@@ -5,7 +5,7 @@ Test migration from main_old.py to new modular structure
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 print("=" * 70)
 print("🧪 测试 main_old.py 迁移")
