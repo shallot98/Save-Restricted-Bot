@@ -17,6 +17,13 @@ services:
     volumes:
       - ./downloads:/app/downloads
       - ./data:/app/data
+    # Docker日志配置 - 自动轮转，防止日志文件过大
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"      # 单个日志文件最大10MB
+        max-file: "5"        # 保留5个日志文件
+        compress: "true"     # 压缩旧日志文件
 
 volumes:
   session-data:
