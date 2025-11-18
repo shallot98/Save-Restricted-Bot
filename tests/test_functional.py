@@ -6,7 +6,7 @@ import sys
 import os
 from unittest.mock import Mock, MagicMock
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 print("=" * 70)
 print("🧪 功能测试 - 迁移后的处理器")

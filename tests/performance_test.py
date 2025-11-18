@@ -13,6 +13,8 @@ import resource
 from typing import List, Callable, Any
 
 # Helper function to get memory usage
+# Add project root to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 def get_memory_mb():
     """Get current memory usage in MB"""
     try:
