@@ -109,31 +109,47 @@ def reload_monitored_sources():
 
 
 def get_monitored_sources() -> Set[str]:
-    """Get the current set of monitored sources（懒加载）"""
+    """Get the current set of monitored sources
+
+    Note: This function now returns the pre-loaded set instead of lazy loading.
+    The set is initialized at startup by reload_monitored_sources().
+    """
     global _monitored_sources
-    if not _monitored_sources:  # 首次访问时才加载
-        logger.info("⏳ 首次访问监控源，立即加载配置...")
-        _monitored_sources = build_monitored_sources()
-        logger.info(f"📋 监控源已加载: {len(_monitored_sources)} 个频道")
+
+    # 如果集合为空，记录警告（不应该发生）
+    if not _monitored_sources:
+        logger.warning("⚠️ 监控源集合为空！这可能表示配置未正确加载。")
+        logger.warning("   请检查 watch_config.json 文件是否存在且格式正确。")
+        logger.warning("   如果问题持续，请尝试重新添加监控配置。")
+
     return _monitored_sources
 
 
 def save_watch_config(config: Dict[str, Any], auto_reload: bool = True):
     """Save watch config to file and optionally reload monitored sources
-    
+
     Args:
         config: Configuration dictionary to save
         auto_reload: If True, automatically reload monitored sources after save (default: True)
     """
+    logger.info(f"💾 保存监控配置到文件: {WATCH_FILE}")
+    logger.info(f"   配置包含 {len(config)} 个用户的监控任务")
+
     with open(WATCH_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
         f.flush()
         os.fsync(f.fileno())
-    
+
+    logger.info("✅ 配置文件保存成功")
+
     # Automatically reload monitored sources to keep them in sync
     if auto_reload:
+        logger.info("🔄 自动重新加载监控源...")
         reload_monitored_sources()
+    else:
+        logger.warning("⚠️ 跳过自动重载（auto_reload=False），监控源可能不同步")
 
 
-# 延迟初始化，首次使用时才加载（懒加载）
+# 初始化为空集合，将在启动时通过 reload_monitored_sources() 加载
+# 不再使用懒加载机制，避免竞态条件
 _monitored_sources = set()

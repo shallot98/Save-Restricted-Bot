@@ -9,7 +9,7 @@ import threading
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
 
-from bot.handlers import get_bot_instance, get_acc_instance
+from bot.handlers.instances import get_bot_instance, get_acc_instance
 from bot.handlers.watch_setup import (
     handle_add_source, handle_add_dest, show_filter_options,
     show_filter_options_single, complete_watch_setup

@@ -4,7 +4,7 @@ Watch configuration and setup handlers
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import ChannelPrivate, UsernameInvalid
 
-from bot.handlers import get_bot_instance, get_acc_instance
+from bot.handlers.instances import get_bot_instance, get_acc_instance
 from bot.utils.status import user_states
 from config import load_watch_config, save_watch_config
 

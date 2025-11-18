@@ -11,7 +11,7 @@ MEDIA_GROUP_CLEANUP_BATCH_SIZE = 50
 # Time constants (seconds)
 MESSAGE_CACHE_TTL = 1
 WORKER_STATS_INTERVAL = 60
-RATE_LIMIT_DELAY = 0.5
+RATE_LIMIT_DELAY = 1.5  # 增加到1.5秒，避免批量发送时触发FloodWait
 
 # Retry configuration
 MAX_RETRIES = 3

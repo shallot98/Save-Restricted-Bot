@@ -64,7 +64,27 @@ def cache_peer_if_needed(acc, peer_id, peer_type="频道"):
         return False
 
     except Exception as e:
-        logger.error(f"❌ 延迟加载{peer_type}失败: {peer_id} - {str(e)}")
+        error_msg = str(e)
+        logger.error(f"❌ 延迟加载{peer_type}失败: {peer_id} - {error_msg}")
+
+        # 如果是PEER_ID_INVALID错误，尝试通过用户名建立连接
+        if "PEER_ID_INVALID" in error_msg:
+            logger.info(f"🔄 尝试通过用户名建立Peer连接: {peer_id}")
+            try:
+                # 尝试通过对话列表查找
+                for dialog in acc.get_dialogs(limit=100):
+                    if dialog.chat.id == int(peer_id):
+                        logger.info(f"✅ 在对话列表中找到Peer: {peer_id}")
+                        # 发送一条消息来建立连接
+                        acc.send_message(int(peer_id), "🔗 建立Peer连接")
+                        logger.info(f"✅ 已发送连接消息，Peer应该已缓存")
+                        mark_dest_cached(peer_id_str)
+                        return True
+
+                logger.warning(f"⚠️ 在对话列表中未找到Peer: {peer_id}")
+            except Exception as e2:
+                logger.error(f"❌ 通过用户名建立连接失败: {e2}")
+
         mark_peer_failed(peer_id_str)
         return False
 

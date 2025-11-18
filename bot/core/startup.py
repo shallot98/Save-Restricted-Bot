@@ -52,10 +52,20 @@ def print_startup_config(acc):
         acc: User客户端实例（如果为None，部分功能不可用）
     """
     # ⚡ 启动时强制重新加载监控源，确保使用最新配置
+    logger.info("🔄 正在加载监控配置...")
     reload_monitored_sources()
 
     monitored = get_monitored_sources()
-    logger.info(f"🔄 启动时已加载 {len(monitored)} 个监控源频道")
+    logger.info(f"✅ 启动时已加载 {len(monitored)} 个监控源频道")
+
+    # 配置验证：检查是否有配置但监控源为空
+    watch_config = load_watch_config()
+    if watch_config and not monitored:
+        logger.error("❌ 配置验证失败：watch_config.json 有内容但监控源为空！")
+        logger.error("   这可能是配置文件格式错误或数据损坏。")
+        logger.error("   建议检查配置文件或重新添加监控任务。")
+    elif monitored:
+        logger.info(f"📋 监控源列表: {monitored}")
 
     print("\n" + "=" * 60)
     print("🤖 Telegram Save-Restricted Bot 启动成功")

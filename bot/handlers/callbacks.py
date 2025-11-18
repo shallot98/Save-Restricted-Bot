@@ -7,7 +7,7 @@ from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBu
 from pyrogram.errors import ChannelPrivate, UsernameInvalid
 import re
 
-from bot.handlers import get_bot_instance, get_acc_instance
+from bot.handlers.instances import get_bot_instance, get_acc_instance
 from bot.handlers.watch_setup import (
     show_filter_options, show_filter_options_single,
     show_preserve_source_options, show_forward_mode_options,

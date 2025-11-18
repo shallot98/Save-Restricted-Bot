@@ -69,6 +69,9 @@ def create_auto_forward_handler(acc, message_queue):
             # 早期过滤：检查此源是否被监控
             monitored_sources = get_monitored_sources()
             if source_chat_id not in monitored_sources:
+                # 记录被过滤的消息（调试用）
+                logger.debug(f"⏭️ 消息来自非监控源，已跳过: chat_id={source_chat_id}, message_id={message.id}")
+                logger.debug(f"   当前监控源列表: {monitored_sources if monitored_sources else '空'}")
                 return
 
             logger.info(f"🔔 监控源消息: chat_id={source_chat_id}, message_id={message.id}")
