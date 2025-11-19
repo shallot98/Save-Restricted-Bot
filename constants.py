@@ -1,16 +1,21 @@
 """
 Application-wide constants
 Centralized configuration for magic numbers and constants
+Optimized for minimal memory usage
 """
 
-# Cache sizes
-MAX_MEDIA_GROUP_CACHE = 300
-MESSAGE_CACHE_CLEANUP_THRESHOLD = 1000
+# Cache sizes (optimized for minimal memory usage)
+MAX_MEDIA_GROUP_CACHE = 100  # 减少媒体组缓存（从300→100）
+MAX_MESSAGE_CACHE = 200  # 消息缓存使用LRU，固定大小
+MESSAGE_CACHE_CLEANUP_THRESHOLD = 500  # 降低清理阈值（从1000→500）
 MEDIA_GROUP_CLEANUP_BATCH_SIZE = 50
+MAX_QUEUE_SIZE = 1000  # 消息队列最大大小，防止内存溢出
 
 # Time constants (seconds)
 MESSAGE_CACHE_TTL = 1
-WORKER_STATS_INTERVAL = 60
+USER_STATE_TTL = 3600  # 用户状态1小时后过期
+FAILED_PEER_CLEANUP_AGE = 86400  # 失败的peer记录24小时后清理
+WORKER_STATS_INTERVAL = 300  # 增加统计日志间隔（从60s→300s），减少日志开销
 RATE_LIMIT_DELAY = 1.5  # 增加到1.5秒，避免批量发送时触发FloodWait
 
 # Retry configuration

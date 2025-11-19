@@ -1,10 +1,12 @@
 """
 Peer caching and management utilities
+Optimized with automatic cleanup to minimize memory usage
 """
 import logging
 import time
 from typing import Set, Dict
 from pyrogram.errors import FloodWait
+from constants import FAILED_PEER_CLEANUP_AGE
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,37 @@ def get_failed_peers() -> Dict[str, float]:
         Dictionary mapping peer_id to last attempt timestamp
     """
     return failed_peers.copy()
+
+
+def cleanup_old_failed_peers():
+    """Clean up old failed peer records to free memory
+    Removes entries older than FAILED_PEER_CLEANUP_AGE seconds
+    """
+    current_time = time.time()
+    old_peers = [
+        peer_id for peer_id, timestamp in failed_peers.items()
+        if current_time - timestamp > FAILED_PEER_CLEANUP_AGE
+    ]
+    
+    for peer_id in old_peers:
+        del failed_peers[peer_id]
+    
+    if old_peers:
+        logger.debug(f"🧹 失败Peer清理: 移除{len(old_peers)}个旧记录，当前大小={len(failed_peers)}")
+
+
+def get_peer_stats() -> dict:
+    """Get peer statistics (for monitoring)
+    
+    Returns:
+        Dictionary with peer statistics
+    """
+    return {
+        'cached_peers': len(cached_dest_peers),
+        'failed_peers': len(failed_peers),
+        'retry_cooldown': RETRY_COOLDOWN,
+        'cleanup_age': FAILED_PEER_CLEANUP_AGE
+    }
 
 
 def cache_peer(client, peer_id: str, peer_type: str = "peer", force: bool = False) -> bool:

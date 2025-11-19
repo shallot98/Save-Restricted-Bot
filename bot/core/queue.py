@@ -6,7 +6,7 @@ import queue
 import threading
 from bot.utils.logger import get_logger
 from bot.workers import MessageWorker
-from constants import MAX_RETRIES
+from constants import MAX_RETRIES, MAX_QUEUE_SIZE
 
 logger = get_logger(__name__)
 
@@ -30,8 +30,8 @@ def initialize_message_queue(acc):
 
     logger.info("📬 正在初始化消息队列系统...")
 
-    # 创建消息队列
-    message_queue = queue.Queue()
+    # 创建消息队列（限制大小防止内存溢出）
+    message_queue = queue.Queue(maxsize=MAX_QUEUE_SIZE)
 
     # 创建消息工作线程
     message_worker = MessageWorker(message_queue, acc, max_retries=MAX_RETRIES)
@@ -45,6 +45,7 @@ def initialize_message_queue(acc):
     worker_thread.start()
 
     logger.info("✅ 消息队列系统初始化完成")
+    logger.info(f"   - 队列最大容量: {MAX_QUEUE_SIZE} 条消息")
     logger.info(f"   - 最大重试次数: {MAX_RETRIES}")
     logger.info(f"   - 工作线程: {worker_thread.name}")
 
