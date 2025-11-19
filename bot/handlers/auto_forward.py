@@ -2,6 +2,7 @@
 自动转发处理器模块
 职责：处理频道/群组消息的自动转发
 """
+import queue
 import pyrogram
 from pyrogram import filters
 from bot.utils.logger import get_logger
@@ -155,10 +156,13 @@ def create_auto_forward_handler(acc, message_queue):
                             media_group_key=f"{user_id}_{watch_key}_{message.media_group_id}" if message.media_group_id else None
                         )
 
-                        # 入队消息进行处理
-                        message_queue.put(msg_obj)
-                        enqueued_count += 1
-                        logger.info(f"📬 消息已入队: user={user_id}, source={source_chat_id}, 队列大小={message_queue.qsize()}")
+                        # 入队消息进行处理（非阻塞，防止队列满时挂起）
+                        try:
+                            message_queue.put(msg_obj, block=False)
+                            enqueued_count += 1
+                            logger.info(f"📬 消息已入队: user={user_id}, source={source_chat_id}, 队列大小={message_queue.qsize()}")
+                        except queue.Full:
+                            logger.warning(f"⚠️ 消息队列已满，跳过消息: user={user_id}, source={source_chat_id}")
 
             if enqueued_count > 0:
                 logger.info(f"✅ 本次共入队 {enqueued_count} 条消息")
