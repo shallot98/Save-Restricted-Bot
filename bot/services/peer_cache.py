@@ -67,23 +67,39 @@ def cache_peer_if_needed(acc, peer_id, peer_type="频道"):
         error_msg = str(e)
         logger.error(f"❌ 延迟加载{peer_type}失败: {peer_id} - {error_msg}")
 
-        # 如果是PEER_ID_INVALID错误，尝试通过用户名建立连接
-        if "PEER_ID_INVALID" in error_msg:
-            logger.info(f"🔄 尝试通过用户名建立Peer连接: {peer_id}")
+        # 如果是PEER_ID_INVALID或Peer id invalid错误，尝试通过对话列表建立连接
+        if "PEER_ID_INVALID" in error_msg or "Peer id invalid" in error_msg:
+            logger.info(f"🔄 尝试通过对话列表建立Peer连接: {peer_id}")
             try:
-                # 尝试通过对话列表查找
-                for dialog in acc.get_dialogs(limit=100):
+                # 尝试通过对话列表查找（增加到500个对话）
+                found = False
+                for dialog in acc.get_dialogs(limit=500):
                     if dialog.chat.id == int(peer_id):
-                        logger.info(f"✅ 在对话列表中找到Peer: {peer_id}")
-                        # 发送一条消息来建立连接
-                        acc.send_message(int(peer_id), "🔗 建立Peer连接")
-                        logger.info(f"✅ 已发送连接消息，Peer应该已缓存")
-                        mark_dest_cached(peer_id_str)
-                        return True
+                        logger.info(f"✅ 在对话列表中找到Peer: {peer_id} ({dialog.chat.title or dialog.chat.username or 'Unknown'})")
+                        found = True
+                        # 尝试获取chat信息来建立Peer缓存
+                        try:
+                            chat = acc.get_chat(int(peer_id))
+                            logger.info(f"✅ Peer连接已建立")
+                            mark_dest_cached(peer_id_str)
+                            return True
+                        except Exception as e3:
+                            logger.warning(f"⚠️ 获取chat信息失败: {e3}")
+                            # 尝试发送消息建立连接
+                            try:
+                                acc.send_message(int(peer_id), "🔗 建立Peer连接")
+                                logger.info(f"✅ 已发送连接消息，Peer应该已缓存")
+                                mark_dest_cached(peer_id_str)
+                                return True
+                            except Exception as e4:
+                                logger.error(f"❌ 发送连接消息失败: {e4}")
+                        break
 
-                logger.warning(f"⚠️ 在对话列表中未找到Peer: {peer_id}")
+                if not found:
+                    logger.warning(f"⚠️ 在对话列表中未找到Peer: {peer_id}")
+                    logger.warning(f"💡 请确保账号已加入该频道/群组")
             except Exception as e2:
-                logger.error(f"❌ 通过用户名建立连接失败: {e2}")
+                logger.error(f"❌ 通过对话列表建立连接失败: {e2}")
 
         mark_peer_failed(peer_id_str)
         return False

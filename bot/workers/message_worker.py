@@ -417,11 +417,11 @@ class MessageWorker:
     def _handle_forward_mode(self, message, dest_chat_id, message_text, forward_mode, extract_patterns, preserve_forward_source, record_mode):
         """Handle forward mode processing"""
         logger.info(f"📤 转发模式：开始处理，目标: {dest_chat_id}")
-        
+
         # Extract mode
         if forward_mode == "extract" and extract_patterns:
             extracted_text = extract_content(message_text, extract_patterns)
-            
+
             if extracted_text:
                 logger.info(f"   提取到内容，准备发送")
                 dest_id = "me" if dest_chat_id == "me" else int(dest_chat_id)
@@ -433,20 +433,20 @@ class MessageWorker:
                 time.sleep(RATE_LIMIT_DELAY)
             else:
                 logger.debug(f"   未提取到任何内容，跳过发送")
-        
+
         # Full forward mode
         else:
             dest_id = "me" if dest_chat_id == "me" else int(dest_chat_id)
-            
+
             if preserve_forward_source:
                 self._forward_with_source(message, dest_id)
             else:
                 self._copy_without_source(message, dest_id)
-        
-        # Check for multi-hop chains (dest also has configured tasks)
+
+        # 检查目标频道是否也是监控源，如果是则手动触发其配置
         if not record_mode and dest_chat_id and dest_chat_id != "me":
-            self._check_dest_tasks(message, dest_chat_id, message_text)
-        
+            self._trigger_dest_monitoring(message, dest_chat_id, message_text)
+
         return "success"
     
     def _forward_with_source(self, message, dest_id):
@@ -508,117 +508,100 @@ class MessageWorker:
             )
             logger.info(f"   ✅ 消息已复制")
             time.sleep(RATE_LIMIT_DELAY)
-    
-    def _check_dest_tasks(self, message, dest_chat_id, message_text):
-        """Check if destination has configured tasks (multi-hop chains)"""
-        logger.debug(f"🔍 检查目标频道 {dest_chat_id} 是否配置了任务")
+
+    def _trigger_dest_monitoring(self, message, dest_chat_id, message_text):
+        """手动触发目标频道的监控配置处理
+
+        当目标频道也是监控源时，转发到该频道的消息不会自动触发监控
+        （因为copy_message不触发outgoing事件），所以需要手动触发
+        """
+        from config import load_watch_config, get_monitored_sources
+
         dest_chat_id_str = str(dest_chat_id)
+        monitored_sources = get_monitored_sources()
+
+        # 检查目标是否是监控源
+        if dest_chat_id_str not in monitored_sources:
+            return
+
+        logger.info(f"🔄 目标频道 {dest_chat_id} 也是监控源，手动触发其配置处理...")
+
         watch_config = load_watch_config()
-        
+
         for check_user_id, check_watches in watch_config.items():
             for check_watch_key, check_watch_data in check_watches.items():
                 if isinstance(check_watch_data, dict):
                     check_source = str(check_watch_data.get("source", ""))
+
+                    # 匹配目标频道的配置
+                    if check_source != dest_chat_id_str:
+                        continue
+
+                    # 提取配置
                     check_record_mode = check_watch_data.get("record_mode", False)
                     check_dest = check_watch_data.get("dest")
-                    
-                    if check_source == dest_chat_id_str and check_record_mode:
-                        # Record mode for destination
-                        self._handle_dest_record_mode(message, message_text, check_user_id, check_watch_data, dest_chat_id_str)
-                    elif check_source == dest_chat_id_str and not check_record_mode and check_dest:
-                        # Forward mode for destination
-                        self._handle_dest_forward_mode(message, message_text, check_user_id, check_watch_data, check_dest)
-    
-    def _handle_dest_record_mode(self, message, message_text, check_user_id, check_watch_data, dest_chat_id_str):
-        """Handle recording for destination in multi-hop chain"""
-        logger.info(f"📝 目标频道记录模式：发现配置，为用户 {check_user_id} 记录")
-        
-        try:
-            # Get destination chat info
-            try:
-                dest_chat = self.acc.get_chat(int(dest_chat_id_str))
-                dest_name = dest_chat.title or dest_chat.username or dest_chat_id_str
-            except:
-                dest_name = dest_chat_id_str
-            
-            # Prepare content
-            content_to_save = message_text
-            check_forward_mode = check_watch_data.get("forward_mode", "full")
-            check_extract_patterns = check_watch_data.get("extract_patterns", [])
-            
-            if check_forward_mode == "extract" and check_extract_patterns:
-                content_to_save = extract_content(message_text, check_extract_patterns)
-            
-            # Handle media (simplified for dest recording)
-            record_media_type, record_media_path, record_media_paths = None, None, []
-            
-            if message.media_group_id:
-                record_media_type, record_media_path, record_media_paths, _ = self._handle_media_group(message, content_to_save)
-            elif message.photo:
-                record_media_type, record_media_path, record_media_paths = self._handle_single_photo(message)
-            elif message.video:
-                record_media_type, record_media_path, record_media_paths = self._handle_single_video(message)
-            
-            # Save to database
-            note_id = add_note(
-                user_id=int(check_user_id),
-                source_chat_id=dest_chat_id_str,
-                source_name=dest_name,
-                message_text=content_to_save if content_to_save else None,
-                media_type=record_media_type,
-                media_path=record_media_path,
-                media_paths=record_media_paths if record_media_paths else None,
-                media_group_id=str(message.media_group_id) if message.media_group_id else None
-            )
-            logger.info(f"   ✅ 目标频道记录模式：笔记已保存 (ID={note_id})")
-        except Exception as e:
-            logger.error(f"   ❌ 目标频道记录模式：保存失败: {e}", exc_info=True)
-    
-    def _handle_dest_forward_mode(self, message, message_text, check_user_id, check_watch_data, check_dest):
-        """Handle forwarding for destination in multi-hop chain"""
-        logger.info(f"📤 目标频道转发模式：为用户 {check_user_id} 转发/提取到 {check_dest}")
-        
-        try:
-            check_forward_mode = check_watch_data.get("forward_mode", "full")
-            check_extract_patterns = check_watch_data.get("extract_patterns", [])
-            dest_whitelist = check_watch_data.get("whitelist", [])
-            dest_blacklist = check_watch_data.get("blacklist", [])
-            dest_whitelist_regex = check_watch_data.get("whitelist_regex", [])
-            dest_blacklist_regex = check_watch_data.get("blacklist_regex", [])
-            
-            # Apply filters
-            if check_blacklist(message_text, dest_blacklist):
-                return
-            if check_blacklist_regex(message_text, dest_blacklist_regex):
-                return
-            if not check_whitelist(message_text, dest_whitelist):
-                return
-            if not check_whitelist_regex(message_text, dest_whitelist_regex):
-                return
-            
-            # Extract mode
-            if check_forward_mode == "extract" and check_extract_patterns:
-                extracted_text = extract_content(message_text, check_extract_patterns)
-                if extracted_text:
-                    check_dest_id = "me" if check_dest == "me" else int(check_dest)
-                    self._execute_with_flood_retry(
-                        "发送提取内容（目标频道提取）",
-                        lambda: self.acc.send_message(check_dest_id, extracted_text)
-                    )
-                    logger.info(f"   ✅ 提取内容已发送到 {check_dest}")
-                    time.sleep(0.5)
-            # Full forward mode
-            else:
-                check_dest_id = "me" if check_dest == "me" else int(check_dest)
-                self._execute_with_flood_retry(
-                    "复制消息（目标频道转发）",
-                    lambda: self.acc.copy_message(check_dest_id, message.chat.id, message.id)
-                )
-                logger.info(f"   ✅ 消息已复制到 {check_dest}")
-                time.sleep(0.5)
-        except Exception as e:
-            logger.error(f"   ❌ 目标频道转发/提取失败: {e}", exc_info=True)
-    
+
+                    # 跳过"转发到自己"的配置，避免无限循环
+                    if not check_record_mode and check_dest == dest_chat_id_str:
+                        logger.debug(f"   ⏭️ 跳过转发到自己的配置，避免循环")
+                        continue
+
+                    logger.info(f"   ✅ 找到目标频道的配置: user={check_user_id}")
+                    dest_whitelist = check_watch_data.get("whitelist", [])
+                    dest_blacklist = check_watch_data.get("blacklist", [])
+                    dest_whitelist_regex = check_watch_data.get("whitelist_regex", [])
+                    dest_blacklist_regex = check_watch_data.get("blacklist_regex", [])
+                    check_forward_mode = check_watch_data.get("forward_mode", "full")
+                    check_extract_patterns = check_watch_data.get("extract_patterns", [])
+
+                    # 应用过滤规则
+                    if check_blacklist(message_text, dest_blacklist):
+                        logger.debug(f"   ⏭️ 目标频道配置：黑名单过滤")
+                        continue
+                    if check_blacklist_regex(message_text, dest_blacklist_regex):
+                        logger.debug(f"   ⏭️ 目标频道配置：正则黑名单过滤")
+                        continue
+                    if not check_whitelist(message_text, dest_whitelist):
+                        logger.debug(f"   ⏭️ 目标频道配置：白名单过滤")
+                        continue
+                    if not check_whitelist_regex(message_text, dest_whitelist_regex):
+                        logger.debug(f"   ⏭️ 目标频道配置：正则白名单过滤")
+                        continue
+
+                    logger.info(f"   🎯 目标频道配置：通过过滤规则")
+
+                    # 记录模式
+                    if check_record_mode:
+                        logger.info(f"   📝 目标频道配置：记录模式")
+                        try:
+                            self._handle_record_mode(
+                                message, check_user_id, dest_chat_id_str,
+                                message_text, check_forward_mode, check_extract_patterns
+                            )
+                        except Exception as e:
+                            logger.error(f"   ❌ 目标频道记录失败: {e}", exc_info=True)
+
+                    # 转发模式
+                    elif check_dest and check_dest != "me":
+                        logger.info(f"   📤 目标频道配置：转发到 {check_dest}")
+
+                        # 缓存下一级目标的Peer
+                        from bot.services.peer_cache import cache_peer_if_needed
+                        check_dest_id = int(check_dest)
+                        if not cache_peer_if_needed(self.acc, check_dest_id, "下一级目标"):
+                            logger.warning(f"   ⚠️ 下一级目标Peer缓存失败: {check_dest}")
+                            continue
+
+                        try:
+                            check_preserve_source = check_watch_data.get("preserve_forward_source", False)
+                            self._handle_forward_mode(
+                                message, check_dest, message_text,
+                                check_forward_mode, check_extract_patterns,
+                                check_preserve_source, False
+                            )
+                        except Exception as e:
+                            logger.error(f"   ❌ 目标频道转发失败: {e}", exc_info=True)
+
     def stop(self):
         """停止工作线程"""
         self.running = False

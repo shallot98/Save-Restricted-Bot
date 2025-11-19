@@ -104,10 +104,26 @@ def create_auto_forward_handler(acc, message_queue):
                         dest_peer_ready = True  # 记录模式默认就绪
 
                         if dest_chat_id and dest_chat_id != "me":
-                            # 转发模式 - 尝试缓存目标Peer
-                            dest_peer_ready = cache_peer_if_needed(acc, dest_chat_id, "目标频道")
-                            if not dest_peer_ready:
-                                logger.warning(f"⚠️ 目标频道缓存失败: {dest_chat_id}，消息将被跳过（60秒后重试）")
+                            # 检查目标是否也是监控源
+                            if str(dest_chat_id) in monitored_sources:
+                                # 目标也是监控源 - 检查是否已经缓存
+                                from bot.utils.peer import is_dest_cached
+                                if is_dest_cached(str(dest_chat_id)):
+                                    logger.debug(f"💡 目标频道 {dest_chat_id} 也是监控源，Peer已缓存")
+                                    dest_peer_ready = True
+                                else:
+                                    # 尝试缓存（即使是监控源，也需要确保能转发）
+                                    logger.info(f"🔄 目标频道 {dest_chat_id} 也是监控源，尝试缓存Peer...")
+                                    dest_peer_ready = cache_peer_if_needed(acc, dest_chat_id, "目标频道")
+                                    if not dest_peer_ready:
+                                        logger.warning(f"⚠️ 目标频道缓存失败: {dest_chat_id}，消息将被跳过（60秒后重试）")
+                                    else:
+                                        logger.info(f"✅ 目标频道 {dest_chat_id} Peer缓存成功")
+                            else:
+                                # 普通目标频道 - 尝试缓存
+                                dest_peer_ready = cache_peer_if_needed(acc, dest_chat_id, "目标频道")
+                                if not dest_peer_ready:
+                                    logger.warning(f"⚠️ 目标频道缓存失败: {dest_chat_id}，消息将被跳过（60秒后重试）")
 
                         # 如果目标Peer未就绪，跳过入队
                         if not dest_peer_ready:
