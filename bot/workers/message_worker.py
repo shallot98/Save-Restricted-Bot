@@ -16,10 +16,12 @@ import pyrogram
 from pyrogram.errors import FloodWait
 
 from database import add_note
-from config import load_watch_config, MEDIA_DIR
+from config import load_watch_config, load_webdav_config, MEDIA_DIR
 from bot.filters import check_whitelist, check_blacklist, check_whitelist_regex, check_blacklist_regex, extract_content
+from bot.storage.webdav_client import WebDAVClient, StorageManager
+from bot.utils.dedup import cleanup_old_messages
 from constants import (
-    MAX_RETRIES, MAX_FLOOD_RETRIES, OPERATION_TIMEOUT, 
+    MAX_RETRIES, MAX_FLOOD_RETRIES, OPERATION_TIMEOUT,
     WORKER_STATS_INTERVAL, RATE_LIMIT_DELAY, get_backoff_time, MAX_MEDIA_PER_GROUP
 )
 
@@ -51,7 +53,7 @@ class Message:
 
 class MessageWorker:
     """消息工作线程，处理队列中的消息"""
-    
+
     def __init__(self, message_queue: queue.Queue, acc_client, max_retries: int = MAX_RETRIES):
         self.message_queue = message_queue
         self.acc = acc_client
@@ -63,7 +65,46 @@ class MessageWorker:
         self.running = True
         self.last_stats_time = time.time()
         self.loop = None
-        
+
+        # 初始化存储管理器
+        self.storage_manager = self._init_storage_manager()
+
+    def _init_storage_manager(self) -> StorageManager:
+        """初始化存储管理器"""
+        try:
+            # 加载 WebDAV 配置
+            webdav_config = load_webdav_config()
+
+            # 如果启用了 WebDAV
+            if webdav_config.get('enabled', False):
+                url = webdav_config.get('url', '').strip()
+                username = webdav_config.get('username', '').strip()
+                password = webdav_config.get('password', '').strip()
+                base_path = webdav_config.get('base_path', '/telegram_media')
+
+                if url and username and password:
+                    try:
+                        webdav_client = WebDAVClient(url, username, password, base_path)
+
+                        # 测试连接
+                        if webdav_client.test_connection():
+                            logger.info("✅ WebDAV 存储已启用")
+                            return StorageManager(MEDIA_DIR, webdav_client)
+                        else:
+                            logger.warning("⚠️ WebDAV 连接测试失败，降级到本地存储")
+                    except Exception as e:
+                        logger.error(f"❌ WebDAV 初始化失败: {e}，降级到本地存储")
+                else:
+                    logger.warning("⚠️ WebDAV 配置不完整，使用本地存储")
+
+            # 使用本地存储
+            logger.info("📁 使用本地存储模式")
+            return StorageManager(MEDIA_DIR)
+
+        except Exception as e:
+            logger.error(f"❌ 存储管理器初始化失败: {e}，使用本地存储")
+            return StorageManager(MEDIA_DIR)
+
     def run(self):
         """主循环：持续处理队列消息"""
         # Create event loop for this thread
@@ -77,11 +118,15 @@ class MessageWorker:
                 try:
                     msg_obj = self.message_queue.get(timeout=1)
                 except queue.Empty:
-                    # Periodically log statistics
+                    # Periodically log statistics and cleanup
                     if time.time() - self.last_stats_time > WORKER_STATS_INTERVAL:
                         queue_size = self.message_queue.qsize()
                         if queue_size > 0 or self.processed_count > 0:
                             logger.info(f"📊 队列统计: 待处理={queue_size}, 已完成={self.processed_count}, 跳过={self.skipped_count}, 失败={self.failed_count}, 重试={self.retry_count}")
+
+                        # 清理过期的消息缓存，防止内存泄漏
+                        cleanup_old_messages()
+
                         self.last_stats_time = time.time()
                     continue
                 
@@ -332,31 +377,110 @@ class MessageWorker:
         media_type = None
         media_path = None
         media_paths = []
-        
+
+        # 获取 WebDAV 配置
+        webdav_config = load_webdav_config()
+        keep_local = webdav_config.get('keep_local_copy', False)
+
         try:
             media_group = self.acc.get_media_group(message.chat.id, message.id)
             if media_group:
                 logger.info(f"   📷 发现媒体组，共 {len(media_group)} 个媒体")
                 for idx, msg in enumerate(media_group):
+                    saved = False
+                    storage_location = None
+
+                    # 处理图片
                     if msg.photo:
                         media_type = "photo"
                         file_name = f"{msg.id}_{idx}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}.jpg"
                         file_path = os.path.join(MEDIA_DIR, file_name)
-                        self.acc.download_media(msg.photo.file_id, file_name=file_path)
-                        media_paths.append(file_name)
-                        if idx == 0:
-                            media_path = file_name
-                        if len(media_paths) >= MAX_MEDIA_PER_GROUP:
-                            logger.warning(f"   ⚠️ 媒体组超过{MAX_MEDIA_PER_GROUP}张图片，仅保存前{MAX_MEDIA_PER_GROUP}张")
-                            break
+                        try:
+                            # 下载到本地临时文件
+                            self.acc.download_media(msg.photo.file_id, file_name=file_path)
+
+                            # 使用存储管理器保存
+                            success, storage_location = self.storage_manager.save_file(file_path, file_name, keep_local=keep_local)
+
+                            if success:
+                                media_paths.append(storage_location)
+                                if idx == 0:
+                                    media_path = storage_location
+                                saved = True
+                                logger.debug(f"      ✅ 保存图片: {file_name}")
+                            else:
+                                logger.error(f"      ❌ 存储图片失败: {file_name}")
+                        except Exception as e:
+                            logger.error(f"      ❌ 下载图片失败: {e}")
+
+                    # 处理视频缩略图
+                    elif msg.video:
+                        if not media_type:
+                            media_type = "video"
+                        if msg.video.thumbs and len(msg.video.thumbs) > 0:
+                            thumb = msg.video.thumbs[-1]
+                            file_name = f"{msg.id}_{idx}_thumb_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}.jpg"
+                            file_path = os.path.join(MEDIA_DIR, file_name)
+                            try:
+                                # 下载到本地临时文件
+                                self.acc.download_media(thumb.file_id, file_name=file_path)
+
+                                # 使用存储管理器保存
+                                success, storage_location = self.storage_manager.save_file(file_path, file_name, keep_local=keep_local)
+
+                                if success:
+                                    media_paths.append(storage_location)
+                                    if idx == 0:
+                                        media_path = storage_location
+                                    saved = True
+                                    logger.debug(f"      ✅ 保存视频缩略图: {file_name}")
+                                else:
+                                    logger.error(f"      ❌ 存储视频缩略图失败: {file_name}")
+                            except Exception as e:
+                                logger.error(f"      ❌ 下载视频缩略图失败: {e}")
+
+                    # 处理GIF动图缩略图
+                    elif msg.animation:
+                        if not media_type:
+                            media_type = "animation"
+                        if msg.animation.thumbs and len(msg.animation.thumbs) > 0:
+                            thumb = msg.animation.thumbs[-1]
+                            file_name = f"{msg.id}_{idx}_gif_thumb_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}.jpg"
+                            file_path = os.path.join(MEDIA_DIR, file_name)
+                            try:
+                                # 下载到本地临时文件
+                                self.acc.download_media(thumb.file_id, file_name=file_path)
+
+                                # 使用存储管理器保存
+                                success, storage_location = self.storage_manager.save_file(file_path, file_name, keep_local=keep_local)
+
+                                if success:
+                                    media_paths.append(storage_location)
+                                    if idx == 0:
+                                        media_path = storage_location
+                                    saved = True
+                                    logger.debug(f"      ✅ 保存GIF缩略图: {file_name}")
+                                else:
+                                    logger.error(f"      ❌ 存储GIF缩略图失败: {file_name}")
+                            except Exception as e:
+                                logger.error(f"      ❌ 下载GIF缩略图失败: {e}")
+
+                    if not saved:
+                        logger.warning(f"      ⚠️ 媒体 {idx+1} 类型不支持或无缩略图")
+
+                    if len(media_paths) >= MAX_MEDIA_PER_GROUP:
+                        logger.warning(f"   ⚠️ 媒体组超过{MAX_MEDIA_PER_GROUP}个，仅保存前{MAX_MEDIA_PER_GROUP}个")
+                        break
+
                     if msg.caption and not content_to_save:
                         content_to_save = msg.caption
+
                 logger.info(f"   ✅ 媒体组处理完成，共保存 {len(media_paths)} 个文件")
         except Exception as e:
             logger.error(f"   ❌ 获取媒体组失败: {e}", exc_info=True)
             if message.photo:
                 media_type, media_path, media_paths = self._handle_single_photo(message)
-        
+
         return media_type, media_path, media_paths, content_to_save
     
     def _handle_single_photo(self, message):
@@ -365,8 +489,20 @@ class MessageWorker:
         media_type = "photo"
         file_name = f"{message.id}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}.jpg"
         file_path = os.path.join(MEDIA_DIR, file_name)
+
+        # 下载到本地临时文件
         self.acc.download_media(message.photo.file_id, file_name=file_path)
-        return media_type, file_name, [file_name]
+
+        # 使用存储管理器保存
+        webdav_config = load_webdav_config()
+        keep_local = webdav_config.get('keep_local_copy', False)
+        success, storage_location = self.storage_manager.save_file(file_path, file_name, keep_local=keep_local)
+
+        if success:
+            return media_type, storage_location, [storage_location]
+        else:
+            logger.warning(f"⚠️ 存储失败，使用本地路径: {file_name}")
+            return media_type, file_name, [file_name]
     
     def _handle_single_video(self, message):
         """Handle single video thumbnail download"""
@@ -374,21 +510,34 @@ class MessageWorker:
         media_type = "video"
         media_path = None
         media_paths = []
-        
+
         try:
             if message.video.thumbs and len(message.video.thumbs) > 0:
                 thumb = message.video.thumbs[-1]
                 file_name = f"{message.id}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}_thumb.jpg"
                 file_path = os.path.join(MEDIA_DIR, file_name)
+
+                # 下载到本地临时文件
                 self.acc.download_media(thumb.file_id, file_name=file_path)
-                media_path = file_name
-                media_paths = [file_name]
+
+                # 使用存储管理器保存
+                webdav_config = load_webdav_config()
+                keep_local = webdav_config.get('keep_local_copy', False)
+                success, storage_location = self.storage_manager.save_file(file_path, file_name, keep_local=keep_local)
+
+                if success:
+                    media_path = storage_location
+                    media_paths = [storage_location]
+                else:
+                    media_path = file_name
+                    media_paths = [file_name]
+
                 logger.info(f"   ✅ 视频缩略图已保存")
             else:
                 logger.warning(f"   ⚠️ 视频没有缩略图")
         except Exception as e:
             logger.warning(f"   ⚠️ 下载视频缩略图失败: {e}")
-        
+
         return media_type, media_path, media_paths
     
     def _handle_single_animation(self, message):
@@ -397,21 +546,34 @@ class MessageWorker:
         media_type = "animation"
         media_path = None
         media_paths = []
-        
+
         try:
             if message.animation.thumbs and len(message.animation.thumbs) > 0:
                 thumb = message.animation.thumbs[-1]
                 file_name = f"{message.id}_{datetime.now(CHINA_TZ).strftime('%Y%m%d_%H%M%S')}_gif_thumb.jpg"
                 file_path = os.path.join(MEDIA_DIR, file_name)
+
+                # 下载到本地临时文件
                 self.acc.download_media(thumb.file_id, file_name=file_path)
-                media_path = file_name
-                media_paths = [file_name]
+
+                # 使用存储管理器保存
+                webdav_config = load_webdav_config()
+                keep_local = webdav_config.get('keep_local_copy', False)
+                success, storage_location = self.storage_manager.save_file(file_path, file_name, keep_local=keep_local)
+
+                if success:
+                    media_path = storage_location
+                    media_paths = [storage_location]
+                else:
+                    media_path = file_name
+                    media_paths = [file_name]
+
                 logger.info(f"   ✅ GIF缩略图已保存")
             else:
                 logger.warning(f"   ⚠️ GIF动图没有缩略图")
         except Exception as e:
             logger.warning(f"   ⚠️ 下载GIF缩略图失败: {e}")
-        
+
         return media_type, media_path, media_paths
     
     def _handle_forward_mode(self, message, dest_chat_id, message_text, forward_mode, extract_patterns, preserve_forward_source, record_mode):
@@ -525,8 +687,10 @@ class MessageWorker:
             return
 
         logger.info(f"🔄 目标频道 {dest_chat_id} 也是监控源，手动触发其配置处理...")
+        logger.debug(f"   消息ID: {message.id}, 媒体组ID: {message.media_group_id if message.media_group_id else 'None'}")
 
         watch_config = load_watch_config()
+        matched_configs = 0
 
         for check_user_id, check_watches in watch_config.items():
             for check_watch_key, check_watch_data in check_watches.items():
@@ -537,6 +701,8 @@ class MessageWorker:
                     if check_source != dest_chat_id_str:
                         continue
 
+                    matched_configs += 1
+
                     # 提取配置
                     check_record_mode = check_watch_data.get("record_mode", False)
                     check_dest = check_watch_data.get("dest")
@@ -546,7 +712,7 @@ class MessageWorker:
                         logger.debug(f"   ⏭️ 跳过转发到自己的配置，避免循环")
                         continue
 
-                    logger.info(f"   ✅ 找到目标频道的配置: user={check_user_id}")
+                    logger.info(f"   ✅ 找到目标频道的配置 #{matched_configs}: user={check_user_id}, mode={'记录' if check_record_mode else '转发到 ' + str(check_dest)}")
                     dest_whitelist = check_watch_data.get("whitelist", [])
                     dest_blacklist = check_watch_data.get("blacklist", [])
                     dest_whitelist_regex = check_watch_data.get("whitelist_regex", [])
@@ -585,12 +751,17 @@ class MessageWorker:
                     elif check_dest and check_dest != "me":
                         logger.info(f"   📤 目标频道配置：转发到 {check_dest}")
 
-                        # 缓存下一级目标的Peer
+                        # 缓存下一级目标的Peer（仅在未缓存时）
                         from bot.services.peer_cache import cache_peer_if_needed
+                        from bot.utils.peer import is_dest_cached
                         check_dest_id = int(check_dest)
-                        if not cache_peer_if_needed(self.acc, check_dest_id, "下一级目标"):
-                            logger.warning(f"   ⚠️ 下一级目标Peer缓存失败: {check_dest}")
-                            continue
+                        check_dest_str = str(check_dest)
+
+                        # 只有未缓存时才尝试缓存
+                        if not is_dest_cached(check_dest_str):
+                            if not cache_peer_if_needed(self.acc, check_dest_id, "下一级目标"):
+                                logger.warning(f"   ⚠️ 下一级目标Peer缓存失败: {check_dest}")
+                                continue
 
                         try:
                             check_preserve_source = check_watch_data.get("preserve_forward_source", False)
@@ -601,6 +772,11 @@ class MessageWorker:
                             )
                         except Exception as e:
                             logger.error(f"   ❌ 目标频道转发失败: {e}", exc_info=True)
+
+        if matched_configs == 0:
+            logger.debug(f"   ℹ️ 目标频道 {dest_chat_id} 没有匹配的配置")
+        else:
+            logger.info(f"   📊 链式转发完成: 共处理 {matched_configs} 个配置")
 
     def stop(self):
         """停止工作线程"""

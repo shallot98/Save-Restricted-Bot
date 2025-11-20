@@ -71,9 +71,9 @@ def cache_peer_if_needed(acc, peer_id, peer_type="频道"):
         if "PEER_ID_INVALID" in error_msg or "Peer id invalid" in error_msg:
             logger.info(f"🔄 尝试通过对话列表建立Peer连接: {peer_id}")
             try:
-                # 尝试通过对话列表查找（增加到500个对话）
+                # 尝试通过对话列表查找（优化：减少到100个对话以降低内存占用）
                 found = False
-                for dialog in acc.get_dialogs(limit=500):
+                for dialog in acc.get_dialogs(limit=100):
                     if dialog.chat.id == int(peer_id):
                         logger.info(f"✅ 在对话列表中找到Peer: {peer_id} ({dialog.chat.title or dialog.chat.username or 'Unknown'})")
                         found = True
@@ -85,14 +85,6 @@ def cache_peer_if_needed(acc, peer_id, peer_type="频道"):
                             return True
                         except Exception as e3:
                             logger.warning(f"⚠️ 获取chat信息失败: {e3}")
-                            # 尝试发送消息建立连接
-                            try:
-                                acc.send_message(int(peer_id), "🔗 建立Peer连接")
-                                logger.info(f"✅ 已发送连接消息，Peer应该已缓存")
-                                mark_dest_cached(peer_id_str)
-                                return True
-                            except Exception as e4:
-                                logger.error(f"❌ 发送连接消息失败: {e4}")
                         break
 
                 if not found:

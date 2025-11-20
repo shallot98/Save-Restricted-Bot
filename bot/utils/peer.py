@@ -3,16 +3,18 @@ Peer caching and management utilities
 """
 import logging
 import time
-from typing import Set, Dict
+from typing import Dict
+from collections import OrderedDict
 from pyrogram.errors import FloodWait
+from constants import MAX_CACHED_PEERS, MAX_FAILED_PEERS
 
 logger = logging.getLogger(__name__)
 
-# Cached destination peers
-cached_dest_peers: Set[str] = set()
+# Cached destination peers (LRU cache with max size)
+cached_dest_peers: OrderedDict[str, float] = OrderedDict()
 
-# Failed peers that need delayed loading retry
-failed_peers: Dict[str, float] = {}  # peer_id -> last_attempt_timestamp
+# Failed peers that need delayed loading retry (LRU cache with max size)
+failed_peers: OrderedDict[str, float] = OrderedDict()
 
 # Retry cooldown in seconds (wait before retrying failed peer)
 RETRY_COOLDOWN = 60
@@ -31,24 +33,40 @@ def is_dest_cached(dest_id: str) -> bool:
 
 
 def mark_dest_cached(dest_id: str):
-    """Mark destination peer as cached
-    
+    """Mark destination peer as cached (LRU mechanism)
+
     Args:
         dest_id: Destination chat ID
     """
-    cached_dest_peers.add(dest_id)
+    # Add/update timestamp and move to end (most recently used)
+    cached_dest_peers[dest_id] = time.time()
+    cached_dest_peers.move_to_end(dest_id)
+
+    # LRU cleanup: remove oldest entries if cache exceeds limit
+    if len(cached_dest_peers) > MAX_CACHED_PEERS:
+        oldest_peer = cached_dest_peers.popitem(last=False)
+        logger.debug(f"🧹 Peer缓存已满，移除最旧的: {oldest_peer[0]}")
+
     # Remove from failed peers if it was there
     if dest_id in failed_peers:
         del failed_peers[dest_id]
 
 
 def mark_peer_failed(peer_id: str):
-    """Mark peer as failed to cache
-    
+    """Mark peer as failed to cache (LRU mechanism)
+
     Args:
         peer_id: Peer ID that failed to cache
     """
+    # Add/update timestamp and move to end
     failed_peers[peer_id] = time.time()
+    failed_peers.move_to_end(peer_id)
+
+    # LRU cleanup: remove oldest entries if cache exceeds limit
+    if len(failed_peers) > MAX_FAILED_PEERS:
+        oldest_failed = failed_peers.popitem(last=False)
+        logger.debug(f"🧹 失败Peer缓存已满，移除最旧的: {oldest_failed[0]}")
+
     logger.info(f"📋 已标记失败的Peer: {peer_id} (将在 {RETRY_COOLDOWN}s 后重试)")
 
 
