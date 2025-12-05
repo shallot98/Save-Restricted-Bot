@@ -4,1491 +4,513 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>笔记管理 - Telegram 笔记</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'notion-gray': '#37352F',
+                        'notion-blue': '#0F766E',
+                        'notion-bg': '#FFFFFF',
+                        'notion-sidebar': '#F7F6F3',
+                        'notion-hover': '#F1F1EF',
+                        'notion-border': '#E9E9E7',
+                        'notion-text': '#787774',
+                        'notion-text-light': '#9B9A97'
+                    },
+                    fontFamily: {
+                        'notion': ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif']
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-in-out',
+                        'slide-down': 'slideDown 0.2s ease-out',
+                        'scale-in': 'scaleIn 0.2s ease-out'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
+                        },
+                        slideDown: {
+                            '0%': { transform: 'translateY(-10px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' }
+                        },
+                        scaleIn: {
+                            '0%': { transform: 'scale(0.95)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .notion-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .header {
-            background: white;
-            border-radius: 15px;
-            padding: 20px 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            position: relative;
-        }
-
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding-right: 120px;
-        }
-
-        .header-title h1 {
-            color: #333;
-            font-size: 24px;
-        }
-
-        .header-icon {
-            font-size: 32px;
-        }
-
-        .header-actions {
-            position: absolute;
-            top: 20px;
-            right: 30px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .search-toggle {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            padding: 10px;
-            font-size: 24px;
-            color: #667eea;
-            transition: all 0.3s;
-            border-radius: 50%;
-        }
-
-        .search-toggle:hover {
-            opacity: 0.7;
-            transform: scale(1.1);
-        }
-
-        .search-toggle.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.35);
-            transform: scale(1.05);
-        }
-
-        .menu-toggle {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            transition: all 0.3s;
-        }
-
-        .menu-toggle:hover {
-            opacity: 0.7;
-        }
-
-        .menu-bar {
-            width: 25px;
-            height: 3px;
-            background: #667eea;
-            border-radius: 2px;
-            transition: all 0.3s;
-        }
-
-        .menu-dropdown {
-            display: none;
-            position: absolute;
-            top: 50px;
-            right: 0;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
-            min-width: 180px;
-            z-index: 1000;
-            overflow: hidden;
-        }
-
-        .menu-dropdown.active {
-            display: block;
-            animation: slideDown 0.3s ease-out;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .menu-item {
-            display: block;
-            padding: 12px 20px;
-            color: #333;
-            text-decoration: none;
-            transition: background 0.2s;
-            font-size: 14px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .menu-item:last-child {
-            border-bottom: none;
-        }
-
-        .menu-item:hover {
-            background: #f8f8f8;
-        }
-
-        .menu-item-icon {
-            margin-right: 8px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
+        .notion-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
         }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #555;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        .search-panel {
-            display: none;
-            background: white;
-            border-radius: 8px;
-            padding: 10px 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-            animation: slideDown 0.3s ease-out;
-        }
-
-        .search-panel.active {
-            display: block;
-        }
-
-        .search-row {
-            display: flex;
-            gap: 12px;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
-
-        .search-field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            min-width: 140px;
-            flex: 1;
-        }
-
-        .search-field-wide {
-            flex: 2;
-            min-width: 240px;
-        }
-
-        .search-field-date {
-            max-width: 200px;
-        }
-
-        .search-field label {
-            font-weight: 600;
-            color: #555;
-            font-size: 13px;
-        }
-
-        .search-field select,
-        .search-field input[type="text"],
-        .search-field input[type="date"] {
-            padding: 6px 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 13px;
-        }
-        
-        .search-input-group {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-        
-        .search-input-group input {
-            flex: 1;
-        }
-        
-        .search-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-        
-        .search-btn {
-            padding: 6px 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            white-space: nowrap;
-        }
-        
-        .search-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        
-        .clear-search {
-            padding: 6px 12px;
-            background: #f0f0f0;
-            color: #555;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            white-space: nowrap;
-        }
-        
-        .clear-search:hover {
-            background: #e0e0e0;
-        }
-
-        .stats {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 10px;
-            padding: 12px 20px;
-            margin-bottom: 15px;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            align-items: center;
-            font-size: 13px;
-        }
-
-        .stat-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: #666;
-        }
-
-        .stat-icon {
-            font-size: 16px;
-        }
-
-        .stat-value {
-            font-weight: 600;
-            color: #333;
-        }
-
-        .notes-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .note-card {
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-            transition: transform 0.3s, box-shadow 0.3s;
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .note-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-        }
-
-        .note-media-grid {
-            width: 100%;
-            display: grid;
-            gap: 6px;
-            background: #f5f5f5;
-            padding: 8px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .note-media-grid.count-1 {
-            grid-template-columns: 1fr;
-        }
-
-        .note-media-grid.count-2 {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
-        .note-media-grid.count-3 {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
-        .note-media-grid.count-4 {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
-        .note-media-grid.count-5 {
-            grid-template-columns: repeat(3, 1fr);
-        }
-
-        .note-media-grid.count-6,
-        .note-media-grid.count-7,
-        .note-media-grid.count-8,
-        .note-media-grid.count-9 {
-            grid-template-columns: repeat(3, 1fr);
-        }
-
-        .note-media-item {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-            border-radius: 8px;
-            background: #e0e0e0;
-        }
-
-        .note-media-item::before {
-            content: "";
-            display: block;
-            padding-top: 70%;
-        }
-
-        .note-media-item img {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .note-media-grid.count-1 .note-media-item::before {
-            padding-top: 58%;
-        }
-
-        .note-media-grid.count-2 .note-media-item::before {
-            padding-top: 70%;
-        }
-
-        .note-media-grid.count-3 .note-media-item:first-child {
-            grid-column: span 2;
-        }
-
-        .note-media-grid.count-3 .note-media-item:first-child::before {
-            padding-top: 52%;
-        }
-
-        .note-media-grid.count-5 .note-media-item:first-child {
-            grid-column: span 2;
-        }
-
-        .note-media-grid.count-5 .note-media-item:first-child::before {
-            padding-top: 52%;
-        }
-
-        .note-image {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            background: #f5f5f5;
-        }
-
-        .note-video-container {
-            position: relative;
-            width: 100%;
-            height: 200px;
-            background: #000;
-        }
-
-        .note-video-thumbnail {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .video-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .note-gif-container {
-            position: relative;
-            width: 100%;
-            height: 200px;
-            background: #000;
-        }
-
-        .note-gif-thumbnail {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .gif-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .note-content {
-            padding: 15px;
-        }
-
-        .note-source {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-bottom: 10px;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .note-text {
-            color: #333;
-            font-size: 14px;
-            line-height: 1.5;
-            margin-bottom: 12px;
-            word-wrap: break-word;
-            white-space: pre-wrap;
-            position: relative;
-        }
-        
-        .note-text.collapsed {
-            max-height: 150px;
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
             overflow: hidden;
         }
-        
-        .note-text.expanded {
-            max-height: none;
+        .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
-        
-        .expand-btn {
-            display: inline-block;
-            margin-top: 8px;
-            padding: 4px 12px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.3s;
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
         }
-        
-        .expand-btn:hover {
-            background: #5568d3;
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
         }
-        
-        .highlight {
-            background-color: #ffeb3b;
-            color: #000;
-            padding: 2px 4px;
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #D1D5DB;
             border-radius: 3px;
-            font-weight: 600;
         }
-
-        .note-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-        }
-
-        .note-time {
-            font-size: 12px;
-            color: #999;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .note-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .btn-watch, .btn-calibrate, .btn-edit, .btn-delete, .btn-favorite {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            text-decoration: none;
-        }
-
-        .btn-calibrate {
-            background: #FF9800;
-            color: white;
-        }
-
-        .btn-calibrate:hover {
-            background: #F57C00;
-            transform: translateY(-1px);
-        }
-
-        .btn-calibrate:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .btn-watch {
-            background: #2196F3;
-            color: white;
-        }
-
-        .btn-watch:hover {
-            background: #0b7dda;
-            transform: translateY(-1px);
-        }
-
-        .btn-edit {
-            background: #4caf50;
-            color: white;
-        }
-
-        .btn-edit:hover {
-            background: #45a049;
-            transform: translateY(-1px);
-        }
-
-        .btn-delete {
-            background: #f44336;
-            color: white;
-        }
-
-        .btn-delete:hover {
-            background: #da190b;
-            transform: translateY(-1px);
-        }
-
-        .btn-favorite {
-            background: #ffc107;
-            color: white;
-            font-size: 16px;
-            padding: 6px 10px;
-        }
-
-        .btn-favorite:hover {
-            background: #ffb300;
-            transform: translateY(-1px);
-        }
-
-        .flash-messages {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 2000;
-            max-width: 400px;
-        }
-
-        .flash-message {
-            background: white;
-            padding: 15px 20px;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-            margin-bottom: 10px;
-            animation: slideIn 0.3s ease-out;
-        }
-
-        .flash-success {
-            border-left: 4px solid #4caf50;
-        }
-
-        .flash-error {
-            border-left: 4px solid #f44336;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(100px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
-        .pagination {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .page-btn {
-            padding: 8px 15px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-        }
-
-        .page-btn:hover {
-            background: #667eea;
-            color: white;
-        }
-
-        .page-btn.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-color: #764ba2;
-        }
-
-        .page-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .empty-state {
-            background: white;
-            border-radius: 15px;
-            padding: 60px 40px;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .empty-state-icon {
-            font-size: 80px;
-            margin-bottom: 20px;
-        }
-
-        .empty-state h2 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        .empty-state p {
-            color: #666;
-            font-size: 16px;
-        }
-
-        /* 图片放大模态框样式 */
-        .image-modal {
-            display: none;
-            position: fixed;
-            z-index: 9999;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.95);
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        .image-modal.active {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .image-modal-content {
-            max-width: 90%;
-            max-height: 90%;
-            object-fit: contain;
-            animation: zoomIn 0.3s ease-out;
-            box-shadow: 0 0 50px rgba(255, 255, 255, 0.1);
-        }
-
-        @keyframes zoomIn {
-            from {
-                transform: scale(0.8);
-                opacity: 0;
-            }
-            to {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        .image-modal-close {
-            position: absolute;
-            top: 20px;
-            right: 30px;
-            color: white;
-            font-size: 40px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-            z-index: 10000;
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-        }
-
-        .image-modal-close:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: rotate(90deg);
-        }
-
-        /* 图片可点击提示 */
-        .note-media-item img,
-        .note-image {
-            cursor: pointer;
-            transition: transform 0.3s, opacity 0.3s;
-        }
-
-        .note-media-item img:hover,
-        .note-image:hover {
-            transform: scale(1.05);
-            opacity: 0.9;
-        }
-
-        /* 选择对话框样式 */
-        .selection-modal {
-            display: none;
-            position: fixed;
-            z-index: 10000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        .selection-modal.active {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .selection-modal-content {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
-            animation: zoomIn 0.3s ease-out;
-        }
-
-        .selection-modal-header {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #333;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .selection-modal-close {
-            cursor: pointer;
-            font-size: 28px;
-            color: #999;
-            transition: color 0.3s;
-        }
-
-        .selection-modal-close:hover {
-            color: #333;
-        }
-
-        .selection-option {
-            padding: 15px;
-            margin-bottom: 10px;
-            border: 2px solid #eee;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .selection-option:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
-        }
-
-        .selection-option-text {
-            flex: 1;
-            word-break: break-all;
-            font-size: 14px;
-            color: #333;
-        }
-
-        .selection-option-icon {
-            font-size: 24px;
-        }
-
-        @media (max-width: 768px) {
-            .notes-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .header-title {
-                padding-right: 50px;
-            }
-
-            .header-title h1 {
-                font-size: 20px;
-            }
-
-            .header-actions {
-                top: 15px;
-                right: 15px;
-            }
-
-            .search-row {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .search-field,
-            .search-field-wide,
-            .search-field-date {
-                width: 100%;
-                max-width: none;
-            }
-
-            .search-actions {
-                justify-content: flex-start;
-            }
-
-            .image-modal-content {
-                max-width: 95%;
-                max-height: 95%;
-            }
-
-            .image-modal-close {
-                top: 10px;
-                right: 10px;
-                font-size: 30px;
-                width: 40px;
-                height: 40px;
-            }
+        .highlight {
+            background: linear-gradient(120deg, #fef3c7 0%, #fde68a 100%);
+            background-repeat: no-repeat;
+            background-size: 100% 40%;
+            background-position: 0 60%;
+            padding: 0 2px;
+            border-radius: 3px;
+            font-weight: 500;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-title">
-                <span class="header-icon">📝</span>
-                <h1>Telegram 笔记</h1>
-            </div>
-            <div class="header-actions">
-                <button class="search-toggle" id="searchToggle" onclick="toggleSearchPanel()" aria-label="搜索笔记">
-                    🔍
-                </button>
-                <button class="menu-toggle" onclick="toggleMenu()">
-                    <div class="menu-bar"></div>
-                    <div class="menu-bar"></div>
-                    <div class="menu-bar"></div>
-                </button>
-                <div class="menu-dropdown" id="menuDropdown">
-                    <a href="/admin" class="menu-item">
-                        <span class="menu-item-icon">⚙️</span>管理设置
+<body class="font-notion bg-notion-sidebar text-notion-gray min-h-screen">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white border-b border-notion-border sticky top-0 z-40 backdrop-blur-lg bg-opacity-95">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleMenu()" class="md:hidden text-notion-text hover:text-notion-gray transition-colors">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-notion-blue to-teal-600 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-sticky-note text-white text-sm"></i>
+                        </div>
+                        <h1 class="text-xl font-semibold text-notion-gray">笔记管理</h1>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleSearch()" class="p-2.5 rounded-lg hover:bg-notion-hover transition-colors text-notion-text">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <a href="{{ url_for('admin') }}" class="p-2.5 rounded-lg hover:bg-notion-hover transition-colors text-notion-text">
+                        <i class="fas fa-cog"></i>
                     </a>
-                    <a href="/logout" class="menu-item">
-                        <span class="menu-item-icon">🚪</span>退出登录
+                    <a href="{{ url_for('logout') }}" class="p-2.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+                        <i class="fas fa-sign-out-alt"></i>
                     </a>
                 </div>
             </div>
         </div>
+    </header>
 
-        <div class="stats">
-            <div class="stat-item">
-                <span class="stat-icon">📊</span>
-                <span>总计 <span class="stat-value">{{ total_count }}</span> 条笔记</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-icon">📂</span>
-                <span><span class="stat-value">{{ sources|length }}</span> 个来源</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-icon">📄</span>
-                <span>第 <span class="stat-value">{{ current_page }}</span> / {{ total_pages }} 页</span>
-            </div>
-        </div>
-
-        <div class="search-panel{% if search_query or date_from or date_to or selected_source or favorite_only %} active{% endif %}" id="searchPanel">
-            <form method="GET" action="/notes">
-                <div class="search-row">
-                    <div class="search-field search-field-wide">
-                        <label>🔍 搜索关键词</label>
-                        <input type="text" name="search" placeholder="搜索笔记内容或来源..." value="{{ search_query or '' }}">
-                    </div>
-                    {% if sources|length > 0 %}
-                    <div class="search-field">
-                        <label>📌 筛选来源</label>
-                        <select name="source">
-                            <option value="">全部来源</option>
-                            {% for source in sources %}
-                            <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
-                                {{ source.source_name or source.source_chat_id }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    {% endif %}
-                    <div class="search-field search-field-date">
-                        <label>📅 开始日期</label>
-                        <input type="date" name="date_from" value="{{ date_from or '' }}">
-                    </div>
-                    <div class="search-field search-field-date">
-                        <label>📅 结束日期</label>
-                        <input type="date" name="date_to" value="{{ date_to or '' }}">
-                    </div>
-                    <div class="search-field">
-                        <label>⭐ 收藏筛选</label>
-                        <select name="favorite">
-                            <option value="">全部笔记</option>
-                            <option value="1" {% if favorite_only %}selected{% endif %}>仅收藏</option>
-                        </select>
+    <div class="flex">
+        <!-- 侧边栏 -->
+        <aside id="sidebar" class="hidden md:flex w-64 bg-white border-r border-notion-border flex-col">
+            <div class="p-6 space-y-6">
+                <!-- 快速筛选 -->
+                <div>
+                    <h3 class="text-sm font-medium text-notion-text mb-3">快速筛选</h3>
+                    <div class="space-y-2">
+                        <a href="{{ url_for('index') }}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-notion-hover transition-colors {% if not search_query and not start_date and not end_date %}bg-notion-hover text-notion-blue{% endif %}">
+                            <i class="fas fa-list w-5"></i>
+                            <span class="font-medium">全部笔记</span>
+                        </a>
+                        {% if search_query or start_date or end_date %}
+                        <a href="{{ url_for('index') }}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-notion-hover transition-colors">
+                            <i class="fas fa-times w-5"></i>
+                            <span class="font-medium">清除筛选</span>
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
-                <div class="search-actions">
-                    <button type="submit" class="search-btn">应用筛选</button>
-                    {% if search_query or date_from or date_to or selected_source or favorite_only %}
-                    <a href="/notes" class="clear-search">清除筛选</a>
-                    {% endif %}
-                </div>
-            </form>
-        </div>
 
-        {% if notes|length > 0 %}
-        <div class="notes-grid">
-            {% for note in notes %}
-            <div class="note-card">
-                {% if note.media_paths and note.media_paths|length > 0 %}
-                    <div class="note-media-grid count-{{ note.media_paths|length }}">
-                        {% for media_path in note.media_paths %}
-                            <div class="note-media-item">
-                                <img src="/media/{{ media_path | urlencode }}" alt="Note image" onerror="this.style.display='none'">
-                            </div>
+                <!-- 统计信息 -->
+                <div>
+                    <h3 class="text-sm font-medium text-notion-text mb-3">统计信息</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-notion-text">总笔记数</span>
+                            <span class="text-sm font-semibold text-notion-gray">{{ total_notes }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-notion-text">当前页</span>
+                            <span class="text-sm font-semibold text-notion-gray">{{ current_page }} / {{ total_pages }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据源 -->
+                {% if sources %}
+                <div>
+                    <h3 class="text-sm font-medium text-notion-text mb-3">数据源</h3>
+                    <div class="space-y-2">
+                        {% for source in sources %}
+                        <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-notion-sidebar">
+                            <i class="fas fa-database text-notion-text text-sm"></i>
+                            <span class="text-sm text-notion-gray truncate">{{ source }}</span>
+                        </div>
                         {% endfor %}
                     </div>
-                {% elif note.media_type == 'photo' %}
-                    <img src="/media/{{ note.media_path | urlencode }}" alt="Note image" class="note-image" onerror="this.style.display='none'">
-                {% elif note.media_type == 'video' %}
-                    <div class="note-video-container">
-                        {% if note.media_path %}
-                            <img src="/media/{{ note.media_path | urlencode }}" alt="Video thumbnail" class="note-video-thumbnail">
-                        {% else %}
-                            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                                <span style="font-size: 64px;">🎬</span>
-                            </div>
-                        {% endif %}
-                        <span class="video-badge">📹 视频</span>
-                    </div>
-                {% elif note.media_type == 'animation' %}
-                    <div class="note-gif-container">
-                        {% if note.media_path %}
-                            <img src="/media/{{ note.media_path | urlencode }}" alt="GIF thumbnail" class="note-gif-thumbnail">
-                        {% else %}
-                            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                                <span style="font-size: 64px;">🎞️</span>
-                            </div>
-                        {% endif %}
-                        <span class="gif-badge">🎬 GIF动图</span>
-                    </div>
+                </div>
                 {% endif %}
-                
-                <div class="note-content">
-                    <div class="note-source">
-                        <span>📡</span>
-                        <span><strong>{{ note.source_name or note.source_chat_id }}</strong></span>
-                        <span style="margin-left: 8px; color: #999; font-size: 0.9em;">#{{ note.id }}</span>
+            </div>
+        </aside>
+
+        <!-- 主内容区域 -->
+        <main class="flex-1 max-w-5xl mx-auto p-6">
+            <!-- 页面标题和操作 -->
+            <div class="mb-8">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-notion-gray mb-1">笔记列表</h2>
+                        {% if search_query or start_date or end_date %}
+                        <p class="text-sm text-notion-text">
+                            <i class="fas fa-filter mr-1"></i>
+                            {% if search_query %}"{{ search_query }}" {% endif %}
+                            {% if start_date %}{{ start_date }}{% endif %}
+                            {% if start_date and end_date %} - {% endif %}
+                            {% if end_date %}{{ end_date }}{% endif %}
+                        </p>
+                        {% endif %}
                     </div>
                     
-                    {% if note.message_text %}
-                    <div class="note-text collapsed" id="text-{{ note.id }}">{{ note.message_text | highlight(search_query) | safe }}</div>
-                    <button class="expand-btn" id="btn-{{ note.id }}" onclick="toggleText({{ note.id }})" style="display: none;">展开</button>
-                    {% endif %}
-                    
-                    <div class="note-footer">
-                        <div class="note-time">
-                            <span>🕒</span>
-                            <span>{{ note.timestamp }}</span>
-                        </div>
-                        <div class="note-actions">
-                            {% if note.all_dns and note.all_dns|length > 0 %}
-                            <button class="btn-calibrate" onclick="calibrateNote({{ note.id }}, {{ note.all_dns|length }})" id="calibrate-{{ note.id }}">
-                                校准{% if note.all_dns|length > 1 %}({{ note.all_dns|length }}){% endif %}
-                            </button>
-                            {% endif %}
-                            {% if note.all_dns and note.all_dns|length > 0 %}
-                                {% set valid_dns = note.all_dns|selectattr('dn')|list %}
-                                {% if valid_dns|length > 0 %}
-                                    {% if valid_dns|length == 1 %}
-                                        <a href="{{ viewer_url }}{{ valid_dns[0].dn }}" class="btn-watch" target="_blank" rel="noopener noreferrer">
-                                            观看
-                                        </a>
-                                    {% else %}
-                                        <button class="btn-watch btn-watch-multi"
-                                                data-note-id="{{ note.id }}"
-                                                data-dns='{{ valid_dns|tojson }}'
-                                                data-viewer-url="{{ viewer_url }}">
-                                            观看({{ valid_dns|length }})
-                                        </button>
-                                    {% endif %}
-                                {% endif %}
-                            {% endif %}
-                            <button class="btn-favorite" onclick="toggleFavorite({{ note.id }}, this)">
-                                {{ '★' if note.is_favorite else '☆' }}
-                            </button>
-                            <a href="/edit_note/{{ note.id }}" class="btn-edit">
-                                编辑
-                            </a>
-                            <button class="btn-delete" onclick="deleteNote({{ note.id }})">
-                                删除
-                            </button>
-                        </div>
+                    <div class="flex items-center gap-3">
+                        <button onclick="toggleSearch()" class="px-4 py-2.5 bg-gradient-to-r from-notion-blue to-teal-600 text-white rounded-xl hover:shadow-lg transition-all duration-200 font-medium">
+                            <i class="fas fa-search mr-2"></i>搜索
+                        </button>
+                        {% if search_query or start_date or end_date %}
+                        <a href="{{ url_for('index') }}" class="px-4 py-2.5 rounded-lg hover:bg-notion-hover transition-colors text-notion-text">
+                            <i class="fas fa-times mr-2"></i>清除
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            {% endfor %}
-        </div>
 
-        {% if total_pages > 1 %}
-        <div class="pagination">
-            {% if current_page > 1 %}
-                <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="page-btn">« 上一页</a>
-            {% endif %}
-
-            {% for page_num in range(1, total_pages + 1) %}
-                {% if page_num == current_page %}
-                    <span class="page-btn active">{{ page_num }}</span>
-                {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
-                    <a href="?page={{ page_num }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="page-btn">{{ page_num }}</a>
-                {% elif page_num == 4 or page_num == total_pages - 3 %}
-                    <span class="page-btn" style="border: none; cursor: default;">...</span>
-                {% endif %}
-            {% endfor %}
-
-            {% if current_page < total_pages %}
-                <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="page-btn">下一页 »</a>
-            {% endif %}
-        </div>
-        {% endif %}
-        {% else %}
-        <div class="empty-state">
-            <div class="empty-state-icon">📭</div>
-            <h2>暂无笔记</h2>
-            <p>当监控任务开启记录模式后，笔记将会显示在这里</p>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- 图片放大模态框 -->
-    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
-        <span class="image-modal-close" onclick="closeImageModal()">&times;</span>
-        <img class="image-modal-content" id="modalImage" onclick="event.stopPropagation()">
-    </div>
-
-    <!-- 选择对话框 -->
-    <div id="selectionModal" class="selection-modal" onclick="closeSelectionModal()">
-        <div class="selection-modal-content" onclick="event.stopPropagation()">
-            <div class="selection-modal-header">
-                <span id="selectionModalTitle">选择要观看的内容</span>
-                <span class="selection-modal-close" onclick="closeSelectionModal()">&times;</span>
+            <!-- 搜索面板 -->
+            <div id="searchPanel" class="hidden mb-8 animate-slide-down">
+                <div class="bg-white rounded-2xl shadow-sm border border-notion-border p-6">
+                    <form method="GET" class="space-y-4">
+                        <div class="relative">
+                            <input type="text" name="search" value="{{ search_query if search_query else '' }}" 
+                                   placeholder="搜索关键词..." 
+                                   class="w-full pl-10 pr-4 py-3 bg-notion-sidebar border border-notion-border rounded-xl focus:outline-none focus:ring-2 focus:ring-notion-blue focus:border-transparent transition-all">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-notion-text"></i>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-notion-text mb-2">开始日期</label>
+                                <input type="date" name="start_date" value="{{ start_date if start_date else '' }}" 
+                                       class="w-full px-3 py-2 bg-notion-sidebar border border-notion-border rounded-lg focus:outline-none focus:ring-2 focus:ring-notion-blue focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-notion-text mb-2">结束日期</label>
+                                <input type="date" name="end_date" value="{{ end_date if end_date else '' }}" 
+                                       class="w-full px-3 py-2 bg-notion-sidebar border border-notion-border rounded-lg focus:outline-none focus:ring-2 focus:ring-notion-blue focus:border-transparent">
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-3">
+                            <button type="submit" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-notion-blue to-teal-600 text-white rounded-xl hover:shadow-lg transition-all duration-200 font-medium">
+                                <i class="fas fa-search mr-2"></i>搜索
+                            </button>
+                            <button type="button" onclick="clearSearch()" class="px-4 py-2.5 rounded-lg hover:bg-notion-hover transition-colors text-notion-text">
+                                <i class="fas fa-times mr-2"></i>清除
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-            <div id="selectionModalOptions"></div>
+
+            <!-- 笔记列表 -->
+            {% if notes %}
+            <div class="space-y-4">
+                {% for note in notes %}
+                <div class="notion-card bg-white rounded-2xl shadow-sm border border-notion-border overflow-hidden hover:shadow-md" data-note-id="{{ note.id }}">
+                    <div class="p-6">
+                        <!-- 笔记头部 -->
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex-1">
+                                {% if note.title %}
+                                <h3 class="text-lg font-semibold text-notion-gray mb-2 line-clamp-2">{{ note.title | highlight(search_query) | safe }}</h3>
+                                {% else %}
+                                <span class="text-notion-text">无标题</span>
+                                {% endif %}
+                                <div class="flex items-center gap-4 text-sm text-notion-text">
+                                    <span><i class="fas fa-clock mr-1"></i>{{ note.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+                                    <span><i class="fas fa-database mr-1"></i>{{ note.source }}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 ml-4">
+                                <a href="{{ url_for('edit_note', note_id=note.id) }}" class="p-2 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button onclick="confirmDelete({{ note.id }})" class="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 笔记内容 -->
+                        <div class="mb-4">
+                            <div id="text-{{ note.id }}" class="text-notion-gray leading-relaxed {% if note.text|length > 300 %}line-clamp-3{% endif %}">
+                                {{ note.text | highlight(search_query) | safe }}
+                            </div>
+                            {% if note.text|length > 300 %}
+                            <button onclick="toggleText({{ note.id }})" class="mt-2 text-notion-blue hover:text-notion-blue/80 text-sm font-medium transition-colors">
+                                <span id="toggle-{{ note.id }}">展开全文</span>
+                                <i class="fas fa-chevron-down ml-1"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+
+                        <!-- 媒体文件 -->
+                        {% if note.media_files %}
+                        <div class="border-t border-notion-border pt-4">
+                            <div class="flex items-center gap-2 mb-3">
+                                <i class="fas fa-photo-video text-notion-text mr-1"></i>
+                                <span class="text-sm text-notion-text">附件 ({{ note.media_files|length }})</span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                {% for media_file in note.media_files %}
+                                <div class="relative group cursor-pointer overflow-hidden rounded-lg" onclick="openImageModal('{{ url_for('serve_media', filename=media_file) }}', '{{ media_file }}')">
+                                    {% if media_file.endswith(('.jpg', '.jpeg', '.png', '.webp')) %}
+                                    <img src="{{ url_for('serve_media', filename=media_file) }}" 
+                                         alt="图片" 
+                                         class="w-full h-32 object-cover rounded-lg group-hover:scale-105 transition-transform duration-200">
+                                    {% elif media_file.endswith('.mp4') %}
+                                    <div class="relative overflow-hidden rounded-lg bg-gray-100">
+                                        {% if note.media_thumbnails and media_file in note.media_thumbnails %}
+                                        <img src="{{ url_for('serve_media', filename=note.media_thumbnails[media_file]) }}" 
+                                             alt="视频缩略图" 
+                                             class="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-200">
+                                        {% else %}
+                                        <div class="w-full h-32 bg-gray-200 flex items-center justify-center">
+                                            <i class="fas fa-video text-gray-400 text-2xl"></i>
+                                        </div>
+                                        {% endif %}
+                                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                                            <i class="fas fa-play-circle text-white text-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></i>
+                                        </div>
+                                    </div>
+                                    {% elif media_file.endswith(('.gif', '.mp4', '.webm')) and media_file != note.media_thumbnails.get(media_file.replace('.mp4', '_gif_thumb.jpg')) %}
+                                    <div class="relative overflow-hidden rounded-lg bg-gray-100">
+                                        {% if note.media_thumbnails and media_file.replace('.mp4', '_gif_thumb.jpg') in note.media_thumbnails %}
+                                        <img src="{{ url_for('serve_media', filename=note.media_thumbnails[media_file.replace('.mp4', '_gif_thumb.jpg')]) }}" 
+                                             alt="GIF缩略图" 
+                                             class="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-200">
+                                        {% else %}
+                                        <div class="w-full h-32 bg-gray-200 flex items-center justify-center">
+                                            <i class="fas fa-film text-gray-400 text-2xl"></i>
+                                        </div>
+                                        {% endif %}
+                                        <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full">
+                                            GIF
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <div class="w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-file text-gray-400 text-2xl"></i>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-16">
+                <div class="w-20 h-20 bg-notion-sidebar rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-inbox text-notion-text text-3xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-notion-gray mb-2">暂无笔记</h3>
+                <p class="text-notion-text">
+                    {% if search_query or start_date or end_date %}
+                    没有找到符合条件的笔记，请尝试调整搜索条件
+                    {% else %}
+                    还没有任何笔记，开始保存一些内容吧
+                    {% endif %}
+                </p>
+                {% if search_query or start_date or end_date %}
+                <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-notion-sidebar rounded-lg hover:bg-notion-hover transition-colors">
+                    <i class="fas fa-arrow-left"></i>
+                    返回全部笔记
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- 分页 -->
+            {% if total_pages > 1 %}
+            <div class="mt-8 flex justify-center">
+                <nav class="flex items-center gap-2">
+                    {% if current_page > 1 %}
+                    <a href="{{ url_for('index', page=current_page - 1, search=search_query, start_date=start_date, end_date=end_date) }}" 
+                       class="px-3 py-2 bg-white border border-notion-border rounded-lg hover:bg-notion-hover transition-colors">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                    {% endif %}
+                    
+                    {% for page_num in range(1, total_pages + 1) %}
+                        {% if page_num == current_page %}
+                        <span class="px-3 py-2 bg-gradient-to-r from-notion-blue to-teal-600 text-white rounded-lg font-medium">{{ page_num }}</span>
+                        {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
+                        <a href="{{ url_for('index', page=page_num, search=search_query, start_date=start_date, end_date=end_date) }}" 
+                           class="px-3 py-2 bg-white border border-notion-border rounded-lg hover:bg-notion-hover transition-colors">{{ page_num }}</a>
+                        {% elif page_num == 4 or page_num == total_pages - 3 %}
+                        <span class="px-3 py-2 text-notion-text">...</span>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if current_page < total_pages %}
+                    <a href="{{ url_for('index', page=current_page + 1, search=search_query, start_date=start_date, end_date=end_date) }}" 
+                       class="px-3 py-2 bg-white border border-notion-border rounded-lg hover:bg-notion-hover transition-colors">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+
+    <!-- 图片查看模态框 -->
+    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 z-50 hidden flex items-center justify-center p-4" onclick="closeImageModal()">
+        <div class="relative max-w-4xl max-h-full">
+            <button class="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center hover:bg-opacity-70 transition-all">
+                <i class="fas fa-times"></i>
+            </button>
+            <img id="modalImage" src="" alt="" class="max-w-full max-h-full rounded-lg">
         </div>
     </div>
 
     <script>
-        function toggleSearchPanel() {
+        // 搜索面板切换
+        function toggleSearch() {
             const panel = document.getElementById('searchPanel');
-            const toggle = document.getElementById('searchToggle');
-            if (!panel || !toggle) return;
-            const isActive = panel.classList.toggle('active');
-            toggle.classList.toggle('active', isActive);
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                panel.classList.add('animate-slide-down');
+                panel.querySelector('input[type="text"]').focus();
+            }
         }
 
+        // 清除搜索
+        function clearSearch() {
+            window.location.href = '{{ url_for("index") }}';
+        }
+
+        // 菜单切换（移动端）
         function toggleMenu() {
-            const menu = document.getElementById('menuDropdown');
-            menu.classList.toggle('active');
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden');
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            const panel = document.getElementById('searchPanel');
-            const toggle = document.getElementById('searchToggle');
-            if (panel && toggle && panel.classList.contains('active')) {
-                toggle.classList.add('active');
-            }
-        });
-
-        // 点击页面其他地方关闭菜单，必要时折叠搜索面板
-        document.addEventListener('click', function(event) {
-            const menu = document.getElementById('menuDropdown');
-            const menuToggle = document.querySelector('.menu-toggle');
-            const searchPanel = document.getElementById('searchPanel');
-            const searchToggle = document.getElementById('searchToggle');
-            
-            if (menu && menuToggle && !menuToggle.contains(event.target) && !menu.contains(event.target)) {
-                menu.classList.remove('active');
-            }
-            
-            if (searchPanel && searchToggle && searchPanel.classList.contains('active')) {
-                const hasFilters = {{ 'true' if search_query or date_from or date_to or selected_source or favorite_only else 'false' }};
-                if (!hasFilters && !searchToggle.contains(event.target) && !searchPanel.contains(event.target)) {
-                    searchPanel.classList.remove('active');
-                    searchToggle.classList.remove('active');
-                }
-            }
-        });
-
-        // 删除笔记
-        function toggleFavorite(noteId, btn) {
-            fetch(`/toggle_favorite/${noteId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    btn.textContent = btn.textContent === '★' ? '☆' : '★';
-                } else {
-                    alert('操作失败: ' + (data.error || '未知错误'));
-                }
-            })
-            .catch(error => {
-                alert('操作失败: ' + error);
-            });
-        }
-
-        function deleteNote(noteId) {
-            if (!confirm('确定要删除这条笔记吗？此操作不可撤销。')) {
-                return;
-            }
-
-            const card = document.querySelector(`button[onclick="deleteNote(${noteId})"]`).closest('.note-card');
-
-            fetch(`/delete_note/${noteId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    card.remove();
-                } else {
-                    alert('删除失败: ' + (data.error || '未知错误'));
-                }
-            })
-            .catch(error => {
-                alert('删除失败: ' + error);
-            });
-        }
-
-        // 文本展开/折叠功能
+        // 文本展开/收起
         function toggleText(noteId) {
-            const textDiv = document.getElementById('text-' + noteId);
-            const btn = document.getElementById('btn-' + noteId);
+            const textElement = document.getElementById(`text-${noteId}`);
+            const toggleElement = document.getElementById(`toggle-${noteId}`);
             
-            if (textDiv.classList.contains('collapsed')) {
-                textDiv.classList.remove('collapsed');
-                textDiv.classList.add('expanded');
-                btn.textContent = '收起';
+            if (textElement.classList.contains('line-clamp-3')) {
+                textElement.classList.remove('line-clamp-3');
+                toggleElement.innerHTML = '收起文本<i class="fas fa-chevron-up ml-1"></i>';
             } else {
-                textDiv.classList.remove('expanded');
-                textDiv.classList.add('collapsed');
-                btn.textContent = '展开';
+                textElement.classList.add('line-clamp-3');
+                toggleElement.innerHTML = '展开全文<i class="fas fa-chevron-down ml-1"></i>';
             }
         }
 
-        // 图片点击放大功能
-        function openImageModal(imageSrc) {
+        // 图片模态框
+        function openImageModal(imageSrc, filename) {
             const modal = document.getElementById('imageModal');
-            const modalImg = document.getElementById('modalImage');
-
-            modal.classList.add('active');
-            modalImg.src = imageSrc;
-
-            // 阻止body滚动
+            const modalImage = document.getElementById('modalImage');
+            modalImage.src = imageSrc;
+            modalImage.alt = filename;
+            modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         }
 
         function closeImageModal() {
             const modal = document.getElementById('imageModal');
-            modal.classList.remove('active');
-
-            // 恢复body滚动
+            modal.classList.add('hidden');
             document.body.style.overflow = 'auto';
         }
 
-        // ESC键关闭模态框
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
+        // 确认删除
+        function confirmDelete(noteId) {
+            if (confirm('确定要删除这条笔记吗？此操作不可恢复。')) {
+                fetch(`/delete_note/${noteId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const card = document.querySelector(`[data-note-id="${noteId}"]`);
+                        card.style.transition = 'all 0.3s ease-out';
+                        card.style.opacity = '0';
+                        card.style.transform = 'translateX(100%)';
+                        setTimeout(() => {
+                            card.remove();
+                        }, 300);
+                    } else {
+                        alert('删除失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('删除失败，请重试');
+                });
+            }
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
                 closeImageModal();
-                closeSelectionModal();
+                const searchPanel = document.getElementById('searchPanel');
+                if (!searchPanel.classList.contains('hidden')) {
+                    searchPanel.classList.add('hidden');
+                }
+            }
+            if (e.key === '/' && e.ctrlKey) {
+                e.preventDefault();
+                toggleSearch();
             }
         });
 
-        // 关闭选择对话框
-        function closeSelectionModal() {
-            const modal = document.getElementById('selectionModal');
-            modal.classList.remove('active');
-            document.body.style.overflow = 'auto';
-        }
-
-        // 显示观看选项
-        function showWatchOptions(noteId, allDns, viewerUrl) {
-            const modal = document.getElementById('selectionModal');
-            const title = document.getElementById('selectionModalTitle');
-            const optionsContainer = document.getElementById('selectionModalOptions');
-
-            title.textContent = '选择要观看的内容';
-            optionsContainer.innerHTML = '';
-
-            // 检查 viewerUrl 是否有效
-            if (!viewerUrl) {
-                alert('未配置观看网站URL，请在管理设置中配置');
-                return;
-            }
-
-            allDns.forEach((dnInfo, index) => {
-                if (!dnInfo.dn) return;
-
-                const option = document.createElement('div');
-                option.className = 'selection-option';
-                option.innerHTML = `
-                    <span class="selection-option-icon">▶️</span>
-                    <span class="selection-option-text">${dnInfo.dn}</span>
-                `;
-                option.onclick = function() {
-                    // 构建完整的观看URL
-                    const watchUrl = viewerUrl + dnInfo.dn;
-                    console.log('Opening watch URL:', watchUrl);
-
-                    // 打开新窗口观看
-                    window.open(watchUrl, '_blank', 'noopener,noreferrer');
-                    closeSelectionModal();
-                };
-                optionsContainer.appendChild(option);
-            });
-
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
-
-        // 校准笔记（支持多个磁力链接）
-        function calibrateNote(noteId, count) {
-            const btn = document.getElementById('calibrate-' + noteId);
-
-            // 二次确认
-            const confirmMsg = count > 1
-                ? `校准将向机器人发送 ${count} 个磁力链接并获取文件名，\n此操作需要约 ${count * 10} 秒时间。\n\n确定要继续吗？`
-                : '校准将向机器人发送磁力链接并获取文件名，\n此操作需要约10秒时间。\n\n确定要继续吗？';
-
-            if (!confirm(confirmMsg)) {
-                return;
-            }
-
-            btn.disabled = true;
-            btn.textContent = '校准中...';
-
-            fetch(`/api/calibrate/${noteId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    btn.textContent = '✓ 已校准';
-
-                    // 显示校准结果
-                    let resultMsg = `校准完成！\n\n总共: ${data.total}\n成功: ${data.success_count}\n失败: ${data.fail_count}`;
-
-                    if (data.results && data.results.length > 0) {
-                        resultMsg += '\n\n详细结果:\n';
-                        data.results.forEach((result, index) => {
-                            if (result.success) {
-                                resultMsg += `${index + 1}. ✓ ${result.filename || '(空文件名)'}\n`;
-                            } else {
-                                resultMsg += `${index + 1}. ✗ ${result.error}\n`;
-                            }
-                        });
-                    }
-
-                    alert(resultMsg);
-
-                    // 保存滚动位置并重新加载
-                    saveScrollPosition();
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    alert('校准失败: ' + (data.error || '未知错误'));
-                    btn.disabled = false;
-                    btn.textContent = count > 1 ? `校准(${count})` : '校准';
-                }
-            })
-            .catch(error => {
-                alert('校准失败: ' + error);
-                btn.disabled = false;
-                btn.textContent = count > 1 ? `校准(${count})` : '校准';
-            });
-        }
-
-        // 保存滚动位置
-        function saveScrollPosition() {
-            sessionStorage.setItem('scrollPosition', window.pageYOffset || document.documentElement.scrollTop);
-        }
-
-        // 恢复滚动位置
-        function restoreScrollPosition() {
-            const scrollPosition = sessionStorage.getItem('scrollPosition');
-            if (scrollPosition) {
-                window.scrollTo(0, parseInt(scrollPosition));
-                sessionStorage.removeItem('scrollPosition');
-            }
-        }
-
-        // 页面加载后检查哪些文本需要展开按钮，并为所有图片添加点击事件
+        // 页面加载动画
         document.addEventListener('DOMContentLoaded', function() {
-            // 恢复滚动位置
-            restoreScrollPosition();
-
-            // 文本展开按钮逻辑
-            const noteTexts = document.querySelectorAll('.note-text');
-
-            noteTexts.forEach(function(textDiv) {
-                // 检查文本高度是否超过150px
-                const scrollHeight = textDiv.scrollHeight;
-                const clientHeight = 150; // 对应CSS中的max-height
-
-                if (scrollHeight > clientHeight) {
-                    // 显示展开按钮
-                    const noteId = textDiv.id.replace('text-', '');
-                    const btn = document.getElementById('btn-' + noteId);
-                    if (btn) {
-                        btn.style.display = 'inline-block';
-                    }
-                }
-            });
-
-            // 为所有图片添加点击放大事件
-            const allImages = document.querySelectorAll('.note-media-item img, .note-image');
-
-            allImages.forEach(function(img) {
-                img.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    openImageModal(this.src);
-                });
-            });
-
-            // 为多磁力链接观看按钮添加事件监听器
-            const watchButtons = document.querySelectorAll('.btn-watch-multi');
-            console.log('找到', watchButtons.length, '个多磁力链接观看按钮');
-
-            watchButtons.forEach(function(btn) {
-                btn.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-
-                    const noteId = this.getAttribute('data-note-id');
-                    const dnsJson = this.getAttribute('data-dns');
-                    const viewerUrl = this.getAttribute('data-viewer-url');
-
-                    console.log('观看按钮被点击:', {noteId, dnsJson, viewerUrl});
-
-                    try {
-                        const allDns = JSON.parse(dnsJson);
-                        console.log('解析后的 DNS 数据:', allDns);
-                        showWatchOptions(noteId, allDns, viewerUrl);
-                    } catch (e) {
-                        console.error('解析 DNS 数据失败:', e);
-                        alert('数据解析失败: ' + e.message);
-                    }
-                });
+            const cards = document.querySelectorAll('.notion-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.3s ease-out';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 50);
             });
         });
     </script>

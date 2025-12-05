@@ -276,7 +276,11 @@ def admin():
         update_password(session['username'], new_password)
         return render_template('admin.html', success='密码更新成功')
 
-    return render_template('admin.html')
+    # 获取统计数据
+    total_notes = get_note_count()
+    sources = get_sources()
+    
+    return render_template('admin.html', total_notes=total_notes, sources=sources)
 
 
 @app.route('/admin/webdav', methods=['GET', 'POST'])
