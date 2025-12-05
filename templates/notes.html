@@ -575,7 +575,7 @@
             gap: 8px;
         }
 
-        .btn-edit, .btn-delete {
+        .btn-watch, .btn-calibrate, .btn-edit, .btn-delete, .btn-favorite {
             padding: 6px 12px;
             border: none;
             border-radius: 6px;
@@ -586,6 +586,32 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            text-decoration: none;
+        }
+
+        .btn-calibrate {
+            background: #FF9800;
+            color: white;
+        }
+
+        .btn-calibrate:hover {
+            background: #F57C00;
+            transform: translateY(-1px);
+        }
+
+        .btn-calibrate:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-watch {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-watch:hover {
+            background: #0b7dda;
+            transform: translateY(-1px);
         }
 
         .btn-edit {
@@ -605,6 +631,18 @@
 
         .btn-delete:hover {
             background: #da190b;
+            transform: translateY(-1px);
+        }
+
+        .btn-favorite {
+            background: #ffc107;
+            color: white;
+            font-size: 16px;
+            padding: 6px 10px;
+        }
+
+        .btn-favorite:hover {
+            background: #ffb300;
             transform: translateY(-1px);
         }
 
@@ -708,6 +746,161 @@
             font-size: 16px;
         }
 
+        /* 图片放大模态框样式 */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .image-modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .image-modal-content {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            animation: zoomIn 0.3s ease-out;
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+
+        @keyframes zoomIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .image-modal-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 10000;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .image-modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(90deg);
+        }
+
+        /* 图片可点击提示 */
+        .note-media-item img,
+        .note-image {
+            cursor: pointer;
+            transition: transform 0.3s, opacity 0.3s;
+        }
+
+        .note-media-item img:hover,
+        .note-image:hover {
+            transform: scale(1.05);
+            opacity: 0.9;
+        }
+
+        /* 选择对话框样式 */
+        .selection-modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .selection-modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .selection-modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+            animation: zoomIn 0.3s ease-out;
+        }
+
+        .selection-modal-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .selection-modal-close {
+            cursor: pointer;
+            font-size: 28px;
+            color: #999;
+            transition: color 0.3s;
+        }
+
+        .selection-modal-close:hover {
+            color: #333;
+        }
+
+        .selection-option {
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .selection-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .selection-option-text {
+            flex: 1;
+            word-break: break-all;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .selection-option-icon {
+            font-size: 24px;
+        }
+
         @media (max-width: 768px) {
             .notes-grid {
                 grid-template-columns: 1fr;
@@ -716,11 +909,11 @@
             .header-title {
                 padding-right: 50px;
             }
-            
+
             .header-title h1 {
                 font-size: 20px;
             }
-            
+
             .header-actions {
                 top: 15px;
                 right: 15px;
@@ -740,6 +933,19 @@
 
             .search-actions {
                 justify-content: flex-start;
+            }
+
+            .image-modal-content {
+                max-width: 95%;
+                max-height: 95%;
+            }
+
+            .image-modal-close {
+                top: 10px;
+                right: 10px;
+                font-size: 30px;
+                width: 40px;
+                height: 40px;
             }
         }
     </style>
@@ -786,7 +992,7 @@
             </div>
         </div>
 
-        <div class="search-panel{% if search_query or date_from or date_to or selected_source %} active{% endif %}" id="searchPanel">
+        <div class="search-panel{% if search_query or date_from or date_to or selected_source or favorite_only %} active{% endif %}" id="searchPanel">
             <form method="GET" action="/notes">
                 <div class="search-row">
                     <div class="search-field search-field-wide">
@@ -814,10 +1020,17 @@
                         <label>📅 结束日期</label>
                         <input type="date" name="date_to" value="{{ date_to or '' }}">
                     </div>
+                    <div class="search-field">
+                        <label>⭐ 收藏筛选</label>
+                        <select name="favorite">
+                            <option value="">全部笔记</option>
+                            <option value="1" {% if favorite_only %}selected{% endif %}>仅收藏</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="search-actions">
                     <button type="submit" class="search-btn">应用筛选</button>
-                    {% if search_query or date_from or date_to or selected_source %}
+                    {% if search_query or date_from or date_to or selected_source or favorite_only %}
                     <a href="/notes" class="clear-search">清除筛选</a>
                     {% endif %}
                 </div>
@@ -832,16 +1045,16 @@
                     <div class="note-media-grid count-{{ note.media_paths|length }}">
                         {% for media_path in note.media_paths %}
                             <div class="note-media-item">
-                                <img src="/media/{{ media_path }}" alt="Note image" onerror="this.style.display='none'">
+                                <img src="/media/{{ media_path | urlencode }}" alt="Note image" onerror="this.style.display='none'">
                             </div>
                         {% endfor %}
                     </div>
                 {% elif note.media_type == 'photo' %}
-                    <img src="/media/{{ note.media_path }}" alt="Note image" class="note-image" onerror="this.style.display='none'">
+                    <img src="/media/{{ note.media_path | urlencode }}" alt="Note image" class="note-image" onerror="this.style.display='none'">
                 {% elif note.media_type == 'video' %}
                     <div class="note-video-container">
                         {% if note.media_path %}
-                            <img src="/media/{{ note.media_path }}" alt="Video thumbnail" class="note-video-thumbnail">
+                            <img src="/media/{{ note.media_path | urlencode }}" alt="Video thumbnail" class="note-video-thumbnail">
                         {% else %}
                             <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                                 <span style="font-size: 64px;">🎬</span>
@@ -852,7 +1065,7 @@
                 {% elif note.media_type == 'animation' %}
                     <div class="note-gif-container">
                         {% if note.media_path %}
-                            <img src="/media/{{ note.media_path }}" alt="GIF thumbnail" class="note-gif-thumbnail">
+                            <img src="/media/{{ note.media_path | urlencode }}" alt="GIF thumbnail" class="note-gif-thumbnail">
                         {% else %}
                             <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                                 <span style="font-size: 64px;">🎞️</span>
@@ -866,6 +1079,7 @@
                     <div class="note-source">
                         <span>📡</span>
                         <span><strong>{{ note.source_name or note.source_chat_id }}</strong></span>
+                        <span style="margin-left: 8px; color: #999; font-size: 0.9em;">#{{ note.id }}</span>
                     </div>
                     
                     {% if note.message_text %}
@@ -879,11 +1093,36 @@
                             <span>{{ note.timestamp }}</span>
                         </div>
                         <div class="note-actions">
+                            {% if note.all_dns and note.all_dns|length > 0 %}
+                            <button class="btn-calibrate" onclick="calibrateNote({{ note.id }}, {{ note.all_dns|length }})" id="calibrate-{{ note.id }}">
+                                校准{% if note.all_dns|length > 1 %}({{ note.all_dns|length }}){% endif %}
+                            </button>
+                            {% endif %}
+                            {% if note.all_dns and note.all_dns|length > 0 %}
+                                {% set valid_dns = note.all_dns|selectattr('dn')|list %}
+                                {% if valid_dns|length > 0 %}
+                                    {% if valid_dns|length == 1 %}
+                                        <a href="{{ viewer_url }}{{ valid_dns[0].dn }}" class="btn-watch" target="_blank" rel="noopener noreferrer">
+                                            观看
+                                        </a>
+                                    {% else %}
+                                        <button class="btn-watch btn-watch-multi"
+                                                data-note-id="{{ note.id }}"
+                                                data-dns='{{ valid_dns|tojson }}'
+                                                data-viewer-url="{{ viewer_url }}">
+                                            观看({{ valid_dns|length }})
+                                        </button>
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                            <button class="btn-favorite" onclick="toggleFavorite({{ note.id }}, this)">
+                                {{ '★' if note.is_favorite else '☆' }}
+                            </button>
                             <a href="/edit_note/{{ note.id }}" class="btn-edit">
-                                <span>✏️</span>编辑
+                                编辑
                             </a>
                             <button class="btn-delete" onclick="deleteNote({{ note.id }})">
-                                <span>🗑️</span>删除
+                                删除
                             </button>
                         </div>
                     </div>
@@ -922,6 +1161,23 @@
         {% endif %}
     </div>
 
+    <!-- 图片放大模态框 -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <span class="image-modal-close" onclick="closeImageModal()">&times;</span>
+        <img class="image-modal-content" id="modalImage" onclick="event.stopPropagation()">
+    </div>
+
+    <!-- 选择对话框 -->
+    <div id="selectionModal" class="selection-modal" onclick="closeSelectionModal()">
+        <div class="selection-modal-content" onclick="event.stopPropagation()">
+            <div class="selection-modal-header">
+                <span id="selectionModalTitle">选择要观看的内容</span>
+                <span class="selection-modal-close" onclick="closeSelectionModal()">&times;</span>
+            </div>
+            <div id="selectionModalOptions"></div>
+        </div>
+    </div>
+
     <script>
         function toggleSearchPanel() {
             const panel = document.getElementById('searchPanel');
@@ -956,7 +1212,7 @@
             }
             
             if (searchPanel && searchToggle && searchPanel.classList.contains('active')) {
-                const hasFilters = {{ 'true' if search_query or date_from or date_to or selected_source else 'false' }};
+                const hasFilters = {{ 'true' if search_query or date_from or date_to or selected_source or favorite_only else 'false' }};
                 if (!hasFilters && !searchToggle.contains(event.target) && !searchPanel.contains(event.target)) {
                     searchPanel.classList.remove('active');
                     searchToggle.classList.remove('active');
@@ -965,10 +1221,32 @@
         });
 
         // 删除笔记
+        function toggleFavorite(noteId, btn) {
+            fetch(`/toggle_favorite/${noteId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    btn.textContent = btn.textContent === '★' ? '☆' : '★';
+                } else {
+                    alert('操作失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                alert('操作失败: ' + error);
+            });
+        }
+
         function deleteNote(noteId) {
             if (!confirm('确定要删除这条笔记吗？此操作不可撤销。')) {
                 return;
             }
+
+            const card = document.querySelector(`button[onclick="deleteNote(${noteId})"]`).closest('.note-card');
 
             fetch(`/delete_note/${noteId}`, {
                 method: 'POST',
@@ -979,8 +1257,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // 刷新页面
-                    location.reload();
+                    card.remove();
                 } else {
                     alert('删除失败: ' + (data.error || '未知错误'));
                 }
@@ -1006,15 +1283,167 @@
             }
         }
 
-        // 页面加载后检查哪些文本需要展开按钮
+        // 图片点击放大功能
+        function openImageModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+
+            modal.classList.add('active');
+            modalImg.src = imageSrc;
+
+            // 阻止body滚动
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('active');
+
+            // 恢复body滚动
+            document.body.style.overflow = 'auto';
+        }
+
+        // ESC键关闭模态框
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeImageModal();
+                closeSelectionModal();
+            }
+        });
+
+        // 关闭选择对话框
+        function closeSelectionModal() {
+            const modal = document.getElementById('selectionModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // 显示观看选项
+        function showWatchOptions(noteId, allDns, viewerUrl) {
+            const modal = document.getElementById('selectionModal');
+            const title = document.getElementById('selectionModalTitle');
+            const optionsContainer = document.getElementById('selectionModalOptions');
+
+            title.textContent = '选择要观看的内容';
+            optionsContainer.innerHTML = '';
+
+            // 检查 viewerUrl 是否有效
+            if (!viewerUrl) {
+                alert('未配置观看网站URL，请在管理设置中配置');
+                return;
+            }
+
+            allDns.forEach((dnInfo, index) => {
+                if (!dnInfo.dn) return;
+
+                const option = document.createElement('div');
+                option.className = 'selection-option';
+                option.innerHTML = `
+                    <span class="selection-option-icon">▶️</span>
+                    <span class="selection-option-text">${dnInfo.dn}</span>
+                `;
+                option.onclick = function() {
+                    // 构建完整的观看URL
+                    const watchUrl = viewerUrl + dnInfo.dn;
+                    console.log('Opening watch URL:', watchUrl);
+
+                    // 打开新窗口观看
+                    window.open(watchUrl, '_blank', 'noopener,noreferrer');
+                    closeSelectionModal();
+                };
+                optionsContainer.appendChild(option);
+            });
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 校准笔记（支持多个磁力链接）
+        function calibrateNote(noteId, count) {
+            const btn = document.getElementById('calibrate-' + noteId);
+
+            // 二次确认
+            const confirmMsg = count > 1
+                ? `校准将向机器人发送 ${count} 个磁力链接并获取文件名，\n此操作需要约 ${count * 10} 秒时间。\n\n确定要继续吗？`
+                : '校准将向机器人发送磁力链接并获取文件名，\n此操作需要约10秒时间。\n\n确定要继续吗？';
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '校准中...';
+
+            fetch(`/api/calibrate/${noteId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    btn.textContent = '✓ 已校准';
+
+                    // 显示校准结果
+                    let resultMsg = `校准完成！\n\n总共: ${data.total}\n成功: ${data.success_count}\n失败: ${data.fail_count}`;
+
+                    if (data.results && data.results.length > 0) {
+                        resultMsg += '\n\n详细结果:\n';
+                        data.results.forEach((result, index) => {
+                            if (result.success) {
+                                resultMsg += `${index + 1}. ✓ ${result.filename || '(空文件名)'}\n`;
+                            } else {
+                                resultMsg += `${index + 1}. ✗ ${result.error}\n`;
+                            }
+                        });
+                    }
+
+                    alert(resultMsg);
+
+                    // 保存滚动位置并重新加载
+                    saveScrollPosition();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    alert('校准失败: ' + (data.error || '未知错误'));
+                    btn.disabled = false;
+                    btn.textContent = count > 1 ? `校准(${count})` : '校准';
+                }
+            })
+            .catch(error => {
+                alert('校准失败: ' + error);
+                btn.disabled = false;
+                btn.textContent = count > 1 ? `校准(${count})` : '校准';
+            });
+        }
+
+        // 保存滚动位置
+        function saveScrollPosition() {
+            sessionStorage.setItem('scrollPosition', window.pageYOffset || document.documentElement.scrollTop);
+        }
+
+        // 恢复滚动位置
+        function restoreScrollPosition() {
+            const scrollPosition = sessionStorage.getItem('scrollPosition');
+            if (scrollPosition) {
+                window.scrollTo(0, parseInt(scrollPosition));
+                sessionStorage.removeItem('scrollPosition');
+            }
+        }
+
+        // 页面加载后检查哪些文本需要展开按钮，并为所有图片添加点击事件
         document.addEventListener('DOMContentLoaded', function() {
+            // 恢复滚动位置
+            restoreScrollPosition();
+
+            // 文本展开按钮逻辑
             const noteTexts = document.querySelectorAll('.note-text');
-            
+
             noteTexts.forEach(function(textDiv) {
                 // 检查文本高度是否超过150px
                 const scrollHeight = textDiv.scrollHeight;
                 const clientHeight = 150; // 对应CSS中的max-height
-                
+
                 if (scrollHeight > clientHeight) {
                     // 显示展开按钮
                     const noteId = textDiv.id.replace('text-', '');
@@ -1023,6 +1452,43 @@
                         btn.style.display = 'inline-block';
                     }
                 }
+            });
+
+            // 为所有图片添加点击放大事件
+            const allImages = document.querySelectorAll('.note-media-item img, .note-image');
+
+            allImages.forEach(function(img) {
+                img.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openImageModal(this.src);
+                });
+            });
+
+            // 为多磁力链接观看按钮添加事件监听器
+            const watchButtons = document.querySelectorAll('.btn-watch-multi');
+            console.log('找到', watchButtons.length, '个多磁力链接观看按钮');
+
+            watchButtons.forEach(function(btn) {
+                btn.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const noteId = this.getAttribute('data-note-id');
+                    const dnsJson = this.getAttribute('data-dns');
+                    const viewerUrl = this.getAttribute('data-viewer-url');
+
+                    console.log('观看按钮被点击:', {noteId, dnsJson, viewerUrl});
+
+                    try {
+                        const allDns = JSON.parse(dnsJson);
+                        console.log('解析后的 DNS 数据:', allDns);
+                        showWatchOptions(noteId, allDns, viewerUrl);
+                    } catch (e) {
+                        console.error('解析 DNS 数据失败:', e);
+                        alert('数据解析失败: ' + e.message);
+                    }
+                });
             });
         });
     </script>

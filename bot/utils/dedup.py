@@ -7,7 +7,7 @@ import logging
 import threading
 from typing import Dict
 from collections import OrderedDict
-from constants import MESSAGE_CACHE_TTL, MAX_MEDIA_GROUP_CACHE, MEDIA_GROUP_CLEANUP_BATCH_SIZE
+from constants import MESSAGE_CACHE_TTL, MAX_MEDIA_GROUP_CACHE, MEDIA_GROUP_CLEANUP_BATCH_SIZE, MESSAGE_CACHE_CLEANUP_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,8 @@ _message_lock = threading.Lock()
 processed_media_groups: OrderedDict[str, float] = OrderedDict()
 _media_group_lock = threading.Lock()
 
-# 媒体组去重的时间窗口（秒）
-MEDIA_GROUP_DEDUP_WINDOW = 2.0  # 2秒内的重复媒体组会被过滤
+# 媒体组去重的时间窗口（秒）- 优化：从2秒降到1秒，减少缓存时间
+MEDIA_GROUP_DEDUP_WINDOW = 1.0  # 1秒内的重复媒体组会被过滤
 
 # 消息缓存清理阈值（当缓存超过此大小时触发清理）
 MESSAGE_CACHE_MAX_SIZE = MESSAGE_CACHE_CLEANUP_THRESHOLD
@@ -131,7 +131,8 @@ def cleanup_old_messages():
 
     优化：
     1. 清理过期的消息记录
-    2. 如果缓存超过阈值，强制清理最旧的条目
+    2. 清理过期的媒体组记录
+    3. 如果缓存超过阈值，强制清理最旧的条目
     """
     current_time = time.time()
 
@@ -153,6 +154,16 @@ def cleanup_old_messages():
             for key, _ in sorted_items[:remove_count]:
                 del processed_messages[key]
             logger.info(f"🧹 消息缓存超限，强制清理{remove_count}个最旧条目 (剩余: {len(processed_messages)})")
+
+    # 优化：同时清理过期的媒体组缓存
+    with _media_group_lock:
+        expired_media_keys = [key for key, timestamp in processed_media_groups.items()
+                              if current_time - timestamp > MEDIA_GROUP_DEDUP_WINDOW]
+        for key in expired_media_keys:
+            del processed_media_groups[key]
+
+        if expired_media_keys:
+            logger.debug(f"🧹 媒体组缓存清理: 移除{len(expired_media_keys)}个过期条目")
 
 
 def get_cache_stats() -> dict:

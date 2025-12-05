@@ -11,6 +11,7 @@ from bot.handlers.instances import get_bot_instance, get_acc_instance
 from bot.handlers.watch_setup import (
     show_filter_options, show_filter_options_single,
     show_preserve_source_options, show_forward_mode_options,
+    show_dn_append_options,
     complete_watch_setup, complete_watch_setup_single
 )
 from bot.utils.status import user_states
@@ -162,21 +163,23 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                     # New format with source|dest key
                     source = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
                     dest = watch_data.get("dest", watch_key.split("|")[1] if "|" in watch_key else "unknown")
+                    record_mode = watch_data.get("record_mode", False)
                 else:
                     # Old format compatibility
                     source = watch_key
                     dest = watch_data
-                
+                    record_mode = False
+
                 # Handle None values
                 if source is None:
                     source = "未知来源"
-                if dest is None:
-                    dest = "未知目标"
-                
+                if dest is None or record_mode:
+                    dest = "网页笔记"
+
                 # Truncate source and dest for button display
                 source_display = source if len(source) <= 15 else source[:12] + "..."
                 dest_display = dest if len(dest) <= 15 else dest[:12] + "..."
-                
+
                 buttons.append([InlineKeyboardButton(f"{idx}. {source_display} ➡️ {dest_display}", callback_data=f"watch_view_{idx}")])
             
             buttons.append([InlineKeyboardButton("🔙 返回", callback_data="menu_watch")])
@@ -204,17 +207,19 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                     # New format with source|dest key
                     source = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
                     dest = watch_data.get("dest", watch_key.split("|")[1] if "|" in watch_key else "unknown")
+                    record_mode = watch_data.get("record_mode", False)
                 else:
                     # Old format compatibility
                     source = watch_key
                     dest = watch_data
-                
+                    record_mode = False
+
                 # Handle None values
                 if source is None:
                     source = "未知来源"
-                if dest is None:
-                    dest = "未知目标"
-                
+                if dest is None or record_mode:
+                    dest = "网页笔记"
+
                 buttons.append([InlineKeyboardButton(f"🗑 {idx}. {source} ➡️ {dest}", callback_data=f"watch_remove_{idx}")])
             
             buttons.append([InlineKeyboardButton("❌ 取消", callback_data="menu_watch")])
@@ -303,11 +308,10 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                     text += f"• `{pattern}`\n"
             
             buttons = [[InlineKeyboardButton("✏️ 编辑过滤规则", callback_data=f"edit_filter_{task_id}")]]
-            
+
             if not record_mode:
-                buttons.append([InlineKeyboardButton("🔄 切换转发模式", callback_data=f"edit_mode_{task_id}")])
                 buttons.append([InlineKeyboardButton("📤 切换保留来源", callback_data=f"edit_preserve_{task_id}")])
-            
+
             buttons.append([InlineKeyboardButton("🗑 删除此监控", callback_data=f"watch_remove_{task_id}")])
             buttons.append([InlineKeyboardButton("🔙 返回列表", callback_data="watch_list")])
             
@@ -330,22 +334,24 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             
             watch_key = list(watch_config[user_id].keys())[task_id - 1]
             watch_data = watch_config[user_id][watch_key]
-            
+
             if isinstance(watch_data, dict):
                 # New format with source|dest key
                 source_id = watch_data.get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
                 dest_id = watch_data.get("dest", watch_key.split("|")[1] if "|" in watch_key else "unknown")
+                record_mode = watch_data.get("record_mode", False)
             else:
                 # Old format compatibility
                 source_id = watch_key
                 dest_id = watch_data
-            
+                record_mode = False
+
             # Handle None values
             if source_id is None:
                 source_id = "未知来源"
-            if dest_id is None:
-                dest_id = "未知目标"
-            
+            if dest_id is None or record_mode:
+                dest_id = "网页笔记"
+
             del watch_config[user_id][watch_key]
             
             if not watch_config[user_id]:
@@ -671,102 +677,6 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             callback_handler(client, callback_query)
             return
         
-        elif data.startswith("edit_mode_"):
-            task_id = int(data.split("_")[2])
-            watch_config = load_watch_config()
-            
-            if user_id not in watch_config or not watch_config[user_id]:
-                callback_query.answer("❌ 监控任务不存在", show_alert=True)
-                return
-            
-            if task_id < 1 or task_id > len(watch_config[user_id]):
-                callback_query.answer("❌ 任务编号无效", show_alert=True)
-                return
-            
-            watch_key = list(watch_config[user_id].keys())[task_id - 1]
-            
-            if isinstance(watch_config[user_id][watch_key], dict):
-                current_mode = watch_config[user_id][watch_key].get("forward_mode", "full")
-            else:
-                current_mode = "full"
-            
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📦 完整转发", callback_data=f"setmode_full_{task_id}")],
-                [InlineKeyboardButton("🎯 提取模式", callback_data=f"setmode_extract_{task_id}")],
-                [InlineKeyboardButton("🔙 返回", callback_data=f"watch_view_{task_id}")]
-            ])
-            
-            text = f"**🔄 选择转发模式**\n\n"
-            text += f"当前模式：**{'🎯 提取模式' if current_mode == 'extract' else '📦 完整转发'}**\n\n"
-            text += "📦 **完整转发** - 转发整条消息\n"
-            text += "🎯 **提取模式** - 使用正则提取特定内容后转发"
-            
-            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
-            callback_query.answer()
-        
-        elif data.startswith("setmode_"):
-            parts = data.split("_")
-            mode = parts[1]
-            task_id = int(parts[2])
-            
-            watch_config = load_watch_config()
-            
-            if user_id not in watch_config or not watch_config[user_id]:
-                callback_query.answer("❌ 监控任务不存在", show_alert=True)
-                return
-            
-            if task_id < 1 or task_id > len(watch_config[user_id]):
-                callback_query.answer("❌ 任务编号无效", show_alert=True)
-                return
-            
-            watch_key = list(watch_config[user_id].keys())[task_id - 1]
-            
-            if isinstance(watch_config[user_id][watch_key], dict):
-                watch_config[user_id][watch_key]["forward_mode"] = mode
-                if mode == "extract" and not watch_config[user_id][watch_key].get("extract_patterns"):
-                    # Extract source_id for user_states
-                    source_id = watch_config[user_id][watch_key].get("source", watch_key.split("|")[0] if "|" in watch_key else watch_key)
-                    
-                    user_states[user_id] = {
-                        "action": "edit_extract_patterns",
-                        "task_id": task_id,
-                        "watch_key": watch_key
-                    }
-                    
-                    keyboard = InlineKeyboardMarkup([
-                        [InlineKeyboardButton("❌ 取消", callback_data=f"watch_view_{task_id}")]
-                    ])
-                    
-                    text = "**🎯 设置提取规则**\n\n"
-                    text += "请发送提取用的正则表达式，用逗号分隔\n\n"
-                    text += "示例：`https?://[^\\s]+,\\d{6,}`\n\n"
-                    text += "💡 消息匹配过滤规则后，将使用这些正则提取内容并转发"
-                    
-                    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
-                    callback_query.answer("请输入提取规则")
-                    save_watch_config(watch_config)
-                    return
-            else:
-                # Old format compatibility - convert to new format
-                old_dest = watch_config[user_id][watch_key]
-                source_id = watch_key
-                watch_config[user_id][watch_key] = {
-                    "source": source_id,
-                    "dest": old_dest,
-                    "whitelist": [],
-                    "blacklist": [],
-                    "preserve_forward_source": False,
-                    "forward_mode": mode,
-                    "extract_patterns": []
-                }
-            
-            save_watch_config(watch_config)
-            
-            # Refresh the view
-            callback_query.data = f"watch_view_{task_id}"
-            callback_handler(client, callback_query)
-            return
-        
         elif data.startswith("edit_filter_"):
             task_id = int(data.split("_")[2])
             
@@ -793,23 +703,38 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
         elif data.startswith("editf_"):
             parts = data.split("_")
             filter_type = parts[1]
-            color = parts[2]
-            task_id = int(parts[3])
-            
+
+            # Handle different callback formats
+            if filter_type == "extract":
+                # Format: editf_extract_{task_id}
+                color = None
+                task_id = int(parts[2])
+            else:
+                # Format: editf_kw_white_{task_id} or editf_re_black_{task_id}
+                color = parts[2]
+                task_id = int(parts[3])
+
             user_states[user_id] = {
-                "action": f"edit_filter_{filter_type}_{color}",
+                "action": f"edit_filter_{filter_type}_{color}" if color else f"edit_filter_{filter_type}",
                 "task_id": task_id
             }
-            
+
             watch_config = load_watch_config()
             watch_key = list(watch_config[user_id].keys())[task_id - 1]
             user_states[user_id]["watch_key"] = watch_key
-            
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🗑 清空", callback_data=f"clear_filter_{filter_type}_{color}_{task_id}")],
-                [InlineKeyboardButton("❌ 取消", callback_data=f"watch_view_{task_id}")]
-            ])
-            
+
+            # Build keyboard based on filter type
+            if filter_type == "extract":
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🗑 清空", callback_data=f"clear_filter_extract_{task_id}")],
+                    [InlineKeyboardButton("❌ 取消", callback_data=f"watch_view_{task_id}")]
+                ])
+            else:
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🗑 清空", callback_data=f"clear_filter_{filter_type}_{color}_{task_id}")],
+                    [InlineKeyboardButton("❌ 取消", callback_data=f"watch_view_{task_id}")]
+                ])
+
             if filter_type == "kw":
                 filter_name = "关键词白名单" if color == "white" else "关键词黑名单"
                 example = "重要,紧急,通知" if color == "white" else "广告,推广,垃圾"
@@ -819,34 +744,43 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             else:  # extract
                 filter_name = "提取规则"
                 example = "https?://[^\\s]+,\\d{6,}"
-            
+
             text = f"**✏️ 修改{filter_name}**\n\n"
             text += f"请发送新的规则，用逗号分隔\n\n"
             text += f"示例：`{example}`\n\n"
             text += "💡 发送新规则将覆盖原有规则\n"
             text += "💡 点击\"清空\"可删除所有规则"
-            
+
             bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
             callback_query.answer("请输入新规则")
         
         elif data.startswith("clear_filter_"):
             parts = data.split("_")
-            filter_type = parts[2]
-            color = parts[3]
-            task_id = int(parts[4])
-            
+
+            # Handle different callback formats
+            if parts[2] == "extract":
+                # Format: clear_filter_extract_{task_id}
+                filter_type = "extract"
+                color = None
+                task_id = int(parts[3])
+            else:
+                # Format: clear_filter_kw_white_{task_id} or clear_filter_re_black_{task_id}
+                filter_type = parts[2]
+                color = parts[3]
+                task_id = int(parts[4])
+
             watch_config = load_watch_config()
-            
+
             if user_id not in watch_config or not watch_config[user_id]:
                 callback_query.answer("❌ 监控任务不存在", show_alert=True)
                 return
-            
+
             if task_id < 1 or task_id > len(watch_config[user_id]):
                 callback_query.answer("❌ 任务编号无效", show_alert=True)
                 return
-            
+
             watch_key = list(watch_config[user_id].keys())[task_id - 1]
-            
+
             if isinstance(watch_config[user_id][watch_key], dict):
                 if filter_type == "kw":
                     key = "whitelist" if color == "white" else "blacklist"
@@ -854,10 +788,10 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
                     key = "whitelist_regex" if color == "white" else "blacklist_regex"
                 else:  # extract
                     key = "extract_patterns"
-                
+
                 watch_config[user_id][watch_key][key] = []
                 save_watch_config(watch_config)
-                
+
                 callback_query.answer("✅ 已清空")
             
             # Refresh the view
@@ -865,37 +799,150 @@ def callback_handler(client: pyrogram.client.Client, callback_query: CallbackQue
             callback_handler(client, callback_query)
             return
         
+        elif data == "watch_mode_record":
+            # 选择记录模式
+            if user_id not in user_states or "source_id" not in user_states[user_id]:
+                callback_query.answer("❌ 会话已过期，请重新开始", show_alert=True)
+                return
+
+            user_states[user_id]["dest_id"] = None
+            user_states[user_id]["dest_name"] = "网页笔记"
+            user_states[user_id]["record_mode"] = True
+
+            show_filter_options_single(chat_id, message_id, user_id)
+            callback_query.answer()
+
+        elif data == "watch_mode_forward":
+            # 选择转发模式
+            if user_id not in user_states or "source_id" not in user_states[user_id]:
+                callback_query.answer("❌ 会话已过期，请重新开始", show_alert=True)
+                return
+
+            user_states[user_id]["action"] = "add_dest"
+            user_states[user_id]["record_mode"] = False
+
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]])
+
+            source_name = user_states[user_id].get("source_name", "未知")
+
+            text = "**➕ 添加监控任务**\n\n"
+            text += f"✅ 来源已设置：`{source_name}`\n\n"
+            text += "**步骤 3：** 请输入转发目标\n\n"
+            text += "可以输入：\n"
+            text += "• `me` - 转发到你的收藏夹\n"
+            text += "• 频道/群组用户名（如 `@channel_name`）\n"
+            text += "• 频道/群组ID（如 `-1001234567890`）\n"
+            text += "• 转发一条来自目标频道/群组的消息\n\n"
+            text += "💡 输入 `me` 表示转发到收藏夹"
+
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer()
+
         elif data.startswith("fwdmode_"):
             mode = data.split("_")[1]
-            
+
             if user_id not in user_states:
                 callback_query.answer("❌ 会话已过期", show_alert=True)
                 return
-            
+
             if mode == "extract":
-                user_states[user_id]["action"] = "add_extract_patterns"
-                
                 keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📝 自定义提取", callback_data="extract_custom")],
+                    [InlineKeyboardButton("🧲 磁力链接提取", callback_data="extract_magnet")],
                     [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
                 ])
-                
+
                 text = "**➕ 添加监控任务**\n\n"
-                text += "**设置提取规则**\n\n"
-                text += "请发送提取用的正则表达式，用逗号分隔\n\n"
-                text += "示例：`https?://[^\\s]+,\\d{6,}`\n\n"
-                text += "💡 消息匹配过滤规则后，将使用这些正则提取内容并转发"
-                
+                text += "**选择提取类型：**\n\n"
+                text += "📝 **自定义提取** - 使用正则表达式提取\n"
+                text += "🧲 **磁力链接提取** - 自动提取磁力链接并补全 dn 参数"
+
                 bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
-                callback_query.answer("请输入提取规则")
+                callback_query.answer()
             else:
-                whitelist = user_states[user_id].get("whitelist", [])
-                blacklist = user_states[user_id].get("blacklist", [])
-                whitelist_regex = user_states[user_id].get("whitelist_regex", [])
-                blacklist_regex = user_states[user_id].get("blacklist_regex", [])
-                preserve_source = user_states[user_id].get("preserve_source", False)
-                
-                complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, "full", [])
-                callback_query.answer("✅ 监控已添加")
+                # 完整转发模式，显示DN补全选项
+                show_dn_append_options(chat_id, message_id, user_id, "full")
+                callback_query.answer()
+
+        elif data == "extract_custom":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+
+            user_states[user_id]["action"] = "add_extract_patterns"
+
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
+            ])
+
+            text = "**➕ 添加监控任务**\n\n"
+            text += "**设置提取规则**\n\n"
+            text += "请发送提取用的正则表达式，用逗号分隔\n\n"
+            text += "示例：`https?://[^\\s]+,\\d{6,}`\n\n"
+            text += "💡 消息匹配过滤规则后，将使用这些正则提取内容并转发"
+
+            bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+            callback_query.answer("请输入提取规则")
+
+        elif data == "extract_magnet":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+
+            whitelist = user_states[user_id].get("whitelist", [])
+            blacklist = user_states[user_id].get("blacklist", [])
+            whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+            blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+            preserve_source = user_states[user_id].get("preserve_source", False)
+
+            magnet_pattern = r'magnet:\?xt=urn:btih:[a-zA-Z0-9]+(?:[&?][^\n\r|]*)?'
+            complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, "extract", [magnet_pattern])
+            callback_query.answer("✅ 监控已添加")
+
+        elif data == "dn_append_yes":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+
+            whitelist = user_states[user_id].get("whitelist", [])
+            blacklist = user_states[user_id].get("blacklist", [])
+            whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+            blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+            preserve_source = user_states[user_id].get("preserve_source", False)
+            forward_mode = user_states[user_id].get("forward_mode", "full")
+
+            complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, forward_mode, [], append_dn=True)
+            callback_query.answer("✅ 监控已添加")
+
+        elif data == "dn_append_no":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+
+            whitelist = user_states[user_id].get("whitelist", [])
+            blacklist = user_states[user_id].get("blacklist", [])
+            whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+            blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+            preserve_source = user_states[user_id].get("preserve_source", False)
+            forward_mode = user_states[user_id].get("forward_mode", "full")
+
+            complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, forward_mode, [], append_dn=False)
+            callback_query.answer("✅ 监控已添加")
+
+        elif data == "back_to_forward_mode":
+            if user_id not in user_states:
+                callback_query.answer("❌ 会话已过期", show_alert=True)
+                return
+
+            whitelist = user_states[user_id].get("whitelist", [])
+            blacklist = user_states[user_id].get("blacklist", [])
+            whitelist_regex = user_states[user_id].get("whitelist_regex", [])
+            blacklist_regex = user_states[user_id].get("blacklist_regex", [])
+            preserve_source = user_states[user_id].get("preserve_source", False)
+
+            # 使用已导入的函数，不需要重复导入
+            show_forward_mode_options(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source)
+            callback_query.answer()
         
     except Exception as e:
         print(f"Callback error: {e}")

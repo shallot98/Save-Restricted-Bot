@@ -5,15 +5,19 @@
 import time
 from bot.utils.logger import get_logger
 from config import load_watch_config
+from bot.services.peer_cache import initialize_peer_cache_on_startup_with_retry
 
 logger = get_logger(__name__)
 
 
 def import_watch_config_on_startup(acc):
     """
-    在启动时导入配置，复用手动添加的逻辑
+    在启动时导入配置，并初始化Peer缓存
 
-    该函数模拟手动添加监控时的初始化流程，确保使用相同的代码路径
+    该函数会：
+    1. 加载监控配置
+    2. 自动初始化所有配置的Peer（包括Bot）
+    3. 对于Bot用户，自动发送/start命令建立连接
 
     Args:
         acc: User客户端实例
@@ -55,12 +59,12 @@ def import_watch_config_on_startup(acc):
                         dest_id = watch_data
                         record_mode = False
 
-                    # 记录配置信息（不强制初始化，改为延迟加载）
+                    # 记录配置信息
                     if source_id and source_id != "me":
-                        logger.info(f"   📌 源频道: {source_id} (将在收到消息时自动初始化)")
+                        logger.info(f"   📌 源频道: {source_id}")
 
                     if not record_mode and dest_id and dest_id != "me":
-                        logger.info(f"   📌 目标频道: {dest_id} (将在转发时自动初始化)")
+                        logger.info(f"   📌 目标频道: {dest_id}")
                     elif record_mode:
                         logger.info(f"   📝 目标: 记录模式")
 
@@ -78,10 +82,14 @@ def import_watch_config_on_startup(acc):
         logger.info(f"✅ 配置导入完成: {success_count}/{total_configs} 成功")
 
         if failed_count > 0:
-            logger.warning(f"⚠️ {failed_count} 个配置初始化失败，将在接收消息时自动重试")
+            logger.warning(f"⚠️ {failed_count} 个配置初始化失败")
 
         logger.info("=" * 60)
         logger.info("")
+
+        # 初始化所有Peer缓存（包括自动处理Bot）
+        logger.info("🔧 开始初始化Peer缓存...")
+        initialize_peer_cache_on_startup_with_retry(acc, max_retries=3)
 
         return success_count > 0
 

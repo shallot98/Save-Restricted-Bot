@@ -32,6 +32,9 @@ from bot.handlers import register_all_handlers
 # 导入数据库
 from database import init_database
 
+# 导入自动校准调度器
+from bot.services.calibration_scheduler import start_scheduler, stop_scheduler
+
 
 def main():
     """主函数：协调所有模块启动Bot"""
@@ -54,10 +57,19 @@ def main():
             logger.error(f"⚠️ 数据库初始化时发生错误: {e}")
             logger.warning("⚠️ 继续启动，但记录模式可能无法工作")
 
-        # 5. 打印启动配置
+        # 5. 启动自动校准调度器
+        logger.info("🔧 正在启动自动校准调度器...")
+        try:
+            start_scheduler(interval=60)  # 每60秒检查一次
+            logger.info("✅ 自动校准调度器已启动")
+        except Exception as e:
+            logger.error(f"⚠️ 启动校准调度器时出错: {e}")
+            logger.warning("⚠️ 继续启动，但自动校准功能可能无法工作")
+
+        # 6. 打印启动配置
         print_startup_config(acc)
 
-        # 6. 启动Bot
+        # 7. 启动Bot
         logger.info("🎬 启动Bot主循环...")
         bot.run()
 
@@ -67,6 +79,15 @@ def main():
         logger.error(f"❌ Bot运行时发生错误: {e}", exc_info=True)
     finally:
         # 清理资源
+        logger.info("🧹 正在清理资源...")
+
+        # 停止自动校准调度器
+        try:
+            stop_scheduler()
+            logger.info("✅ 自动校准调度器已停止")
+        except Exception as e:
+            logger.error(f"⚠️ 停止校准调度器时出错: {e}")
+
         if acc is not None:
             try:
                 acc.stop()

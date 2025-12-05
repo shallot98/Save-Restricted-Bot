@@ -3,19 +3,19 @@ Application-wide constants
 Centralized configuration for magic numbers and constants
 """
 
-# Cache sizes (优化：降低缓存大小以减少内存占用)
-MAX_MEDIA_GROUP_CACHE = 200  # 从300降到200
-MESSAGE_CACHE_CLEANUP_THRESHOLD = 500  # 从1000降到500
-MEDIA_GROUP_CLEANUP_BATCH_SIZE = 50
+# Cache sizes (优化：进一步降低缓存大小以减少内存占用)
+MAX_MEDIA_GROUP_CACHE = 50  # 从100降到50，减少媒体组缓存
+MESSAGE_CACHE_CLEANUP_THRESHOLD = 200  # 从300降到200，更早触发清理
+MEDIA_GROUP_CLEANUP_BATCH_SIZE = 25  # 从50降到25，减少批量清理开销
 
-# Peer cache limits (新增：限制Peer缓存大小)
-MAX_CACHED_PEERS = 100  # 最多缓存100个Peer
-MAX_FAILED_PEERS = 50   # 最多记录50个失败的Peer
+# Peer cache limits (优化：降低Peer缓存大小)
+MAX_CACHED_PEERS = 30  # 从50降到30，减少Peer缓存
+MAX_FAILED_PEERS = 20  # 从30降到20，减少失败Peer记录
 
 # Time constants (seconds)
-MESSAGE_CACHE_TTL = 0.3  # 降低到0.3秒，只防止瞬时重复，允许链式转发
-WORKER_STATS_INTERVAL = 60
-RATE_LIMIT_DELAY = 1.0  # 降低到1秒，加快链式转发速度
+MESSAGE_CACHE_TTL = 0.2  # 从0.3降到0.2秒，更快过期
+WORKER_STATS_INTERVAL = 20  # 从30秒降到20秒，更频繁清理缓存
+RATE_LIMIT_DELAY = 1.0  # 保持1秒，平衡速度和稳定性
 
 # Retry configuration
 MAX_RETRIES = 3

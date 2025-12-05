@@ -4,3 +4,6 @@ flask
 flask-login
 bcrypt
 pillow
+webdavclient3
+requests
+libtorrent

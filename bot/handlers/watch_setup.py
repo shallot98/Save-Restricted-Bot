@@ -171,22 +171,22 @@ def show_preserve_source_options(chat_id, message_id, user_id):
 def show_forward_mode_options(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source):
     """Show forward mode options"""
     bot = get_bot_instance()
-    
+
     source_name = user_states[user_id].get("source_name", "未知")
     dest_name = user_states[user_id].get("dest_name", "未知")
-    
+
     user_states[user_id]["whitelist"] = whitelist
     user_states[user_id]["blacklist"] = blacklist
     user_states[user_id]["whitelist_regex"] = whitelist_regex
     user_states[user_id]["blacklist_regex"] = blacklist_regex
     user_states[user_id]["preserve_source"] = preserve_source
-    
+
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📦 完整转发", callback_data="fwdmode_full")],
         [InlineKeyboardButton("🎯 提取模式", callback_data="fwdmode_extract")],
         [InlineKeyboardButton("🔙 取消", callback_data="menu_watch")]
     ])
-    
+
     text = "**➕ 添加监控任务**\n\n"
     text += f"来源：`{source_name}`\n"
     text += f"目标：`{dest_name}`\n\n"
@@ -194,34 +194,61 @@ def show_forward_mode_options(chat_id, message_id, user_id, whitelist, blacklist
     text += "📦 **完整转发** - 转发整条消息（默认）\n"
     text += "🎯 **提取模式** - 使用正则提取特定内容后转发\n\n"
     text += "💡 提取模式需要设置提取规则"
-    
+
     bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
 
 
-def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, forward_mode, extract_patterns):
+def show_dn_append_options(chat_id, message_id, user_id, forward_mode):
+    """Show DN append options for forward mode"""
+    bot = get_bot_instance()
+
+    source_name = user_states[user_id].get("source_name", "未知")
+    dest_name = user_states[user_id].get("dest_name", "未知")
+
+    user_states[user_id]["forward_mode"] = forward_mode
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ 是", callback_data="dn_append_yes")],
+        [InlineKeyboardButton("❌ 否（默认）", callback_data="dn_append_no")],
+        [InlineKeyboardButton("🔙 返回", callback_data="back_to_forward_mode")]
+    ])
+
+    text = "**➕ 添加监控任务**\n\n"
+    text += f"来源：`{source_name}`\n"
+    text += f"目标：`{dest_name}`\n"
+    text += f"转发模式：{'🎯 提取模式' if forward_mode == 'extract' else '📦 完整转发'}\n\n"
+    text += "**是否为磁力链接补全 dn 参数？**\n\n"
+    text += "✅ **是** - 自动为缺少 dn 参数的磁力链接补全文件名\n"
+    text += "❌ **否** - 保持磁力链接原样（默认）\n\n"
+    text += "💡 dn 参数用于指定下载文件名，补全后可以提升下载体验"
+
+    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+
+
+def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, forward_mode, extract_patterns, append_dn=False):
     """Complete watch setup for forward mode"""
     bot = get_bot_instance()
-    
+
     try:
         source_id = user_states[user_id]["source_id"]
         source_name = user_states[user_id]["source_name"]
         dest_id = user_states[user_id]["dest_id"]
         dest_name = user_states[user_id]["dest_name"]
-        
+
         watch_config = load_watch_config()
-        
+
         if user_id not in watch_config:
             watch_config[user_id] = {}
-        
+
         # Use composite key: source_id|dest_id to allow one source to multiple targets
         watch_key = f"{source_id}|{dest_id}"
-        
+
         if watch_key in watch_config[user_id]:
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
             bot.edit_message_text(chat_id, message_id, f"**⚠️ 该监控任务已存在**\n\n来源：`{source_name}`\n目标：`{dest_name}`", reply_markup=keyboard)
             del user_states[user_id]
             return
-        
+
         watch_config[user_id][watch_key] = {
             "source": source_id,
             "dest": dest_id,
@@ -232,12 +259,13 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
             "preserve_forward_source": preserve_source,
             "forward_mode": forward_mode,
             "extract_patterns": extract_patterns,
+            "append_dn_to_magnet": append_dn,
             "record_mode": False
         }
         save_watch_config(watch_config)
-        
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
-        
+
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控列表", callback_data="watch_list")]])
+
         result_msg = f"**✅ 监控任务添加成功！**\n\n"
         result_msg += f"来源：`{source_name}`\n"
         result_msg += f"目标：`{dest_name}`\n"
@@ -252,6 +280,8 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
             result_msg += f"正则黑名单：`{', '.join(blacklist_regex)}`\n"
         if extract_patterns:
             result_msg += f"提取规则：`{', '.join(extract_patterns)}`\n"
+        if append_dn:
+            result_msg += f"DN补全：`已启用`\n"
         if preserve_source:
             result_msg += f"保留来源：`是`\n"
         result_msg += "\n从现在开始，新消息将自动转发 🎉"
@@ -302,8 +332,8 @@ def complete_watch_setup_single(chat_id, message_id, user_id, whitelist, blackli
         }
         save_watch_config(watch_config)
         
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控管理", callback_data="menu_watch")]])
-        
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控列表", callback_data="watch_list")]])
+
         result_msg = f"**✅ 监控任务添加成功！**\n\n"
         result_msg += f"来源：`{source_name}`\n"
         result_msg += f"模式：📝 **记录模式**\n"
@@ -359,19 +389,19 @@ def handle_add_source(message, user_id):
         user_states[user_id]["source_id"] = source_id
         user_states[user_id]["source_name"] = source_name
         user_states[user_id]["action"] = "choose_mode"
-        
+
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📝 单一监控（记录模式）", callback_data="mode_single")],
-            [InlineKeyboardButton("➡️ 转发到另一个", callback_data="mode_forward")],
+            [InlineKeyboardButton("📝 记录模式", callback_data="watch_mode_record")],
+            [InlineKeyboardButton("➡️ 转发模式", callback_data="watch_mode_forward")],
             [InlineKeyboardButton("❌ 取消", callback_data="menu_watch")]
         ])
-        
+
         text = "**➕ 添加监控任务**\n\n"
         text += f"✅ 来源已设置：`{source_name}`\n\n"
         text += "**步骤 2：** 选择监控模式\n\n"
-        text += "📝 **单一监控（记录模式）** - 只监控这一个频道，消息保存到网页笔记\n"
-        text += "➡️ **转发到另一个** - 从这个频道转发消息到另一个频道/群组"
-        
+        text += "📝 **记录模式** - 只监控这一个频道，消息保存到网页笔记\n"
+        text += "➡️ **转发模式** - 从这个频道转发消息到另一个频道/群组"
+
         bot.send_message(message.chat.id, text, reply_markup=keyboard)
     
     except ChannelPrivate:
@@ -386,7 +416,7 @@ def handle_add_dest(message, user_id):
     """Handle add destination step"""
     bot = get_bot_instance()
     acc = get_acc_instance()
-    
+
     try:
         if message.forward_from_chat:
             dest_id = str(message.forward_from_chat.id)
@@ -409,10 +439,10 @@ def handle_add_dest(message, user_id):
                 except ValueError:
                     bot.send_message(message.chat.id, "**❌ 无效的频道/群组ID**\n\n请输入正确的格式")
                     return
-        
+
         user_states[user_id]["dest_id"] = dest_id
         user_states[user_id]["dest_name"] = dest_name
-        
+
         msg = bot.send_message(message.chat.id, "⏳ 正在设置...")
         show_filter_options(message.chat.id, msg.id, user_id)
     

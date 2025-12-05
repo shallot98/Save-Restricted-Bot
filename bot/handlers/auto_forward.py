@@ -82,6 +82,17 @@ def create_auto_forward_handler(acc, message_queue):
             # 获取消息文本
             message_text = message.text or message.caption or ""
 
+            # 优化：只在必要时加载媒体组（减少内存占用）
+            # 如果是媒体组且没有文本，尝试从第一条消息获取caption
+            if message.media_group_id and not message_text:
+                try:
+                    media_group = acc.get_media_group(message.chat.id, message.id)
+                    if media_group and len(media_group) > 0:
+                        message_text = media_group[0].text or media_group[0].caption or ""
+                        logger.debug(f"📸 从媒体组第一条消息获取文本: {len(message_text)} 字符")
+                except Exception as e:
+                    logger.debug(f"📸 获取媒体组文本失败: {e}")
+
             # 查找所有匹配的监控配置
             watch_config = load_watch_config()
             enqueued_count = 0
@@ -101,7 +112,6 @@ def create_auto_forward_handler(acc, message_queue):
 
                         # 缓存目标Peer（如果是转发模式）
                         dest_chat_id = dest if not record_mode else None
-                        dest_peer_ready = True  # 记录模式默认就绪
 
                         if dest_chat_id and dest_chat_id != "me":
                             # 检查目标是否也是监控源
@@ -110,25 +120,13 @@ def create_auto_forward_handler(acc, message_queue):
                                 from bot.utils.peer import is_dest_cached
                                 if is_dest_cached(str(dest_chat_id)):
                                     logger.debug(f"💡 目标频道 {dest_chat_id} 也是监控源，Peer已缓存")
-                                    dest_peer_ready = True
                                 else:
                                     # 尝试缓存（即使是监控源，也需要确保能转发）
                                     logger.info(f"🔄 目标频道 {dest_chat_id} 也是监控源，尝试缓存Peer...")
-                                    dest_peer_ready = cache_peer_if_needed(acc, dest_chat_id, "目标频道")
-                                    if not dest_peer_ready:
-                                        logger.warning(f"⚠️ 目标频道缓存失败: {dest_chat_id}，消息将被跳过（60秒后重试）")
-                                    else:
-                                        logger.info(f"✅ 目标频道 {dest_chat_id} Peer缓存成功")
+                                    cache_peer_if_needed(acc, dest_chat_id, "目标频道")
                             else:
                                 # 普通目标频道 - 尝试缓存
-                                dest_peer_ready = cache_peer_if_needed(acc, dest_chat_id, "目标频道")
-                                if not dest_peer_ready:
-                                    logger.warning(f"⚠️ 目标频道缓存失败: {dest_chat_id}，消息将被跳过（60秒后重试）")
-
-                        # 如果目标Peer未就绪，跳过入队
-                        if not dest_peer_ready:
-                            logger.warning(f"⏭️ 跳过消息（目标频道未就绪）: user={user_id}, dest={dest_chat_id}")
-                            continue
+                                cache_peer_if_needed(acc, dest_chat_id, "目标频道")
 
                         # 媒体组去重
                         if message.media_group_id:

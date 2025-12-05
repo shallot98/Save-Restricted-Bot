@@ -17,7 +17,10 @@ from bot.handlers.watch_setup import (
 from bot.utils.status import user_states
 from bot.utils.helpers import get_message_type
 from bot.utils.progress import progress, downstatus, upstatus
+from bot.utils.logger import get_logger
 from config import load_watch_config, save_watch_config
+
+logger = get_logger(__name__)
 
 
 def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
@@ -129,13 +132,19 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
         elif action.startswith("edit_filter_"):
             parts = action.split("_")
             filter_type = parts[2]
-            color = parts[3]
+
+            # Handle extract filter (no color part)
+            if filter_type == "extract":
+                color = None
+            else:
+                color = parts[3] if len(parts) > 3 else None
+
             task_id = user_states[user_id].get("task_id")
             watch_key = user_states[user_id].get("watch_key")
-            
+
             watch_config = load_watch_config()
             user_id_str = str(message.from_user.id)
-            
+
             if filter_type == "kw":
                 keywords = [kw.strip() for kw in message.text.split(',') if kw.strip()]
                 key = "whitelist" if color == "white" else "blacklist"
@@ -150,11 +159,20 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                 except re.error as e:
                     bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
                     return
-            
+            elif filter_type == "extract":
+                patterns = [p.strip() for p in message.text.split(',') if p.strip()]
+                try:
+                    for pattern in patterns:
+                        re.compile(pattern)
+                    watch_config[user_id_str][watch_key]["extract_patterns"] = patterns
+                except re.error as e:
+                    bot.send_message(message.chat.id, f"**❌ 正则表达式错误：** `{str(e)}`\n\n请重新输入")
+                    return
+
             save_watch_config(watch_config)
-            
+
             del user_states[user_id]
-            
+
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回详情", callback_data=f"watch_view_{task_id}")]])
             bot.send_message(message.chat.id, "**✅ 规则已更新**", reply_markup=keyboard)
             return
@@ -163,21 +181,21 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
             patterns = [p.strip() for p in message.text.split(',') if p.strip()]
             task_id = user_states[user_id].get("task_id")
             watch_key = user_states[user_id].get("watch_key")
-            
+
             if patterns:
                 try:
                     for pattern in patterns:
                         re.compile(pattern)
-                    
+
                     watch_config = load_watch_config()
                     user_id_str = str(message.from_user.id)
-                    
+
                     if isinstance(watch_config[user_id_str][watch_key], dict):
                         watch_config[user_id_str][watch_key]["extract_patterns"] = patterns
-                    
+
                     save_watch_config(watch_config)
                     del user_states[user_id]
-                    
+
                     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回详情", callback_data=f"watch_view_{task_id}")]])
                     bot.send_message(message.chat.id, "**✅ 提取规则已设置**", reply_markup=keyboard)
                 except re.error as e:
@@ -216,32 +234,48 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
         except:
             toID = fromID
 
+        # 统计转发结果
+        total_messages = toID - fromID + 1
+        success_count = 0
+        failed_count = 0
+        failed_ids = []
+
+        logger.info(f"📤 开始批量转发: 共 {total_messages} 条消息 (ID: {fromID}-{toID})")
+
         for msgid in range(fromID, toID+1):
 
             # private
             if "https://t.me/c/" in message.text:
                 chatid = int("-100" + datas[4])
-                
+
                 if acc is None:
                     bot.send_message(message.chat.id, f"**❌ 未设置 String Session**", reply_to_message_id=message.id)
                     return
-                
+
                 try:
                     handle_private(message, chatid, msgid)
+                    success_count += 1
+                    logger.debug(f"✅ 消息 {msgid} 转发成功 ({success_count}/{total_messages})")
                 except Exception as e:
-                    pass  # Silently ignore forwarding failures
-            
+                    failed_count += 1
+                    failed_ids.append(msgid)
+                    logger.warning(f"⚠️ 消息 {msgid} 转发失败: {type(e).__name__}: {e}")
+
             # bot
             elif "https://t.me/b/" in message.text:
                 username = datas[4]
-                
+
                 if acc is None:
                     bot.send_message(message.chat.id, f"**❌ 未设置 String Session**", reply_to_message_id=message.id)
                     return
                 try:
                     handle_private(message, username, msgid)
+                    success_count += 1
+                    logger.debug(f"✅ 消息 {msgid} 转发成功 ({success_count}/{total_messages})")
                 except Exception as e:
-                    pass  # Silently ignore forwarding failures
+                    failed_count += 1
+                    failed_ids.append(msgid)
+                    logger.warning(f"⚠️ 消息 {msgid} 转发失败: {type(e).__name__}: {e}")
 
             # public
             else:
@@ -257,17 +291,34 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
                         bot.copy_message(message.chat.id, msg.chat.id, msg.id)
                     else:
                         bot.copy_media_group(message.chat.id, msg.chat.id, msg.id)
+                    success_count += 1
+                    logger.debug(f"✅ 消息 {msgid} 转发成功 ({success_count}/{total_messages})")
                 except:
                     if acc is None:
                         bot.send_message(message.chat.id, f"**❌ 未设置 String Session**", reply_to_message_id=message.id)
                         return
                     try:
                         handle_private(message, username, msgid)
+                        success_count += 1
+                        logger.debug(f"✅ 消息 {msgid} 转发成功 ({success_count}/{total_messages})")
                     except Exception as e:
-                        pass  # Silently ignore forwarding failures
+                        failed_count += 1
+                        failed_ids.append(msgid)
+                        logger.warning(f"⚠️ 消息 {msgid} 转发失败: {type(e).__name__}: {e}")
 
-            # wait time
-            time.sleep(3)
+            # 减少等待时间，避免超时
+            time.sleep(1)
+
+        # 发送转发结果摘要
+        if failed_count > 0:
+            failed_ids_str = ", ".join(map(str, failed_ids))
+            summary = f"📊 **批量转发完成**\n\n✅ 成功: {success_count}/{total_messages}\n❌ 失败: {failed_count}\n\n失败的消息ID: {failed_ids_str}"
+            logger.warning(f"批量转发完成: 成功 {success_count}, 失败 {failed_count}, 失败ID: {failed_ids_str}")
+        else:
+            summary = f"✅ **批量转发完成**\n\n成功转发 {success_count}/{total_messages} 条消息"
+            logger.info(f"批量转发完成: 全部成功 ({success_count}/{total_messages})")
+
+        bot.send_message(message.chat.id, summary, reply_to_message_id=message.id)
 
 
 def handle_private(message: pyrogram.types.messages_and_media.message.Message, chatid: int, msgid: int):

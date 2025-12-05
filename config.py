@@ -16,6 +16,8 @@ CONFIG_DIR = os.path.join(DATA_DIR, 'config')
 MEDIA_DIR = os.path.join(DATA_DIR, 'media')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
 WATCH_FILE = os.path.join(CONFIG_DIR, 'watch_config.json')
+WEBDAV_CONFIG_FILE = os.path.join(CONFIG_DIR, 'webdav_config.json')
+VIEWER_CONFIG_FILE = os.path.join(CONFIG_DIR, 'viewer_config.json')
 
 # Ensure directories exist
 os.makedirs(CONFIG_DIR, exist_ok=True)
@@ -113,14 +115,20 @@ def get_monitored_sources() -> Set[str]:
 
     Note: This function now returns the pre-loaded set instead of lazy loading.
     The set is initialized at startup by reload_monitored_sources().
+    If the set is empty, it will attempt to reload once.
     """
     global _monitored_sources
 
-    # 如果集合为空，记录警告（不应该发生）
+    # 如果集合为空，尝试重新加载一次（懒加载机制）
     if not _monitored_sources:
-        logger.warning("⚠️ 监控源集合为空！这可能表示配置未正确加载。")
-        logger.warning("   请检查 watch_config.json 文件是否存在且格式正确。")
-        logger.warning("   如果问题持续，请尝试重新添加监控配置。")
+        logger.warning("⚠️ 监控源集合为空，尝试重新加载...")
+        reload_monitored_sources()
+
+        # 再次检查
+        if not _monitored_sources:
+            logger.warning("⚠️ 重新加载后监控源仍为空！")
+            logger.warning("   请检查 watch_config.json 文件是否存在且格式正确。")
+            logger.warning("   如果问题持续，请尝试重新添加监控配置。")
 
     return _monitored_sources
 
@@ -153,3 +161,78 @@ def save_watch_config(config: Dict[str, Any], auto_reload: bool = True):
 # 初始化为空集合，将在启动时通过 reload_monitored_sources() 加载
 # 不再使用懒加载机制，避免竞态条件
 _monitored_sources = set()
+
+
+def load_webdav_config() -> Dict[str, Any]:
+    """Load WebDAV configuration from file"""
+    if os.path.exists(WEBDAV_CONFIG_FILE):
+        try:
+            with open(WEBDAV_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.error(f"❌ 加载 WebDAV 配置失败: {e}")
+
+    # 返回默认配置
+    default_config = {
+        "enabled": False,
+        "url": "",
+        "username": "",
+        "password": "",
+        "base_path": "/telegram_media",
+        "keep_local_copy": False
+    }
+
+    # 保存默认配置
+    save_webdav_config(default_config)
+    return default_config
+
+
+def save_webdav_config(config: Dict[str, Any]):
+    """Save WebDAV configuration to file
+
+    Args:
+        config: Configuration dictionary to save
+    """
+    logger.info(f"💾 保存 WebDAV 配置到文件: {WEBDAV_CONFIG_FILE}")
+
+    with open(WEBDAV_CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=4, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+
+    logger.info("✅ WebDAV 配置文件保存成功")
+
+
+def load_viewer_config() -> Dict[str, Any]:
+    """Load viewer website configuration from file"""
+    if os.path.exists(VIEWER_CONFIG_FILE):
+        try:
+            with open(VIEWER_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.error(f"❌ 加载观看网站配置失败: {e}")
+
+    # 返回默认配置
+    default_config = {
+        "viewer_url": "https://example.com/watch?dn="
+    }
+
+    # 保存默认配置
+    save_viewer_config(default_config)
+    return default_config
+
+
+def save_viewer_config(config: Dict[str, Any]):
+    """Save viewer website configuration to file
+
+    Args:
+        config: Configuration dictionary to save
+    """
+    logger.info(f"💾 保存观看网站配置到文件: {VIEWER_CONFIG_FILE}")
+
+    with open(VIEWER_CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=4, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+
+    logger.info("✅ 观看网站配置文件保存成功")

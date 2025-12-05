@@ -258,7 +258,7 @@
             <div class="media-preview">
                 <div class="media-grid">
                     {% for media_path in note.media_paths %}
-                    <img src="/media/{{ media_path }}" alt="Media preview">
+                    <img src="/media/{{ media_path | urlencode }}" alt="Media preview">
                     {% endfor %}
                 </div>
                 {% if note.media_type == 'video' %}
@@ -269,7 +269,7 @@
             </div>
             {% elif note.media_path %}
             <div class="media-preview">
-                <img src="/media/{{ note.media_path }}" alt="Media preview">
+                <img src="/media/{{ note.media_path | urlencode }}" alt="Media preview">
                 {% if note.media_type == 'video' %}
                 <div class="media-badge">📹 视频缩略图</div>
                 {% elif note.media_type == 'animation' %}
@@ -293,6 +293,7 @@
             {% endif %}
 
             <form method="POST" action="/edit_note/{{ note.id }}">
+                <input type="hidden" name="return_url" value="{{ return_url }}">
                 <div class="form-group">
                     <label for="message_text">📝 笔记内容</label>
                     <textarea id="message_text" name="message_text" placeholder="输入笔记内容...">{{ note.message_text or '' }}</textarea>
@@ -302,7 +303,7 @@
                     <button type="submit" class="btn btn-primary">
                         <span>💾</span>保存修改
                     </button>
-                    <a href="/notes" class="btn btn-secondary">
+                    <a href="{{ return_url }}" class="btn btn-secondary">
                         <span>↩️</span>返回列表
                     </a>
                 </div>

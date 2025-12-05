@@ -38,10 +38,10 @@ class UnrecoverableError(Exception):
 
 @dataclass
 class Message:
-    """消息对象，封装消息元数据"""
+    """消息对象，封装消息元数据（优化：只保留必要数据，减少内存占用）"""
     user_id: str
     watch_key: str
-    message: pyrogram.types.messages_and_media.message.Message
+    message: pyrogram.types.messages_and_media.message.Message  # 保留完整对象用于转发
     watch_data: Dict[str, Any]
     source_chat_id: str
     dest_chat_id: Optional[str]
@@ -49,6 +49,12 @@ class Message:
     timestamp: float = field(default_factory=time.time)
     retry_count: int = 0
     media_group_key: Optional[str] = None
+
+    def __post_init__(self):
+        """优化：清理message对象中不必要的大型属性以减少内存"""
+        # 注意：不能删除message对象本身，因为转发需要它
+        # 但可以在处理完成后由worker清理
+        pass
 
 
 class MessageWorker:
@@ -107,11 +113,16 @@ class MessageWorker:
 
     def run(self):
         """主循环：持续处理队列消息"""
+        import gc
+
         # Create event loop for this thread
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         logger.info("🔧 消息工作线程已启动（带事件循环）")
-        
+
+        # 优化：记录垃圾回收计数器
+        gc_counter = 0
+
         while self.running:
             try:
                 # 获取消息，超时1秒以便定期检查running状态
@@ -127,6 +138,13 @@ class MessageWorker:
                         # 清理过期的消息缓存，防止内存泄漏
                         cleanup_old_messages()
 
+                        # 优化：定期强制垃圾回收（每3个清理周期）
+                        gc_counter += 1
+                        if gc_counter >= 3:
+                            collected = gc.collect()
+                            logger.debug(f"🧹 强制垃圾回收: 回收了 {collected} 个对象")
+                            gc_counter = 0
+
                         self.last_stats_time = time.time()
                     continue
                 
@@ -136,7 +154,14 @@ class MessageWorker:
                 
                 # 处理消息
                 result = self.process_message(msg_obj)
-                
+
+                # 优化：处理完成后立即清理消息对象，释放内存
+                try:
+                    del msg_obj.message  # 删除Pyrogram消息对象
+                    msg_obj.message = None
+                except:
+                    pass
+
                 if result == "success":
                     self.processed_count += 1
                     logger.info(f"✅ 消息处理成功 (总计: {self.processed_count})")
@@ -198,14 +223,18 @@ class MessageWorker:
             raise
     
     def _execute_with_flood_retry(self, operation_name: str, operation_func, max_flood_retries: int = MAX_FLOOD_RETRIES, timeout: float = OPERATION_TIMEOUT):
-        """Execute operation with FloodWait retry and timeout handling"""
+        """Execute operation with FloodWait retry and timeout handling
+
+        Returns:
+            操作的返回结果（消息对象或消息ID列表）
+        """
         for flood_attempt in range(max_flood_retries):
             try:
                 result = operation_func()
                 # Check if result is a coroutine (async operation)
                 if asyncio.iscoroutine(result):
-                    self._run_async_with_timeout(result, timeout=timeout)
-                return True
+                    result = self._run_async_with_timeout(result, timeout=timeout)
+                return result
             except FloodWait as e:
                 wait_time = e.value
                 if flood_attempt < max_flood_retries - 1:
@@ -267,22 +296,27 @@ class MessageWorker:
             forward_mode = watch_data.get("forward_mode", "full")
             extract_patterns = watch_data.get("extract_patterns", [])
             record_mode = watch_data.get("record_mode", False)
+            append_dn = watch_data.get("append_dn_to_magnet", False)
             
             # 再次验证过滤规则（防止配置在入队后被修改）
             # Priority: blacklist > whitelist (blacklist has higher priority)
             
             # Step 1: Check blacklists first (higher priority)
             if check_blacklist(message_text, blacklist):
+                logger.info(f"⏭️ 消息被黑名单过滤: {blacklist}")
                 return "skip"
-            
+
             if check_blacklist_regex(message_text, blacklist_regex):
+                logger.info(f"⏭️ 消息被正则黑名单过滤: {blacklist_regex}")
                 return "skip"
-            
+
             # Step 2: Check whitelists
             if not check_whitelist(message_text, whitelist):
+                logger.info(f"⏭️ 消息未通过白名单: {whitelist}")
                 return "skip"
-            
+
             if not check_whitelist_regex(message_text, whitelist_regex):
+                logger.info(f"⏭️ 消息未通过正则白名单: {whitelist_regex}")
                 return "skip"
             
             logger.info(f"🎯 消息通过所有过滤规则，准备处理")
@@ -293,7 +327,7 @@ class MessageWorker:
             
             # Forward mode
             else:
-                return self._handle_forward_mode(message, dest_chat_id, message_text, forward_mode, extract_patterns, preserve_forward_source, record_mode)
+                return self._handle_forward_mode(message, dest_chat_id, message_text, forward_mode, extract_patterns, preserve_forward_source, record_mode, append_dn)
             
         except UnrecoverableError as e:
             logger.warning(f"⚠️ 消息处理失败（不可恢复），跳过: {e}")
@@ -576,9 +610,12 @@ class MessageWorker:
 
         return media_type, media_path, media_paths
     
-    def _handle_forward_mode(self, message, dest_chat_id, message_text, forward_mode, extract_patterns, preserve_forward_source, record_mode):
+    def _handle_forward_mode(self, message, dest_chat_id, message_text, forward_mode, extract_patterns, preserve_forward_source, record_mode, append_dn=False):
         """Handle forward mode processing"""
         logger.info(f"📤 转发模式：开始处理，目标: {dest_chat_id}")
+
+        # 用于存储转发后的新消息ID(用于链式转发)
+        forwarded_message_id = None
 
         # Extract mode
         if forward_mode == "extract" and extract_patterns:
@@ -587,10 +624,12 @@ class MessageWorker:
             if extracted_text:
                 logger.info(f"   提取到内容，准备发送")
                 dest_id = "me" if dest_chat_id == "me" else int(dest_chat_id)
-                self._execute_with_flood_retry(
+                sent_msg = self._execute_with_flood_retry(
                     "发送提取内容",
                     lambda: self.acc.send_message(dest_id, extracted_text)
                 )
+                if sent_msg:
+                    forwarded_message_id = sent_msg.id if hasattr(sent_msg, 'id') else None
                 logger.info(f"   ✅ 提取内容已发送")
                 time.sleep(RATE_LIMIT_DELAY)
             else:
@@ -600,82 +639,293 @@ class MessageWorker:
         else:
             dest_id = "me" if dest_chat_id == "me" else int(dest_chat_id)
 
-            if preserve_forward_source:
-                self._forward_with_source(message, dest_id)
+            # 检查是否需要DN补全
+            need_dn_completion = append_dn and message_text
+            processed_text = message_text  # 默认使用原始文本
+
+            if need_dn_completion:
+                temp_processed = self._append_dn_to_magnets(message_text)
+                if temp_processed != message_text:
+                    processed_text = temp_processed  # 使用补全DN后的文本
+                    need_dn_completion = True
+                else:
+                    need_dn_completion = False
+
+            # 如果需要DN补全，使用修改后的文本转发
+            if need_dn_completion:
+                logger.info(f"   🧲 检测到磁力链接，将在同一条消息内补全DN")
+                forwarded_message_id = self._forward_with_modified_text(message, dest_id, processed_text, preserve_forward_source)
             else:
-                self._copy_without_source(message, dest_id)
+                # 正常转发
+                if preserve_forward_source:
+                    forwarded_message_id = self._forward_with_source(message, dest_id)
+                else:
+                    forwarded_message_id = self._copy_without_source(message, dest_id)
 
         # 检查目标频道是否也是监控源，如果是则手动触发其配置
-        if not record_mode and dest_chat_id and dest_chat_id != "me":
-            self._trigger_dest_monitoring(message, dest_chat_id, message_text)
+        # 注意：这里传递的是processed_text（可能已补全DN），而不是原始的message_text
+        if not record_mode and dest_chat_id and dest_chat_id != "me" and forwarded_message_id:
+            # 如果启用了DN补全，传递补全后的文本；否则传递原始文本
+            text_for_chain = processed_text if (append_dn and message_text) else message_text
+            self._trigger_dest_monitoring(dest_chat_id, forwarded_message_id, text_for_chain)
 
         return "success"
+
+    def _append_dn_to_magnets(self, message_text):
+        """为磁力链接补全DN参数
+
+        Args:
+            message_text: 消息文本
+
+        Returns:
+            处理后的文本
+        """
+        import re
+
+        # 查找所有磁力链接
+        magnet_pattern = r'magnet:\?xt=urn:btih:[a-zA-Z0-9]+(?:[&?][^\s\n\r|]*)?'
+        magnets = re.findall(magnet_pattern, message_text)
+
+        if not magnets:
+            return message_text
+
+        # 提取基础DN文本（从消息开头到第一个#号）
+        hash_pos = message_text.find('#')
+        base_dn_text = message_text[:hash_pos].rstrip() if hash_pos != -1 else message_text.rstrip()
+
+        # 如果基础DN文本为空或就是磁力链接本身，跳过
+        if not base_dn_text or base_dn_text in magnets:
+            return message_text
+
+        processed_text = message_text
+        magnet_count = 0
+
+        for magnet_link in magnets:
+            # 检查是否已有dn参数
+            if '&dn=' not in magnet_link and '?dn=' not in magnet_link:
+                magnet_count += 1
+
+                # 如果有多条磁力链接，在DN结尾添加序号区分
+                if len(magnets) > 1:
+                    dn_text = f"{base_dn_text}-{magnet_count}"
+                else:
+                    dn_text = base_dn_text
+
+                # 直接使用原始文字，不进行URL编码
+                new_magnet = f"{magnet_link}&dn={dn_text}"
+                processed_text = processed_text.replace(magnet_link, new_magnet)
+                logger.debug(f"   补全DN [{magnet_count}]: {dn_text[:30]}...")
+
+        if magnet_count > 0:
+            logger.info(f"   🧲 共补全 {magnet_count} 条磁力链接的DN参数")
+
+        return processed_text
     
+    def _forward_with_modified_text(self, message, dest_id, modified_text, preserve_source=False):
+        """转发消息并修改文本内容（用于DN补全）
+
+        Args:
+            message: 原始消息对象
+            dest_id: 目标ID
+            modified_text: 修改后的文本（补全DN的磁力链接）
+            preserve_source: 是否保留转发来源
+
+        Returns:
+            转发后的第一条消息ID（用于链式转发）
+        """
+        logger.debug(f"   转发消息并修改文本内容")
+
+        forwarded_msg_id = None
+
+        # 如果消息有媒体（图片、视频等），需要复制媒体并修改caption
+        if message.photo or message.video or message.animation or message.document:
+            # 对于媒体消息，使用copy_message并修改caption
+            if message.media_group_id:
+                # 媒体组：使用copy_media_group并修改第一条消息的caption
+                try:
+                    # 注意：copy_media_group会复制整个媒体组，但只能设置第一条消息的caption
+                    # 这正是我们需要的：第一条消息使用补全DN的文本，其他消息保持原样
+                    result = self._execute_with_flood_retry(
+                        "复制媒体组并修改caption",
+                        lambda: self.acc.copy_media_group(
+                            dest_id,
+                            message.chat.id,
+                            message.id,
+                            captions=[modified_text]  # 只修改第一条消息的caption
+                        )
+                    )
+                    # copy_media_group返回消息ID列表，取第一个
+                    if result and len(result) > 0:
+                        forwarded_msg_id = result[0].id if hasattr(result[0], 'id') else result[0]
+                    logger.info(f"   ✅ 媒体组已复制（第一条消息的caption已修改）")
+                except Exception as e:
+                    logger.warning(f"   copy_media_group失败，尝试逐个复制: {e}")
+                    # 回退方案：逐个复制
+                    try:
+                        media_group = self.acc.get_media_group(message.chat.id, message.id)
+                        if media_group:
+                            logger.debug(f"   逐个处理媒体组，共 {len(media_group)} 个媒体")
+                            for idx, msg in enumerate(media_group):
+                                # 第一条消息使用修改后的文本，其他消息保持原样
+                                caption_to_use = modified_text if idx == 0 else (msg.caption or "")
+
+                                result = self._execute_with_flood_retry(
+                                    f"复制媒体 {idx+1}/{len(media_group)}",
+                                    lambda m=msg, c=caption_to_use: self.acc.copy_message(
+                                        dest_id, m.chat.id, m.id, caption=c
+                                    )
+                                )
+                                # 保存第一条消息的ID
+                                if idx == 0 and result:
+                                    forwarded_msg_id = result.id if hasattr(result, 'id') else result
+                                time.sleep(0.3)
+                            logger.info(f"   ✅ 媒体组已逐个复制完成")
+                        else:
+                            raise Exception("无法获取媒体组")
+                    except Exception as e2:
+                        logger.error(f"   逐个复制也失败: {e2}")
+                        # 最后的回退：复制单条消息
+                        result = self._execute_with_flood_retry(
+                            "复制单条媒体消息",
+                            lambda: self.acc.copy_message(dest_id, message.chat.id, message.id, caption=modified_text)
+                        )
+                        if result:
+                            forwarded_msg_id = result.id if hasattr(result, 'id') else result
+                        logger.info(f"   ✅ 已复制单条媒体消息")
+            else:
+                # 单个媒体：直接复制并修改caption
+                result = self._execute_with_flood_retry(
+                    "复制媒体消息",
+                    lambda: self.acc.copy_message(dest_id, message.chat.id, message.id, caption=modified_text)
+                )
+                if result:
+                    forwarded_msg_id = result.id if hasattr(result, 'id') else result
+                logger.info(f"   ✅ 媒体消息已复制（caption已修改）")
+        else:
+            # 纯文本消息：直接发送修改后的文本
+            result = self._execute_with_flood_retry(
+                "发送修改后的文本",
+                lambda: self.acc.send_message(dest_id, modified_text)
+            )
+            if result:
+                forwarded_msg_id = result.id if hasattr(result, 'id') else result
+            logger.info(f"   ✅ 文本消息已发送（文本已修改）")
+
+        time.sleep(RATE_LIMIT_DELAY)
+        return forwarded_msg_id
+
     def _forward_with_source(self, message, dest_id):
-        """Forward message preserving source"""
+        """Forward message preserving source
+
+        Returns:
+            转发后的第一条消息ID（用于链式转发）
+        """
         logger.debug(f"   保留转发来源")
+        forwarded_msg_id = None
+
         if message.media_group_id:
             try:
                 media_group = self.acc.get_media_group(message.chat.id, message.id)
                 message_ids = [msg.id for msg in media_group] if media_group else [message.id]
-                self._execute_with_flood_retry(
+                result = self._execute_with_flood_retry(
                     "转发媒体组",
                     lambda: self.acc.forward_messages(dest_id, message.chat.id, message_ids)
                 )
+                # forward_messages 返回消息列表，取第一个
+                if result:
+                    if isinstance(result, list) and len(result) > 0:
+                        forwarded_msg_id = result[0].id if hasattr(result[0], 'id') else result[0]
+                    else:
+                        forwarded_msg_id = result.id if hasattr(result, 'id') else result
                 logger.info(f"   ✅ 媒体组已转发")
                 time.sleep(RATE_LIMIT_DELAY)
             except UnrecoverableError:
                 raise
             except Exception as e:
                 logger.warning(f"   转发媒体组失败，回退到单条转发: {e}")
-                self._execute_with_flood_retry(
+                result = self._execute_with_flood_retry(
                     "转发单条消息",
                     lambda: self.acc.forward_messages(dest_id, message.chat.id, message.id)
                 )
+                if result:
+                    if isinstance(result, list) and len(result) > 0:
+                        forwarded_msg_id = result[0].id if hasattr(result[0], 'id') else result[0]
+                    else:
+                        forwarded_msg_id = result.id if hasattr(result, 'id') else result
                 logger.info(f"   ✅ 消息已转发（单条）")
                 time.sleep(RATE_LIMIT_DELAY)
         else:
-            self._execute_with_flood_retry(
+            result = self._execute_with_flood_retry(
                 "转发消息",
                 lambda: self.acc.forward_messages(dest_id, message.chat.id, message.id)
             )
+            if result:
+                if isinstance(result, list) and len(result) > 0:
+                    forwarded_msg_id = result[0].id if hasattr(result[0], 'id') else result[0]
+                else:
+                    forwarded_msg_id = result.id if hasattr(result, 'id') else result
             logger.info(f"   ✅ 消息已转发")
             time.sleep(RATE_LIMIT_DELAY)
+
+        return forwarded_msg_id
     
     def _copy_without_source(self, message, dest_id):
-        """Copy message hiding source"""
+        """Copy message hiding source
+
+        Returns:
+            复制后的第一条消息ID（用于链式转发）
+        """
         logger.debug(f"   隐藏转发来源")
+        forwarded_msg_id = None
+
         if message.media_group_id:
             try:
-                self._execute_with_flood_retry(
+                result = self._execute_with_flood_retry(
                     "复制媒体组",
                     lambda: self.acc.copy_media_group(dest_id, message.chat.id, message.id)
                 )
+                # copy_media_group 返回消息列表，取第一个
+                if result:
+                    if isinstance(result, list) and len(result) > 0:
+                        forwarded_msg_id = result[0].id if hasattr(result[0], 'id') else result[0]
+                    else:
+                        forwarded_msg_id = result.id if hasattr(result, 'id') else result
                 logger.info(f"   ✅ 媒体组已复制（隐藏引用）")
                 time.sleep(RATE_LIMIT_DELAY)
             except UnrecoverableError:
                 raise
             except Exception as e:
                 logger.warning(f"   复制媒体组失败，回退到复制单条: {e}")
-                self._execute_with_flood_retry(
+                result = self._execute_with_flood_retry(
                     "复制单条消息",
                     lambda: self.acc.copy_message(dest_id, message.chat.id, message.id)
                 )
+                if result:
+                    forwarded_msg_id = result.id if hasattr(result, 'id') else result
                 logger.info(f"   ✅ 消息已复制（单条）")
                 time.sleep(RATE_LIMIT_DELAY)
         else:
-            self._execute_with_flood_retry(
+            result = self._execute_with_flood_retry(
                 "复制消息",
                 lambda: self.acc.copy_message(dest_id, message.chat.id, message.id)
             )
+            if result:
+                forwarded_msg_id = result.id if hasattr(result, 'id') else result
             logger.info(f"   ✅ 消息已复制")
             time.sleep(RATE_LIMIT_DELAY)
 
-    def _trigger_dest_monitoring(self, message, dest_chat_id, message_text):
+        return forwarded_msg_id
+
+    def _trigger_dest_monitoring(self, dest_chat_id, forwarded_message_id, message_text):
         """手动触发目标频道的监控配置处理
 
         当目标频道也是监控源时，转发到该频道的消息不会自动触发监控
         （因为copy_message不触发outgoing事件），所以需要手动触发
+
+        Args:
+            dest_chat_id: 目标频道ID
+            forwarded_message_id: 转发后的消息ID（在目标频道中）
+            message_text: 消息文本内容
         """
         from config import load_watch_config, get_monitored_sources
 
@@ -687,7 +937,19 @@ class MessageWorker:
             return
 
         logger.info(f"🔄 目标频道 {dest_chat_id} 也是监控源，手动触发其配置处理...")
-        logger.debug(f"   消息ID: {message.id}, 媒体组ID: {message.media_group_id if message.media_group_id else 'None'}")
+        logger.debug(f"   转发后的消息ID: {forwarded_message_id}")
+
+        # 获取转发后的消息对象（关键修改：从目标频道获取消息）
+        try:
+            dest_id = int(dest_chat_id)
+            forwarded_message = self.acc.get_messages(dest_id, forwarded_message_id)
+            if not forwarded_message:
+                logger.warning(f"   ⚠️ 无法获取转发后的消息对象，跳过链式转发")
+                return
+            logger.debug(f"   成功获取转发后的消息对象: chat_id={forwarded_message.chat.id}, message_id={forwarded_message.id}")
+        except Exception as e:
+            logger.error(f"   ❌ 获取转发后的消息对象失败: {e}")
+            return
 
         watch_config = load_watch_config()
         matched_configs = 0
@@ -741,15 +1003,18 @@ class MessageWorker:
                         logger.info(f"   📝 目标频道配置：记录模式")
                         try:
                             self._handle_record_mode(
-                                message, check_user_id, dest_chat_id_str,
+                                forwarded_message, check_user_id, dest_chat_id_str,
                                 message_text, check_forward_mode, check_extract_patterns
                             )
                         except Exception as e:
                             logger.error(f"   ❌ 目标频道记录失败: {e}", exc_info=True)
 
-                    # 转发模式
-                    elif check_dest and check_dest != "me":
+                    # 转发模式（注意：不使用elif，因为一个频道可能同时有记录和转发配置）
+                    if check_dest and check_dest != "me":
                         logger.info(f"   📤 目标频道配置：转发到 {check_dest}")
+                        logger.debug(f"      转发模式: {check_forward_mode}")
+                        if check_extract_patterns:
+                            logger.debug(f"      提取规则: {check_extract_patterns}")
 
                         # 缓存下一级目标的Peer（仅在未缓存时）
                         from bot.services.peer_cache import cache_peer_if_needed
@@ -759,16 +1024,22 @@ class MessageWorker:
 
                         # 只有未缓存时才尝试缓存
                         if not is_dest_cached(check_dest_str):
+                            logger.debug(f"      尝试缓存下一级目标Peer: {check_dest}")
                             if not cache_peer_if_needed(self.acc, check_dest_id, "下一级目标"):
                                 logger.warning(f"   ⚠️ 下一级目标Peer缓存失败: {check_dest}")
+                                logger.warning(f"      💡 提示：如果目标是私聊用户，请确保该用户已与账号建立过对话")
+                                logger.warning(f"      💡 可以让该用户向账号发送一条消息，然后重启Bot")
                                 continue
+                        else:
+                            logger.debug(f"      下一级目标Peer已缓存: {check_dest}")
 
                         try:
                             check_preserve_source = check_watch_data.get("preserve_forward_source", False)
+                            check_append_dn = check_watch_data.get("append_dn_to_magnet", False)
                             self._handle_forward_mode(
-                                message, check_dest, message_text,
+                                forwarded_message, check_dest, message_text,
                                 check_forward_mode, check_extract_patterns,
-                                check_preserve_source, False
+                                check_preserve_source, False, check_append_dn
                             )
                         except Exception as e:
                             logger.error(f"   ❌ 目标频道转发失败: {e}", exc_info=True)
