@@ -4,311 +4,315 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>编辑笔记 - Telegram 笔记</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'notion-gray': '#37352F',
+                        'notion-blue': '#0F766E',
+                        'notion-bg': '#FFFFFF',
+                        'notion-sidebar': '#F7F6F3',
+                        'notion-hover': '#F1F1EF',
+                        'notion-border': '#E9E9E7',
+                        'notion-text': '#787774',
+                        'notion-text-light': '#9B9A97'
+                    },
+                    fontFamily: {
+                        'notion': ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif']
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-in-out',
+                        'slide-down': 'slideDown 0.2s ease-out',
+                        'scale-in': 'scaleIn 0.2s ease-out'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
+                        },
+                        slideDown: {
+                            '0%': { transform: 'translateY(-10px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' }
+                        },
+                        scaleIn: {
+                            '0%': { transform: 'scale(0.95)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .editor-textarea {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .container {
-            max-width: 800px;
-            width: 100%;
-        }
-
-        .edit-card {
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-        }
-
-        .edit-header {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-
-        .edit-header h1 {
-            color: #333;
-            font-size: 28px;
-        }
-
-        .edit-icon {
-            font-size: 36px;
-        }
-
-        .form-group {
-            margin-bottom: 25px;
-        }
-
-        .form-group label {
-            display: block;
-            font-weight: 600;
-            color: #555;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-
-        .form-group textarea {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            font-size: 15px;
-            font-family: inherit;
-            resize: vertical;
-            min-height: 200px;
-            transition: border-color 0.3s;
-        }
-
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .note-info {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 25px;
-        }
-
-        .note-info-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #666;
-            font-size: 13px;
-            margin-bottom: 8px;
-        }
-
-        .note-info-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .note-info-label {
-            font-weight: 600;
-        }
-
-        .media-preview {
-            margin-bottom: 25px;
-            text-align: center;
-        }
-
-        .media-grid {
-            display: grid;
-            gap: 10px;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        }
-
-        .media-grid img,
-        .media-preview img {
-            width: 100%;
-            max-height: 300px;
-            border-radius: 10px;
-            object-fit: cover;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .media-badge {
-            display: inline-block;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            margin-top: 10px;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 15px;
-            margin-top: 30px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
+        .editor-textarea:focus {
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 25px -5px rgba(15, 118, 110, 0.15);
         }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #555;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        .flash-messages {
-            margin-bottom: 20px;
-        }
-
-        .flash-message {
-            padding: 15px 20px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-
-        .flash-success {
-            background: #d4edda;
-            color: #155724;
-            border-left: 4px solid #28a745;
-        }
-
-        .flash-error {
-            background: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid #dc3545;
-        }
-
-        @media (max-width: 600px) {
-            .edit-card {
-                padding: 25px;
-            }
-
-            .button-group {
-                flex-direction: column;
-            }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="edit-card">
-            <div class="edit-header">
-                <span class="edit-icon">✏️</span>
-                <h1>编辑笔记</h1>
+<body class="font-notion bg-notion-sidebar min-h-screen">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white border-b border-notion-border sticky top-0 z-40 backdrop-blur-lg bg-opacity-95">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-4">
+                    <a href="{{ url_for('index') }}" class="p-2.5 rounded-lg hover:bg-notion-hover transition-colors text-notion-text">
+                        <i class="fas fa-arrow-left text-xl"></i>
+                    </a>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-notion-blue to-teal-600 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-edit text-white text-sm"></i>
+                        </div>
+                        <h1 class="text-xl font-semibold text-notion-gray">编辑笔记</h1>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="saveNote()" class="px-4 py-2.5 bg-gradient-to-r from-notion-blue to-teal-600 text-white rounded-xl hover:shadow-lg transition-all duration-200 font-medium">
+                        <i class="fas fa-save mr-2"></i>保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主编辑区域 -->
+    <main class="max-w-4xl mx-auto p-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-notion-border overflow-hidden">
+            <!-- 笔记信息 -->
+            <div class="p-6 border-b border-notion-border bg-notion-sidebar">
+                <div class="flex flex-wrap items-center gap-4 text-sm text-notion-text">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-clock"></i>
+                        <span>{{ note.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-database"></i>
+                        <span>{{ note.source }}</span>
+                    </div>
+                    {% if note.media_files %}
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-photo-video"></i>
+                        <span>{{ note.media_files|length }} 个附件</span>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
 
-            {% with messages = get_flashed_messages() %}
-                {% if messages %}
-                    <div class="flash-messages">
-                        {% for message in messages %}
-                            <div class="flash-message flash-error">{{ message }}</div>
+            <!-- 编辑表单 -->
+            <form method="POST" id="editForm" class="p-6 space-y-6">
+                <!-- 标题编辑 -->
+                <div>
+                    <label for="title" class="block text-sm font-medium text-notion-gray mb-3">
+                        <i class="fas fa-heading mr-2 text-notion-text"></i>标题
+                    </label>
+                    <input type="text" 
+                           id="title" 
+                           name="title" 
+                           value="{{ note.title or '' }}"
+                           placeholder="输入笔记标题（可选）"
+                           class="w-full px-4 py-3 bg-notion-sidebar border border-notion-border rounded-xl focus:outline-none focus:ring-2 focus:ring-notion-blue focus:border-transparent editor-textarea">
+                </div>
+
+                <!-- 内容编辑 -->
+                <div>
+                    <label for="content" class="block text-sm font-medium text-notion-gray mb-3">
+                        <i class="fas fa-align-left mr-2 text-notion-text"></i>内容
+                    </label>
+                    <textarea id="content" 
+                              name="content" 
+                              rows="15"
+                              placeholder="输入笔记内容..."
+                              required
+                              class="w-full px-4 py-3 bg-notion-sidebar border border-notion-border rounded-xl focus:outline-none focus:ring-2 focus:ring-notion-blue focus:border-transparent editor-textarea resize-none">{{ note.content }}</textarea>
+                    <div class="mt-2 flex items-center justify-between">
+                        <span class="text-xs text-notion-text-light">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            支持 Markdown 格式
+                        </span>
+                        <span id="charCount" class="text-xs text-notion-text-light">
+                            {{ note.content|length }} 个字符
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 媒体文件预览 -->
+                {% if note.media_files %}
+                <div>
+                    <h3 class="text-sm font-medium text-notion-gray mb-3">
+                        <i class="fas fa-photo-video mr-2 text-notion-text"></i>附件
+                    </h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {% for media_file in note.media_files %}
+                        <div class="relative group cursor-pointer overflow-hidden rounded-lg" onclick="openImageModal('{{ url_for('serve_media', filename=media_file) }}', '{{ media_file }}')">
+                            {% if media_file.endswith(('.jpg', '.jpeg', '.png', '.webp')) %}
+                            <img src="{{ url_for('serve_media', filename=media_file) }}" 
+                                 alt="图片" 
+                                 class="w-full h-24 object-cover rounded-lg group-hover:scale-105 transition-transform duration-200">
+                            {% elif media_file.endswith('.mp4') %}
+                            <div class="relative overflow-hidden rounded-lg bg-gray-100">
+                                {% if note.media_thumbnails and media_file in note.media_thumbnails %}
+                                <img src="{{ url_for('serve_media', filename=note.media_thumbnails[media_file]) }}" 
+                                     alt="视频缩略图" 
+                                     class="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-200">
+                                {% else %}
+                                <div class="w-full h-24 bg-gray-200 flex items-center justify-center">
+                                    <i class="fas fa-video text-gray-400 text-xl"></i>
+                                </div>
+                                {% endif %}
+                                <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                                    <i class="fas fa-play-circle text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></i>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-file text-gray-400 text-xl"></i>
+                            </div>
+                            {% endif %}
+                        </div>
                         {% endfor %}
                     </div>
+                </div>
                 {% endif %}
-            {% endwith %}
 
-            <div class="note-info">
-                <div class="note-info-item">
-                    <span>📡</span>
-                    <span class="note-info-label">来源：</span>
-                    <span>{{ note.source_name or note.source_chat_id }}</span>
-                </div>
-                <div class="note-info-item">
-                    <span>🕒</span>
-                    <span class="note-info-label">时间：</span>
-                    <span>{{ note.timestamp }}</span>
-                </div>
-                {% if note.media_type %}
-                <div class="note-info-item">
-                    <span>{% if note.media_type == 'photo' %}📷{% elif note.media_type == 'video' %}📹{% elif note.media_type == 'animation' %}🎞️{% else %}📄{% endif %}</span>
-                    <span class="note-info-label">媒体类型：</span>
-                    <span>{% if note.media_type == 'photo' %}图片{% elif note.media_type == 'video' %}视频{% elif note.media_type == 'animation' %}GIF动图{% else %}{{ note.media_type }}{% endif %}</span>
-                </div>
-                {% endif %}
-                {% if note.media_paths and note.media_paths|length > 1 %}
-                <div class="note-info-item">
-                    <span>🖼️</span>
-                    <span class="note-info-label">图片数量：</span>
-                    <span>{{ note.media_paths|length }} 张</span>
-                </div>
-                {% endif %}
-            </div>
-
-            {% if note.media_paths and note.media_paths|length > 0 %}
-            <div class="media-preview">
-                <div class="media-grid">
-                    {% for media_path in note.media_paths %}
-                    <img src="/media/{{ media_path | urlencode }}" alt="Media preview">
-                    {% endfor %}
-                </div>
-                {% if note.media_type == 'video' %}
-                <div class="media-badge">📹 视频缩略图</div>
-                {% elif note.media_type == 'animation' %}
-                <div class="media-badge">🎬 GIF动图缩略图</div>
-                {% endif %}
-            </div>
-            {% elif note.media_path %}
-            <div class="media-preview">
-                <img src="/media/{{ note.media_path | urlencode }}" alt="Media preview">
-                {% if note.media_type == 'video' %}
-                <div class="media-badge">📹 视频缩略图</div>
-                {% elif note.media_type == 'animation' %}
-                <div class="media-badge">🎬 GIF动图缩略图</div>
-                {% endif %}
-            </div>
-            {% elif note.media_type == 'video' %}
-            <div class="media-preview">
-                <div style="width: 200px; height: 200px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);">
-                    <span style="font-size: 80px;">🎬</span>
-                </div>
-                <div class="media-badge">📹 视频（无缩略图）</div>
-            </div>
-            {% elif note.media_type == 'animation' %}
-            <div class="media-preview">
-                <div style="width: 200px; height: 200px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);">
-                    <span style="font-size: 80px;">🎞️</span>
-                </div>
-                <div class="media-badge">🎬 GIF动图（无缩略图）</div>
-            </div>
-            {% endif %}
-
-            <form method="POST" action="/edit_note/{{ note.id }}">
-                <input type="hidden" name="return_url" value="{{ return_url }}">
-                <div class="form-group">
-                    <label for="message_text">📝 笔记内容</label>
-                    <textarea id="message_text" name="message_text" placeholder="输入笔记内容...">{{ note.message_text or '' }}</textarea>
-                </div>
-
-                <div class="button-group">
-                    <button type="submit" class="btn btn-primary">
-                        <span>💾</span>保存修改
-                    </button>
-                    <a href="{{ return_url }}" class="btn btn-secondary">
-                        <span>↩️</span>返回列表
+                <!-- 操作按钮 -->
+                <div class="flex items-center justify-between pt-6 border-t border-notion-border">
+                    <a href="{{ url_for('index') }}" class="px-4 py-2.5 rounded-lg hover:bg-notion-hover transition-colors text-notion-text">
+                        <i class="fas fa-times mr-2"></i>取消
                     </a>
+                    <div class="flex gap-3">
+                        <button type="button" onclick="deleteNote()" class="px-4 py-2.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+                            <i class="fas fa-trash mr-2"></i>删除
+                        </button>
+                        <button type="submit" class="px-4 py-2.5 bg-gradient-to-r from-notion-blue to-teal-600 text-white rounded-xl hover:shadow-lg transition-all duration-200 font-medium">
+                            <i class="fas fa-save mr-2"></i>保存更改
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
+
+        <!-- 快捷键提示 -->
+        <div class="mt-6 bg-white rounded-xl border border-notion-border p-4">
+            <h3 class="text-sm font-medium text-notion-gray mb-3">
+                <i class="fas fa-keyboard mr-2 text-notion-text"></i>快捷键
+            </h3>
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="flex items-center gap-2">
+                    <kbd class="px-2 py-1 bg-notion-sidebar border border-notion-border rounded">Ctrl + S</kbd>
+                    <span class="text-notion-text">保存</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <kbd class="px-2 py-1 bg-notion-sidebar border border-notion-border rounded">Esc</kbd>
+                    <span class="text-notion-text">返回</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 图片查看模态框 -->
+    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 z-50 hidden flex items-center justify-center p-4" onclick="closeImageModal()">
+        <div class="relative max-w-4xl max-h-full">
+            <button class="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center hover:bg-opacity-70 transition-all">
+                <i class="fas fa-times"></i>
+            </button>
+            <img id="modalImage" src="" alt="" class="max-w-full max-h-full rounded-lg">
+        </div>
     </div>
+
+    <script>
+        // 字符计数
+        const contentTextarea = document.getElementById('content');
+        const charCount = document.getElementById('charCount');
+        
+        contentTextarea.addEventListener('input', function() {
+            charCount.textContent = this.value.length + ' 个字符';
+        });
+
+        // 保存笔记
+        function saveNote() {
+            document.getElementById('editForm').submit();
+        }
+
+        // 删除笔记
+        function deleteNote() {
+            if (confirm('确定要删除这条笔记吗？此操作不可恢复。')) {
+                window.location.href = `{{ url_for('delete_note', note_id=note.id) }}`;
+            }
+        }
+
+        // 图片模态框
+        function openImageModal(imageSrc, filename) {
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            modalImage.src = imageSrc;
+            modalImage.alt = filename;
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeImageModal();
+                window.location.href = '{{ url_for("index") }}';
+            }
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                saveNote();
+            }
+        });
+
+        // 自动保存提示
+        let autoSaveTimer;
+        contentTextarea.addEventListener('input', function() {
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => {
+                // 这里可以添加自动保存逻辑
+                console.log('Auto save triggered');
+            }, 2000);
+        });
+
+        // 页面离开提醒
+        window.addEventListener('beforeunload', function(e) {
+            const originalContent = `{{ note.content }}`;
+            const currentContent = contentTextarea.value;
+            
+            if (originalContent !== currentContent) {
+                e.preventDefault();
+                e.returnValue = '您有未保存的更改，确定要离开吗？';
+                return e.returnValue;
+            }
+        });
+
+        // 页面加载动画
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('editForm');
+            form.style.opacity = '0';
+            form.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                form.style.transition = 'all 0.3s ease-out';
+                form.style.opacity = '1';
+                form.style.transform = 'translateY(0)';
+            }, 100);
+        });
+    </script>
 </body>
 </html>

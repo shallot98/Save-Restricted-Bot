@@ -4,257 +4,201 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录 - Telegram 笔记</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'notion-gray': '#37352F',
+                        'notion-blue': '#0F766E',
+                        'notion-bg': '#FFFFFF',
+                        'notion-sidebar': '#F7F6F3',
+                        'notion-hover': '#F1F1EF',
+                        'notion-border': '#E9E9E7',
+                        'notion-text': '#787774',
+                        'notion-text-light': '#9B9A97'
+                    },
+                    fontFamily: {
+                        'notion': ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif']
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-in-out',
+                        'slide-down': 'slideDown 0.2s ease-out',
+                        'scale-in': 'scaleIn 0.2s ease-out',
+                        'float': 'float 6s ease-in-out infinite'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
+                        },
+                        slideDown: {
+                            '0%': { transform: 'translateY(-10px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' }
+                        },
+                        scaleIn: {
+                            '0%': { transform: 'scale(0.95)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-20px)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
         }
-
-        .login-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 50px 40px;
-            max-width: 400px;
-            width: 100%;
-            animation: slideIn 0.5s ease-out;
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .input-focus {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
-        .logo {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .logo-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 50%;
-            margin: 0 auto 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 40px;
-        }
-
-        h1 {
-            color: #333;
-            font-size: 28px;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            color: #666;
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-
-        .form-group {
-            margin-bottom: 25px;
-        }
-
-        label {
-            display: block;
-            color: #555;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-
-        input[type="text"]:focus,
-        input[type="password"]:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .btn-login {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .btn-login:hover {
+        .input-focus:focus {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn-login:active {
-            transform: translateY(0);
-        }
-
-        .error-message {
-            background: #fee;
-            color: #c33;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            text-align: center;
-            border: 1px solid #fcc;
-        }
-
-        .footer {
-            margin-top: 30px;
-            text-align: center;
-            color: #999;
-            font-size: 12px;
-        }
-
-        .remember-me {
-            display: flex;
-            align-items: center;
-            margin-bottom: 25px;
-        }
-
-        .remember-me input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            margin-right: 8px;
-            cursor: pointer;
-            accent-color: #667eea;
-        }
-
-        .remember-me label {
-            margin: 0;
-            font-size: 14px;
-            font-weight: 400;
-            color: #666;
-            cursor: pointer;
-            user-select: none;
+            box-shadow: 0 10px 25px -5px rgba(15, 118, 110, 0.25);
         }
     </style>
 </head>
-<body>
-    <div class="login-container">
-        <div class="logo">
-            <div class="logo-icon">📝</div>
-            <h1>Telegram 笔记</h1>
-            <p class="subtitle">管理员登录</p>
+<body class="font-notion gradient-bg min-h-screen flex items-center justify-center p-4">
+    <!-- 背景装饰 -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float"></div>
+        <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float" style="animation-delay: 2s;"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float" style="animation-delay: 4s;"></div>
+    </div>
+
+    <!-- 登录容器 -->
+    <div class="relative z-10 w-full max-w-md">
+        <div class="glass-effect rounded-3xl shadow-2xl p-8 animate-scale-in">
+            <!-- Logo 区域 -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-notion-blue to-teal-600 rounded-2xl shadow-lg mb-4">
+                    <i class="fas fa-sticky-note text-white text-3xl"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-notion-gray mb-2">Telegram 笔记</h1>
+                <p class="text-notion-text">安全访问您的笔记库</p>
+            </div>
+
+            <!-- 登录表单 -->
+            <form method="POST" class="space-y-6">
+                {% if error %}
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-3 animate-slide-down">
+                    <i class="fas fa-exclamation-circle text-red-500"></i>
+                    <span class="text-sm">{{ error }}</span>
+                </div>
+                {% endif %}
+
+                <div class="space-y-4">
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-notion-gray mb-2">
+                            <i class="fas fa-lock mr-2 text-notion-text"></i>访问密码
+                        </label>
+                        <div class="relative">
+                            <input type="password" 
+                                   id="password" 
+                                   name="password" 
+                                   required
+                                   placeholder="请输入访问密码"
+                                   class="w-full px-4 py-3 bg-white border border-notion-border rounded-xl focus:outline-none focus:ring-2 focus:ring-notion-blue focus:border-transparent input-focus pl-12">
+                            <div class="absolute left-4 top-1/2 transform -translate-y-1/2">
+                                <i class="fas fa-key text-notion-text"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" 
+                        class="w-full bg-gradient-to-r from-notion-blue to-teal-600 text-white py-3 px-4 rounded-xl font-medium hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>登录</span>
+                </button>
+            </form>
+
+            <!-- 底部信息 -->
+            <div class="mt-8 pt-6 border-t border-notion-border">
+                <div class="flex items-center justify-center gap-6 text-xs text-notion-text-light">
+                    <div class="flex items-center gap-1">
+                        <i class="fas fa-shield-alt text-green-500"></i>
+                        <span>安全加密</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <i class="fas fa-lock text-blue-500"></i>
+                        <span>隐私保护</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <i class="fas fa-database text-purple-500"></i>
+                        <span>本地存储</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        {% if error %}
-        <div class="error-message">
-            {{ error }}
-        </div>
-        {% endif %}
-
-        <form method="POST" action="/login">
-            <div class="form-group">
-                <label for="username">用户名</label>
-                <input type="text" id="username" name="username" required autofocus>
-            </div>
-
-            <div class="form-group">
-                <label for="password">密码</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-
-            <div class="remember-me">
-                <input type="checkbox" id="remember" name="remember" value="1">
-                <label for="remember">记住密码</label>
-            </div>
-
-            <button type="submit" class="btn-login">登录</button>
-        </form>
-
-        <div class="footer">
-            Telegram Bot 记录模式 © 2024
+        <!-- 装饰性元素 -->
+        <div class="mt-8 text-center">
+            <p class="text-white/80 text-sm">
+                <i class="fas fa-info-circle mr-1"></i>
+                请输入管理员设置的访问密码
+            </p>
         </div>
     </div>
 
     <script>
-        // 页面加载时，检查是否有保存的凭据
-        window.addEventListener('DOMContentLoaded', function() {
-            const savedUsername = getCookie('saved_username');
-            const savedPassword = getCookie('saved_password');
+        // 页面加载动画
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            form.style.opacity = '0';
+            form.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                form.style.transition = 'all 0.5s ease-out';
+                form.style.opacity = '1';
+                form.style.transform = 'translateY(0)';
+            }, 100);
 
-            if (savedUsername && savedPassword) {
-                document.getElementById('username').value = savedUsername;
-                document.getElementById('password').value = savedPassword;
-                document.getElementById('remember').checked = true;
-            }
+            // 自动聚焦密码输入框
+            document.getElementById('password').focus();
+
+            // 添加输入框动态效果
+            const passwordInput = document.getElementById('password');
+            passwordInput.addEventListener('input', function() {
+                if (this.value.length > 0) {
+                    this.classList.add('border-notion-blue');
+                } else {
+                    this.classList.remove('border-notion-blue');
+                }
+            });
+
+            // 表单提交动画
+            form.addEventListener('submit', function() {
+                const submitBtn = form.querySelector('button[type="submit"]');
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>登录中...';
+                submitBtn.disabled = true;
+            });
         });
 
-        // 表单提交时，根据复选框状态保存或清除凭据
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const remember = document.getElementById('remember').checked;
-
-            if (remember) {
-                // 保存凭据到Cookie（30天有效期）
-                setCookie('saved_username', username, 30);
-                setCookie('saved_password', password, 30);
-            } else {
-                // 清除保存的凭据
-                deleteCookie('saved_username');
-                deleteCookie('saved_password');
+        // 键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                document.querySelector('form').submit();
             }
         });
-
-        // Cookie操作函数
-        function setCookie(name, value, days) {
-            const expires = new Date();
-            expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-            document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires.toUTCString() + ';path=/';
-        }
-
-        function getCookie(name) {
-            const nameEQ = name + '=';
-            const ca = document.cookie.split(';');
-            for (let i = 0; i < ca.length; i++) {
-                let c = ca[i];
-                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-                if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
-            }
-            return null;
-        }
-
-        function deleteCookie(name) {
-            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
-        }
     </script>
 </body>
 </html>
