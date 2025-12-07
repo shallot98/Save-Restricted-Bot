@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    image: save-restricted-bot:latest
+    container_name: save-restricted-bot
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+    environment:
+      - TOKEN=${TOKEN}
+      - ID=${ID}
+      - HASH=${HASH}
+      - STRING=${STRING}
+      - OWNER_ID=${OWNER_ID:-}
+      - DATA_DIR=/app/data
+      - TZ=Asia/Shanghai
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-this-secret-key-in-production}
+    volumes:
+      - ./downloads:/app/downloads
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+        compress: "true"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:10000/login', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M

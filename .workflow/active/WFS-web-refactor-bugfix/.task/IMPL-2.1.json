@@ -1,0 +1,170 @@
+{
+  "id": "IMPL-2.1",
+  "title": "JavaScript模块化重构",
+  "status": "completed",
+  "meta": {
+    "agent": "code-developer",
+    "type": "refactor",
+    "priority": "P0",
+    "estimated_hours": 4,
+    "execution_group": "parallel-js-refactor",
+    "phase": "Phase 2: 模块化重构"
+  },
+  "context": {
+    "objective": "将static/js/notes.js拆分为独立的模块文件，提升代码可维护性和可测试性",
+    "background": "notes.js包含840行代码，混合了网络管理、UI状态、事件处理等多种职责。需要按照单一职责原则拆分为独立模块。",
+    "deliverables": [
+      "创建utils模块: network.js, storage.js, debounce.js",
+      "创建components模块: sidebar.js, search.js, modal.js, lazyload.js",
+      "创建pages模块: notes.js (主逻辑)",
+      "更新templates/notes.html引用新的模块文件",
+      "确保所有功能正常工作"
+    ],
+    "acceptance_criteria": [
+      "所有模块文件创建成功",
+      "每个模块职责单一，代码清晰",
+      "模块间依赖关系明确",
+      "所有功能测试通过",
+      "无JavaScript错误"
+    ],
+    "constraints": [
+      "必须保持向后兼容性",
+      "不能改变全局API接口",
+      "必须支持ES5浏览器(使用IIFE模式)",
+      "不能引入外部依赖库"
+    ],
+    "technical_notes": [
+      "使用IIFE模式实现模块化",
+      "通过window对象暴露必要的全局接口",
+      "保持模块加载顺序的正确性",
+      "使用命名空间避免全局污染"
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "read_notes_js",
+        "description": "读取static/js/notes.js文件",
+        "command": "Read static/js/notes.js",
+        "expected_output": "获取完整的JavaScript代码"
+      },
+      {
+        "step": "analyze_code_structure",
+        "description": "分析代码结构，识别模块边界",
+        "command": "识别函数、对象、依赖关系",
+        "expected_output": "模块划分方案"
+      },
+      {
+        "step": "identify_dependencies",
+        "description": "识别模块间依赖关系",
+        "command": "分析函数调用和变量引用",
+        "expected_output": "依赖关系图"
+      }
+    ],
+    "implementation": [
+      {
+        "step": "create_network_module",
+        "description": "创建网络管理模块",
+        "command": "Write static/js/utils/network.js",
+        "expected_output": "包含NetworkManager的模块文件"
+      },
+      {
+        "step": "create_storage_module",
+        "description": "创建存储管理模块",
+        "command": "Write static/js/utils/storage.js",
+        "expected_output": "包含localStorage操作的模块文件"
+      },
+      {
+        "step": "create_debounce_module",
+        "description": "创建防抖节流工具模块",
+        "command": "Write static/js/utils/debounce.js",
+        "expected_output": "包含throttle和debounce函数的模块文件"
+      },
+      {
+        "step": "create_sidebar_module",
+        "description": "创建侧边栏组件模块",
+        "command": "Write static/js/components/sidebar.js",
+        "expected_output": "包含MobileUIState和侧边栏逻辑的模块文件"
+      },
+      {
+        "step": "create_search_module",
+        "description": "创建搜索组件模块",
+        "command": "Write static/js/components/search.js",
+        "expected_output": "包含搜索和筛选逻辑的模块文件"
+      },
+      {
+        "step": "create_modal_module",
+        "description": "创建模态框组件模块",
+        "command": "Write static/js/components/modal.js",
+        "expected_output": "包含图片预览模态框逻辑的模块文件"
+      },
+      {
+        "step": "create_lazyload_module",
+        "description": "创建懒加载组件模块",
+        "command": "Write static/js/components/lazyload.js",
+        "expected_output": "包含图片懒加载逻辑的模块文件"
+      },
+      {
+        "step": "create_notes_page_module",
+        "description": "创建笔记页面主逻辑模块",
+        "command": "Write static/js/pages/notes.js",
+        "expected_output": "包含页面初始化和事件绑定的模块文件"
+      },
+      {
+        "step": "update_html_references",
+        "description": "更新HTML中的脚本引用",
+        "command": "Edit templates/notes.html",
+        "expected_output": "按正确顺序引用所有模块文件"
+      }
+    ],
+    "verification": [
+      {
+        "step": "module_loading_test",
+        "description": "测试模块加载顺序",
+        "command": "在浏览器中检查模块加载",
+        "expected_output": "所有模块正确加载，无404错误"
+      },
+      {
+        "step": "function_test",
+        "description": "测试所有功能",
+        "command": "测试搜索、筛选、分页、收藏、删除等功能",
+        "expected_output": "所有功能正常工作"
+      },
+      {
+        "step": "console_check",
+        "description": "检查浏览器控制台",
+        "command": "查看Console是否有错误",
+        "expected_output": "无JavaScript错误"
+      },
+      {
+        "step": "code_review",
+        "description": "代码审查",
+        "command": "检查代码质量和模块化程度",
+        "expected_output": "代码符合SOLID原则"
+      }
+    ]
+  },
+  "dependencies": {
+    "depends_on": ["IMPL-1.3"],
+    "blocks": ["IMPL-3.1", "IMPL-3.2", "IMPL-3.3", "IMPL-3.4"]
+  },
+  "files": {
+    "input": [
+      "static/js/notes.js"
+    ],
+    "output": [
+      "static/js/utils/network.js",
+      "static/js/utils/storage.js",
+      "static/js/utils/debounce.js",
+      "static/js/components/sidebar.js",
+      "static/js/components/search.js",
+      "static/js/components/modal.js",
+      "static/js/components/lazyload.js",
+      "static/js/pages/notes.js",
+      "templates/notes.html"
+    ],
+    "backup": [
+      "static/js/notes.js.bak"
+    ]
+  }
+}

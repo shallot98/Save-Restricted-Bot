@@ -1,0 +1,212 @@
+{
+  "id": "IMPL-002",
+  "title": "Implement Unified Mobile Sidebar State Management",
+  "status": "completed",
+  "context_package_path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "Create 1 unified state management object: [MobileUIState in templates/notes.html]",
+      "Unify 2 separate sidebar state classes: ['collapsed' (desktop) + 'mobile-open' (mobile)]",
+      "Implement 1 state persistence mechanism: [localStorage for sidebar state]",
+      "Refactor 1 existing function: [toggleMobileSidebar() at lines 1021-1042 in templates/notes.html]",
+      "Add 1 initialization function: [initMobileUIState() for page load state restoration]",
+      "Modify 1 viewport resize handler: [lines 1131-1142 to use unified state]"
+    ],
+    "focus_paths": [
+      "templates/notes.html",
+      "static/css/main.css"
+    ],
+    "acceptance": [
+      "1 state object created: verify by grep 'const MobileUIState' templates/notes.html",
+      "State persistence works: verify sidebar state survives page reload via localStorage inspection",
+      "2 state classes unified: verify no separate 'collapsed'/'mobile-open' logic paths",
+      "toggleMobileSidebar refactored: verify function uses MobileUIState object (lines 1021-1042)",
+      "Viewport handler updated: verify resize handler reads/writes to MobileUIState (lines 1131-1142)",
+      "CSS classes respond to unified state: verify sidebar.classList operations use single state source",
+      "Manual test: toggle sidebar → reload page → verify state preserved"
+    ],
+    "depends_on": ["IMPL-001"],
+    "inherited": {
+      "from": "IMPL-001",
+      "context": [
+        "Mobile-first CSS architecture completed",
+        "Sidebar responsive patterns established",
+        "Breakpoint system: 320px, 375px, 480px, 768px, 1024px"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Vanilla JavaScript", "localStorage API", "CSS classes"],
+      "constraints": [
+        "Vanilla JavaScript only - no state management libraries",
+        "Backward compatibility with existing toggleMobileSidebar function",
+        "Server-side rendering - state must initialize on page load"
+      ],
+      "state_management_pattern": "Single source of truth object with localStorage persistence",
+      "integration_points": {
+        "toggleMobileSidebar": "templates/notes.html:1021-1042",
+        "viewport_resize_handler": "templates/notes.html:1131-1142",
+        "sidebar_css": "static/css/main.css:126-138",
+        "hamburger_button": "templates/notes.html:684-719"
+      }
+    },
+    "artifacts": [
+      {
+        "type": "exploration_analysis",
+        "source": "exploration-integration-points",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/exploration-integration-points.json",
+        "priority": "highest",
+        "usage": "Sidebar toggle system analysis and state management inconsistency detection",
+        "contains": "Detailed analysis of existing sidebar toggle logic, state persistence gaps, integration points"
+      },
+      {
+        "type": "conflict_resolution",
+        "source": "context-package resolved_conflicts",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+        "priority": "high",
+        "usage": "CON-002 resolution: Create unified state management object",
+        "contains": "Strategy for consolidating 'collapsed' and 'mobile-open' state classes"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "Load context package for sidebar integration points",
+        "commands": ["Read(.workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_existing_sidebar_logic",
+        "action": "Extract current sidebar toggle implementation and state management patterns",
+        "commands": [
+          "bash(rg 'toggleMobileSidebar|collapsed|mobile-open' templates/notes.html -n -C 3 --max-count 20)",
+          "bash(rg '\\.sidebar.*collapsed|\\.sidebar.*mobile-open' static/css/main.css -n -C 2)"
+        ],
+        "output_to": "sidebar_current_implementation"
+      },
+      {
+        "step": "analyze_viewport_handler",
+        "action": "Analyze viewport resize handler for state synchronization requirements",
+        "commands": [
+          "bash(sed -n '1131,1142p' templates/notes.html)"
+        ],
+        "output_to": "viewport_handler_analysis"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "Design unified state management object",
+        "description": "Create MobileUIState object with sidebar state, viewport detection, and persistence methods",
+        "modification_points": [
+          "Create MobileUIState object structure: {sidebarOpen: boolean, viewportWidth: number, isMobile: boolean}",
+          "Add 3 methods: [init(), toggleSidebar(), persist()]",
+          "Add localStorage key: 'mobileUIState'",
+          "Add viewport breakpoint detection: isMobile = viewportWidth < 768px"
+        ],
+        "logic_flow": [
+          "Define MobileUIState object with state properties",
+          "Add init() method to load state from localStorage or set defaults",
+          "Add toggleSidebar() method to update state and sync DOM classes",
+          "Add persist() method to save state to localStorage",
+          "Include viewport detection based on 768px breakpoint"
+        ],
+        "depends_on": [],
+        "output": "state_object_design"
+      },
+      {
+        "step": 2,
+        "title": "Refactor toggleMobileSidebar to use MobileUIState",
+        "description": "Update existing function to read/write from unified state object",
+        "modification_points": [
+          "Modify toggleMobileSidebar function at lines 1021-1042",
+          "Replace direct classList manipulation with MobileUIState.toggleSidebar()",
+          "Remove separate 'collapsed'/'mobile-open' logic branches",
+          "Add state persistence call after toggle"
+        ],
+        "logic_flow": [
+          "Update toggleMobileSidebar() to call MobileUIState.toggleSidebar()",
+          "Remove conditional logic for 'collapsed' vs 'mobile-open'",
+          "Use single state property (sidebarOpen) for all viewports",
+          "Persist state to localStorage after each toggle",
+          "Maintain backward compatibility with existing hamburger button onclick"
+        ],
+        "depends_on": [1],
+        "output": "refactored_toggle_function"
+      },
+      {
+        "step": 3,
+        "title": "Update viewport resize handler",
+        "description": "Integrate MobileUIState with viewport resize handler for responsive state management",
+        "modification_points": [
+          "Modify viewport resize handler at lines 1131-1142",
+          "Add MobileUIState.isMobile update on resize",
+          "Sync sidebar state with viewport changes",
+          "Handle desktop↔mobile transitions"
+        ],
+        "logic_flow": [
+          "On window resize, update MobileUIState.viewportWidth",
+          "Recalculate isMobile based on 768px breakpoint",
+          "If transitioning mobile→desktop and sidebar closed, auto-open",
+          "If transitioning desktop→mobile, preserve user's toggle preference",
+          "Persist state after viewport transitions"
+        ],
+        "depends_on": [2],
+        "output": "viewport_handler_integration"
+      },
+      {
+        "step": 4,
+        "title": "Add initialization and page load state restoration",
+        "description": "Implement initMobileUIState() to restore state on page load",
+        "modification_points": [
+          "Create initMobileUIState() function",
+          "Call init() on DOMContentLoaded or window.onload",
+          "Restore sidebar state from localStorage",
+          "Apply initial CSS classes based on restored state"
+        ],
+        "logic_flow": [
+          "Add DOMContentLoaded event listener",
+          "Call MobileUIState.init() to load saved state or defaults",
+          "Apply sidebar open/close CSS classes based on restored state",
+          "Set initial viewport detection",
+          "Log state restoration for debugging"
+        ],
+        "depends_on": [3],
+        "output": "initialization_implementation"
+      },
+      {
+        "step": 5,
+        "title": "Test state management across scenarios",
+        "description": "Validate unified state behavior, persistence, and viewport transitions",
+        "modification_points": [
+          "Test 4 scenarios: [toggle sidebar, reload page, resize viewport, dark mode compatibility]",
+          "Verify localStorage operations: read/write/persistence",
+          "Test viewport transitions: mobile↔desktop state synchronization",
+          "Validate backward compatibility: existing hamburger button functionality"
+        ],
+        "logic_flow": [
+          "Manual test: toggle sidebar → check localStorage → reload → verify state restored",
+          "Test viewport resize: 1920px → 375px → verify mobile state applied",
+          "Test desktop→mobile transition: sidebar auto-close behavior",
+          "Test mobile→desktop transition: sidebar state preserved or auto-opened",
+          "Verify no console errors, no duplicate state classes",
+          "Validate dark mode toggle doesn't interfere with sidebar state"
+        ],
+        "depends_on": [4],
+        "output": "state_management_validation"
+      }
+    ],
+    "target_files": [
+      "templates/notes.html:toggleMobileSidebar:1021-1042",
+      "templates/notes.html:viewport_resize_handler:1131-1142",
+      "templates/notes.html"
+    ]
+  }
+}

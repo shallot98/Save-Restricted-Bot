@@ -1,0 +1,228 @@
+{
+  "id": "IMPL-003",
+  "title": "Add Touch Event Support and Gesture Handling",
+  "status": "completed",
+  "context_package_path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "Implement touch events for 1 primary component: [mobile sidebar swipe-to-close gesture]",
+      "Add 3 touch event handlers: [touchstart, touchmove, touchend]",
+      "Implement swipe detection algorithm: [calculate deltaX from touch coordinates]",
+      "Add CSS touch-action property to 2 elements: [sidebar, main content area]",
+      "Add passive event listeners for 2 scroll-related events: [touchstart, touchmove]",
+      "Maintain backward compatibility: preserve existing click event handlers alongside touch events"
+    ],
+    "focus_paths": [
+      "templates/notes.html",
+      "static/css/main.css"
+    ],
+    "acceptance": [
+      "3 touch handlers implemented: verify by grep 'addEventListener.*touch' templates/notes.html | wc -l = 3",
+      "Swipe-to-close works: manual test swipe left on sidebar (mobile viewport) closes sidebar",
+      "Click events preserved: verify hamburger button click still works on desktop",
+      "Passive listeners added: verify by grep 'passive.*true' templates/notes.html",
+      "CSS touch-action set: verify by grep 'touch-action' static/css/main.css | wc -l >= 2",
+      "No double-firing: verify single tap doesn't trigger both touch and click handlers",
+      "300ms tap delay eliminated: verify immediate response on mobile devices"
+    ],
+    "depends_on": [
+      "IMPL-002"
+    ],
+    "inherited": {
+      "from": "IMPL-002",
+      "context": [
+        "Unified MobileUIState object available for state management",
+        "toggleSidebar() method can be called from touch handlers",
+        "Sidebar state persistence implemented"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": [
+        "Touch Events API",
+        "Vanilla JavaScript",
+        "CSS touch-action"
+      ],
+      "constraints": [
+        "Vanilla JavaScript only - no gesture libraries (Hammer.js)",
+        "Progressive enhancement - touch events don't break desktop click handlers",
+        "Browser compatibility: iOS Safari 9+, Chrome mobile 57+"
+      ],
+      "gesture_strategy": "Phase 1 basic touch events per CON-003 resolution",
+      "touch_targets": {
+        "sidebar": "Full height swipeable area",
+        "swipe_threshold": "50px horizontal movement to trigger close",
+        "velocity_threshold": "0.3px/ms for fast swipe detection"
+      }
+    },
+    "artifacts": [
+      {
+        "type": "exploration_analysis",
+        "source": "exploration-integration-points",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/exploration-integration-points.json",
+        "priority": "highest",
+        "usage": "Touch interaction points analysis and missing touch support identification",
+        "contains": "Analysis of click-only event handlers, touch event integration requirements"
+      },
+      {
+        "type": "conflict_resolution",
+        "source": "context-package resolved_conflicts",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+        "priority": "high",
+        "usage": "CON-003 resolution: Phase1 basic touch events, Phase2 gesture library evaluation",
+        "contains": "Strategy for progressive touch event implementation without external libraries"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "Load context package for touch interaction points",
+        "commands": [
+          "Read(.workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json)"
+        ],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_existing_event_handlers",
+        "action": "Extract existing click event handlers and identify touch integration points",
+        "commands": [
+          "bash(rg 'addEventListener.*click|onclick=' templates/notes.html -n --max-count 20)",
+          "bash(rg 'addEventListener' templates/notes.html -n | grep -v click | head -10)"
+        ],
+        "output_to": "existing_event_handlers"
+      },
+      {
+        "step": "check_browser_api_compatibility",
+        "action": "Verify Touch Events API availability in context package",
+        "commands": [
+          "bash(rg 'Touch Events API' .workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json -A 5)"
+        ],
+        "output_to": "browser_api_support"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "Implement touch event detection infrastructure",
+        "description": "Add touch event listeners and coordinate tracking for swipe detection",
+        "modification_points": [
+          "Add touchstart listener to sidebar element",
+          "Add touchmove listener to sidebar element with passive:true",
+          "Add touchend listener to sidebar element",
+          "Track 4 touch coordinates: [startX, startY, currentX, currentY]",
+          "Add timestamp tracking for velocity calculation: [startTime, endTime]"
+        ],
+        "logic_flow": [
+          "On touchstart: record initial touch coordinates (startX, startY) and timestamp",
+          "On touchmove: update current coordinates (currentX, currentY) with passive listener",
+          "On touchend: calculate deltaX, deltaY, duration, and velocity",
+          "Store touch data in touch state object",
+          "Prevent default only when swipe gesture detected (preserve scroll behavior)"
+        ],
+        "depends_on": [],
+        "output": "touch_event_infrastructure"
+      },
+      {
+        "step": 2,
+        "title": "Implement swipe-to-close gesture for mobile sidebar",
+        "description": "Add swipe left gesture detection to close sidebar on mobile",
+        "modification_points": [
+          "Calculate deltaX = currentX - startX on touchend",
+          "Detect swipe left: deltaX < -50px (threshold)",
+          "Calculate velocity: deltaX / duration (ms)",
+          "Call MobileUIState.toggleSidebar() if swipe threshold met",
+          "Add swipe direction check: horizontal swipe only (|deltaX| > |deltaY|)"
+        ],
+        "logic_flow": [
+          "On touchend, check if sidebar is open and viewport is mobile",
+          "Calculate horizontal swipe distance (deltaX)",
+          "If deltaX < -50px (swipe left) and |deltaX| > |deltaY| (horizontal gesture)",
+          "Or if velocity > 0.3px/ms (fast swipe), trigger close",
+          "Call MobileUIState.toggleSidebar() to close sidebar",
+          "Add CSS transition for smooth close animation"
+        ],
+        "depends_on": [
+          1
+        ],
+        "output": "swipe_gesture_implementation"
+      },
+      {
+        "step": 3,
+        "title": "Add CSS touch-action properties for scroll optimization",
+        "description": "Optimize touch interactions with CSS touch-action property",
+        "modification_points": [
+          "Add touch-action: pan-y to sidebar: allow vertical scroll, prevent horizontal pan",
+          "Add touch-action: manipulation to buttons: eliminate 300ms tap delay",
+          "Add touch-action: pan-x pan-y to main content: preserve native scroll"
+        ],
+        "logic_flow": [
+          "Add touch-action: pan-y to .sidebar class in main.css",
+          "Add touch-action: manipulation to .btn, button selectors",
+          "Add touch-action: pan-x pan-y to .main-content or body",
+          "Test scroll behavior: vertical scroll works, horizontal swipe triggers gesture",
+          "Verify 300ms tap delay eliminated on all buttons"
+        ],
+        "depends_on": [
+          2
+        ],
+        "output": "css_touch_optimization"
+      },
+      {
+        "step": 4,
+        "title": "Prevent click/touch event double-firing",
+        "description": "Add logic to prevent both touch and click handlers from firing on same interaction",
+        "modification_points": [
+          "Add click suppression flag: clickSuppressed = false",
+          "On touchend, set clickSuppressed = true temporarily",
+          "Clear clickSuppressed after 300ms timeout",
+          "Check clickSuppressed in existing click handlers"
+        ],
+        "logic_flow": [
+          "On touchend after successful gesture, set clickSuppressed = true",
+          "setTimeout to reset clickSuppressed = false after 300ms",
+          "Update existing click event handlers to check if (!clickSuppressed)",
+          "Prevent click event propagation if touch gesture already handled",
+          "Test on touch devices: verify single tap triggers only one handler"
+        ],
+        "depends_on": [
+          3
+        ],
+        "output": "event_deduplication"
+      },
+      {
+        "step": 5,
+        "title": "Test touch interactions across devices and browsers",
+        "description": "Validate touch gestures, passive listeners, and backward compatibility",
+        "modification_points": [
+          "Test on 3 mobile browsers: [Chrome mobile, Safari iOS, Firefox mobile]",
+          "Verify 2 gestures: [swipe-to-close sidebar, tap buttons]",
+          "Test scroll performance: passive listeners eliminate scroll jank",
+          "Validate desktop compatibility: click events work unchanged"
+        ],
+        "logic_flow": [
+          "Manual test on iOS Safari: swipe left on sidebar → verify smooth close",
+          "Test on Chrome mobile emulator: verify touch-action works correctly",
+          "Test scroll performance: vertical scroll on sidebar doesn't trigger swipe",
+          "Test button taps: verify immediate response (no 300ms delay)",
+          "Desktop test: verify click events still work, no touch interference",
+          "Check console for errors, verify no duplicate event firing"
+        ],
+        "depends_on": [
+          4
+        ],
+        "output": "touch_interaction_validation"
+      }
+    ],
+    "target_files": [
+      "templates/notes.html",
+      "static/css/main.css"
+    ]
+  }
+}

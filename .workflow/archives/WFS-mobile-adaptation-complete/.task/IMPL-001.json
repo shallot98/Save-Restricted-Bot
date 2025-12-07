@@ -1,0 +1,192 @@
+{
+  "id": "IMPL-001",
+  "title": "Refactor CSS to Mobile-First Architecture",
+  "status": "completed",
+  "context_package_path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+  "meta": {
+    "type": "refactor",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "Refactor 1 CSS file: [static/css/main.css (795 lines)]",
+      "Convert 3 desktop-first @media (max-width) queries to mobile-first @media (min-width) queries: [1024px, 768px, 480px breakpoints]",
+      "Add 2 new mobile breakpoints: [375px (modern iPhone), 320px (minimum mobile width)]",
+      "Rewrite 6 component sections to mobile-first base styles: [sidebar system lines 126-138, grid system lines 759-776, form controls, buttons, typography, spacing]",
+      "Maintain all 86 CSS custom properties (design tokens) at :root level: [lines 6-86]",
+      "Preserve existing features: [dark mode support, backdrop-filter effects, Unicode emoji icons]"
+    ],
+    "focus_paths": [
+      "static/css/main.css"
+    ],
+    "acceptance": [
+      "1 CSS file refactored: verify by wc -l static/css/main.css >= 795 lines",
+      "Mobile-first architecture implemented: verify by grep -c '@media (min-width' static/css/main.css >= 3",
+      "5 breakpoints total: verify by grep '@media' static/css/main.css | grep -E '(320px|375px|480px|768px|1024px)' | wc -l = 5",
+      "Base styles apply to mobile (320px+): verify mobile viewport rendering without media query overrides",
+      "Desktop enhancements work: verify by loading in 1920px viewport shows original desktop layout",
+      "Zero breaking changes: verify by manual cross-browser testing (Chrome mobile, Safari iOS, Firefox mobile)",
+      "All existing selectors preserved: verify by rg -o '\\.[a-z-]+\\s*\\{' static/css/main.css | sort | uniq | wc -l matches original count"
+    ],
+    "depends_on": [],
+    "inherited": {},
+    "shared_context": {
+      "tech_stack": ["Vanilla CSS", "CSS Custom Properties", "CSS Grid", "Flexbox"],
+      "constraints": [
+        "Zero build system - no PostCSS, SCSS, or CSS preprocessing",
+        "Single CSS file architecture - all styles in main.css",
+        "Browser compatibility: iOS Safari 9+, Chrome 57+, modern mobile browsers",
+        "Preserve design tokens and existing component structure"
+      ],
+      "migration_strategy": "Full mobile-first refactoring per user confirmation (CON-001 resolution)",
+      "breakpoint_system": "320px (min mobile) → 375px (modern iPhone) → 480px (small mobile) → 768px (tablet portrait) → 1024px+ (desktop)"
+    },
+    "artifacts": [
+      {
+        "type": "exploration_analysis",
+        "source": "exploration-patterns",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/exploration-patterns.json",
+        "priority": "highest",
+        "usage": "Existing responsive patterns and breakpoint analysis",
+        "contains": "Three-tier breakpoint system analysis, CSS design token system, mobile sidebar patterns"
+      },
+      {
+        "type": "exploration_analysis",
+        "source": "exploration-dependencies",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/exploration-dependencies.json",
+        "priority": "high",
+        "usage": "Zero build system constraints and vanilla CSS requirements",
+        "contains": "Constraint validation, browser API compatibility, dependency analysis"
+      },
+      {
+        "type": "conflict_resolution",
+        "source": "context-package resolved_conflicts",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+        "priority": "high",
+        "usage": "CON-001 resolution: Full mobile-first migration approved",
+        "contains": "User confirmation for 3-4 day CSS refactoring with sufficient testing resources"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "Load context package for CSS structure and design tokens",
+        "commands": ["Read(.workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_existing_css_structure",
+        "action": "Analyze existing CSS architecture, breakpoints, and component sections",
+        "commands": [
+          "bash(rg '@media' static/css/main.css -n --max-count 20)",
+          "bash(rg ':root' static/css/main.css -A 86 -n --max-count 1)",
+          "bash(rg '\\.sidebar|\\.grid|\\.card' static/css/main.css -n --max-count 30)"
+        ],
+        "output_to": "css_structure_analysis"
+      },
+      {
+        "step": "extract_design_tokens",
+        "action": "Extract all CSS custom properties for preservation during refactoring",
+        "commands": [
+          "bash(rg '--[a-z-]+:' static/css/main.css | head -100)"
+        ],
+        "output_to": "design_tokens"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "Backup and audit existing CSS",
+        "description": "Create backup and audit all selectors, media queries, and design tokens",
+        "modification_points": [
+          "Create backup: static/css/main.css.bak",
+          "Audit 3 existing breakpoints: [1024px, 768px, 480px]",
+          "Count all class selectors for preservation validation",
+          "Document 6 critical component sections: [sidebar, grid, forms, buttons, typography, spacing]"
+        ],
+        "logic_flow": [
+          "Copy main.css to main.css.bak for rollback safety",
+          "Extract all @media queries with line numbers",
+          "List all CSS class selectors for post-refactor validation",
+          "Identify component boundaries for section-by-section refactoring"
+        ],
+        "depends_on": [],
+        "output": "css_audit_report"
+      },
+      {
+        "step": 2,
+        "title": "Refactor to mobile-first base styles (320px+)",
+        "description": "Rewrite base styles to target mobile viewports as default, removing desktop assumptions",
+        "modification_points": [
+          "Rewrite sidebar base styles: mobile-first off-canvas pattern with translateX(-100%)",
+          "Rewrite grid system: single column layout as base, remove auto-fill minmax desktop defaults",
+          "Rewrite form controls: 48px touch-optimized heights, full-width inputs",
+          "Rewrite buttons: 44x44px minimum touch targets, full-width on mobile",
+          "Rewrite typography: 16px base font size (no zoom on iOS), adjusted line heights",
+          "Rewrite spacing: compact mobile spacing using design tokens"
+        ],
+        "logic_flow": [
+          "Start with smallest viewport (320px) as base",
+          "Remove all desktop-specific defaults (wide containers, multi-column grids)",
+          "Apply mobile-optimized values: touch targets, compact spacing, readable typography",
+          "Preserve design tokens (:root variables) unchanged",
+          "Validate mobile rendering at 320px, 375px, 414px viewports"
+        ],
+        "depends_on": [1],
+        "output": "mobile_base_styles"
+      },
+      {
+        "step": 3,
+        "title": "Add progressive enhancement with @media (min-width)",
+        "description": "Layer desktop enhancements using min-width media queries for larger viewports",
+        "modification_points": [
+          "Add @media (min-width: 375px): [optimize for modern iPhone, adjust typography scale]",
+          "Add @media (min-width: 480px): [two-column layouts, increased spacing]",
+          "Add @media (min-width: 768px): [tablet portrait, sidebar visible, multi-column grids]",
+          "Add @media (min-width: 1024px): [desktop enhancements, full sidebar, original desktop layout]",
+          "Convert 3 old max-width queries to min-width equivalents"
+        ],
+        "logic_flow": [
+          "Start with 375px breakpoint for modern mobile enhancements",
+          "Add 480px for small tablet and large mobile landscape",
+          "Add 768px for tablet portrait with visible sidebar",
+          "Add 1024px for desktop with full original layout",
+          "Ensure cascading enhancements (each breakpoint builds on previous)",
+          "Test viewport transitions at breakpoint boundaries"
+        ],
+        "depends_on": [2],
+        "output": "progressive_enhancement_media_queries"
+      },
+      {
+        "step": 4,
+        "title": "Validate and test refactored CSS",
+        "description": "Cross-browser validation and regression testing across all breakpoints",
+        "modification_points": [
+          "Test 5 breakpoints: [320px, 375px, 480px, 768px, 1024px+]",
+          "Validate 3 browsers: [Chrome mobile emulation, Firefox responsive mode, Safari iOS simulator]",
+          "Verify selector count unchanged: grep '\\..*{' count matches original",
+          "Test dark mode compatibility: all design tokens functional",
+          "Test responsive grid: single column → multi-column transitions",
+          "Verify sidebar: off-canvas mobile → visible desktop"
+        ],
+        "logic_flow": [
+          "Load notes.html in mobile emulator (320px, 375px, 414px)",
+          "Verify touch targets meet 44x44px minimum",
+          "Test breakpoint transitions (resize browser 320px → 1920px)",
+          "Validate desktop layout unchanged at 1920px",
+          "Toggle dark mode and verify all components render correctly",
+          "Compare selector count before/after to catch accidental deletions"
+        ],
+        "depends_on": [3],
+        "output": "validation_report"
+      }
+    ],
+    "target_files": [
+      "static/css/main.css"
+    ]
+  }
+}

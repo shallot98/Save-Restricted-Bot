@@ -1,0 +1,154 @@
+{
+  "project_structure": "基于Flask的Telegram笔记管理Web应用,采用传统MVC架构:\n\n核心架构层:\n- Flask后端(app.py): 路由处理、业务逻辑、API端点\n- 数据层(database.py): SQLite数据库ORM操作、事务管理\n- Pyrogram机器人层(bot/): 消息监听、自动转发、媒体下载\n- 配置管理层(config.py): JSON配置持久化、环境变量处理\n\n前端架构:\n- Jinja2模板系统: 10个HTML模板文件(notes.html主页面达1843行)\n- CSS设计系统: 移动优先设计令牌(main.css 915行)\n- 原生JavaScript: 无框架依赖,使用现代浏览器API\n\n数据流:\n1. Telegram Bot -> database.py -> notes表\n2. Flask -> templates/notes.html -> 用户浏览器\n3. JavaScript API调用 -> Flask路由 -> database操作\n\n模块依赖:\n- bot/: handlers/, services/, utils/, storage/, core/, filters/\n- tests/: 38个测试文件(功能测试、性能测试、移动端测试)\n- 数据持久化: SQLite数据库 + JSON配置文件",
+
+  "relevant_files": [
+    {
+      "path": "/root/Save-Restricted-Bot/app.py",
+      "relevance": 0.95,
+      "rationale": "核心Flask应用:包含所有路由定义、磁力链接提取逻辑、校准API、媒体代理。存在代码模式:内联工具函数(extract_dn_from_magnet等)、混合业务逻辑、冗余的错误处理"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/notes.html",
+      "relevance": 0.98,
+      "rationale": "主页面模板(1843行):包含完整的前端逻辑、状态管理(MobileUIState)、网络管理(NetworkManager)、懒加载、触摸手势。存在patterns:内联CSS(629行)、内联JavaScript(825行)、重复的DOM操作代码"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/static/css/main.css",
+      "relevance": 0.88,
+      "rationale": "设计系统基础(915行):CSS变量、移动优先响应式、暗色主题。存在patterns:完整的设计令牌系统、渐进增强断点、工具类库"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/database.py",
+      "relevance": 0.92,
+      "rationale": "数据访问层(971行):SQLite操作、事务管理、笔记CRUD、校准任务队列。存在patterns:context manager模式、参数验证函数、JSON序列化处理、时区转换逻辑"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/login.html",
+      "relevance": 0.65,
+      "rationale": "登录页面:独立样式系统、表单验证、动画效果。与main.css重复定义部分样式"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin.html",
+      "relevance": 0.72,
+      "rationale": "管理员面板:密码修改功能、内联样式(255行)、重复的UI组件代码"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/config.py",
+      "relevance": 0.70,
+      "rationale": "配置管理模块:JSON文件读写、环境变量处理、监控源管理。存在patterns:全局状态管理(_monitored_sources)、懒加载机制"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/edit_note.html",
+      "relevance": 0.60,
+      "rationale": "笔记编辑页面:表单处理、返回URL逻辑"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin_calibration.html",
+      "relevance": 0.68,
+      "rationale": "校准配置管理页面:表单验证、配置持久化"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin_calibration_queue.html",
+      "relevance": 0.65,
+      "rationale": "校准任务队列查看页面:任务列表、状态过滤、手动重试/删除操作"
+    }
+  ],
+
+  "patterns": "## 代码模式分析\n\n### 1. 架构模式\n**传统服务器端渲染(SSR)架构**\n- Flask Jinja2模板引擎渲染HTML\n- 原生JavaScript增强交互(Progressive Enhancement)\n- RESTful API端点(/api/*路由)\n- 模式优点: 简单直观、SEO友好、无构建步骤\n- 模式缺点: 模板文件巨大(notes.html 1843行)、前后端耦合紧密\n\n**单例模式**\n- StorageManager: `storage_manager = init_storage_manager()` (app.py:45)\n- CalibrationManager: 全局单例获取 `get_calibration_manager()`\n- 模式问题: 全局状态管理困难、测试隔离性差\n\n**Context Manager模式**\n```python\n@contextmanager\ndef get_db_connection():\n    conn = sqlite3.connect(DATABASE_FILE)\n    try:\n        yield conn\n        conn.commit()\n    except Exception:\n        conn.rollback()\n        raise\n    finally:\n        conn.close()\n```\n优点: 自动事务管理、资源清理保证\n\n**Repository模式(不完整)**\n- database.py提供数据访问接口\n- 但业务逻辑散落在app.py中(如extract_dn_from_magnet)\n- 缺少Service层抽象\n\n### 2. 前端模式\n\n**状态管理模式**\n```javascript\nconst MobileUIState = {\n    sidebarOpen: false,\n    isMobile: false,\n    touchState: {...},\n    init: function() {...},\n    toggleSidebar: function() {...},\n    syncDOM: function() {...},\n    persist: function() {...}\n}\n```\n- 类单例对象管理UI状态\n- localStorage持久化\n- 优点: 集中状态管理、状态同步逻辑清晰\n- 缺点: 无响应式机制、手动DOM同步易出错\n\n**网络管理模式**\n```javascript\nconst NetworkManager = {\n    detectConnectionType: function() {...},\n    fetchWithRetry: async function(url, options, maxRetries) {...},\n    TIMEOUTS: {'slow-2g': 15000, '2g': 10000, ...}\n}\n```\n- Network Information API检测连接类型\n- 自适应超时和重试策略\n- 指数退避算法\n- 优点: 移动网络友好、容错性强\n\n**懒加载模式**\n```javascript\nconst imageObserver = new IntersectionObserver((entries) => {...}, {\n    rootMargin: '200px',\n    threshold: 0.01\n});\n```\n- Intersection Observer API实现\n- 200px预加载阈值\n- 占位符SVG图片\n- 优点: 性能优化显著、带宽节省\n\n**防抖节流模式**\n```javascript\nfunction debounce(fn, delay) {...}\nfunction throttle(fn, delay) {...}\n```\n- 应用于搜索输入、API调用\n- 优点: 减少不必要请求、性能优化\n\n### 3. CSS模式\n\n**设计令牌系统(Design Tokens)**\n```css\n:root {\n    --primary-color: #EC4141;\n    --spacing-md: 12px;\n    --font-size-base: 14px;\n    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);\n}\n```\n- 完整的CSS变量体系\n- 暗色主题支持: `[data-theme=\"dark\"]`\n- 优点: 一致性强、主题切换方便\n\n**移动优先响应式设计**\n```css\n/* 320px基础样式 */\n@media (min-width: 375px) {...} /* iPhone */\n@media (min-width: 480px) {...} /* 横屏 */\n@media (min-width: 768px) {...} /* 平板 */\n@media (min-width: 1024px) {...} /* 桌面 */\n```\n- 渐进增强策略\n- 优点: 性能优先、移动体验优化\n\n**BEM命名规范(部分使用)**\n- `.topbar-search-container`, `.note-action-btn`, `.sidebar-toggle`\n- 缺点: 使用不一致,混合其他命名风格\n\n### 4. 数据库模式\n\n**参数验证模式**\n```python\ndef _validate_and_convert_params(user_id, source_chat_id):\n    if user_id is None:\n        raise ValueError(\"user_id 不能为 None\")\n    if not isinstance(user_id, int):\n        user_id = int(user_id)\n    if not isinstance(source_chat_id, str):\n        source_chat_id = str(source_chat_id)\n    return user_id, source_chat_id\n```\n- 类型强制转换\n- 早期失败策略\n\n**去重检查模式**\n```python\ndef _check_duplicate_media_group(cursor, user_id, source_chat_id, media_group_id):\n    cursor.execute(\"SELECT id FROM notes WHERE ... LIMIT 1\", ...)\n    existing = cursor.fetchone()\n    if existing:\n        return existing[0]\n    return None\n```\n- 分离关注点: 独立的检查函数\n- 媒体组去重、消息时间窗口去重(DB_DEDUP_WINDOW)\n\n**JSON序列化模式**\n```python\ndef _parse_media_paths(note):\n    if note.get('media_paths'):\n        try:\n            note['media_paths'] = json.loads(note['media_paths'])\n        except (json.JSONDecodeError, TypeError):\n            note['media_paths'] = []\n    # Fallback逻辑\n    if not note['media_paths'] and note.get('media_path'):\n        note['media_paths'] = [note['media_path']]\n    return note\n```\n- 数据库存储JSON字符串,Python中使用列表/字典\n- 向后兼容处理(media_path -> media_paths迁移)\n\n### 5. 反模式(Anti-patterns)\n\n**God Object反模式**\n- `notes.html`: 1843行单文件,包含CSS(629行) + JS(825行) + HTML\n- `app.py`: 782行,混合路由定义、业务逻辑、工具函数\n- 问题: 可维护性差、代码复用困难、测试困难\n\n**Magic Number反模式**\n```python\nNOTES_PER_PAGE = 50  # 硬编码分页大小\nDB_DEDUP_WINDOW = 300  # 去重时间窗口\n```\n- 部分常量已提取到constants.py,但仍有大量硬编码\n\n**重复代码反模式**\n- 每个admin页面都有内联样式(admin.html, admin_calibration.html等)\n- 表单验证逻辑重复\n- 错误处理代码重复(try-except结构)\n\n**全局状态反模式**\n```python\n# config.py\n_monitored_sources: Set[str] = set()  # 全局可变状态\n```\n- 线程安全问题\n- 测试隔离困难\n\n**过度耦合反模式**\n- database.py自动导入calibration_manager(第358行)\n- 循环依赖风险\n- 违反依赖倒置原则\n\n### 6. 命名模式\n\n**一致性问题**\n- Python: snake_case (get_notes, add_note)\n- JavaScript: camelCase (toggleSidebar, MobileUIState)\n- CSS: kebab-case (note-card, topbar-action)\n- 整体符合各语言规范,但跨语言协作时需注意\n\n**匈牙利命名**\n- `cursor`, `conn`, `btn`, `noteId`\n- 部分变量使用类型前缀,使用不一致\n\n## 总结\n\n**优秀模式**:\n1. Context Manager数据库事务管理\n2. 移动优先响应式设计\n3. CSS设计令牌系统\n4. Network Manager网络容错\n5. Intersection Observer懒加载\n\n**需改进模式**:\n1. God Object拆分(notes.html, app.py)\n2. Service层抽象引入\n3. 重复代码提取为组件/工具\n4. 全局状态管理改进\n5. 依赖注入替代全局单例",
+
+  "dependencies": "## 外部依赖\n\n### Python后端依赖(requirements.txt)\n1. **核心框架**\n   - `flask`: Web框架,路由和模板渲染\n   - `flask-login`: 会话管理和用户认证\n   - `bcrypt`: 密码哈希加密\n\n2. **Telegram客户端**\n   - `pyrogram`: Telegram客户端库\n   - `tgcrypto`: Telegram加密加速\n\n3. **存储和网络**\n   - `webdavclient3`: WebDAV远程存储客户端\n   - `requests`: HTTP请求库(用于WebDAV代理)\n   - `pillow`: 图片处理库\n\n4. **BT协议**\n   - `libtorrent`: 磁力链接校准(获取种子元数据)\n\n5. **测试框架**\n   - `pytest>=7.4.0`: 测试框架\n   - `pytest-playwright>=0.4.0`: E2E测试适配器\n   - `playwright>=1.40.0`: 浏览器自动化(移动端测试)\n\n### 前端依赖(无npm依赖)\n- **原生浏览器API**:\n  - Intersection Observer API (懒加载)\n  - Network Information API (连接检测)\n  - Visual Viewport API (键盘处理)\n  - Fetch API (HTTP请求)\n  - localStorage API (状态持久化)\n  - Touch Events API (手势检测)\n\n### 内部依赖关系\n\n**循环依赖风险**:\n```\ndatabase.py (line 358) -> calibration_manager.py\n  -> database.py (add_calibration_task)\n```\n- 通过延迟导入(函数内import)缓解\n- 建议重构: 引入事件系统或消息队列解耦\n\n**模块依赖图**:\n```\napp.py\n├── database.py (直接依赖)\n├── config.py (配置加载)\n├── bot/storage/webdav_client.py (存储管理)\n└── templates/*.html (Jinja2渲染)\n\ndatabase.py\n├── constants.py (常量定义)\n└── bot/services/calibration_manager.py (延迟导入)\n\nconfig.py\n└── 独立模块(无内部依赖)\n\nbot/\n├── handlers/ (消息处理器)\n│   ├── commands.py\n│   ├── messages.py\n│   └── callbacks.py\n├── services/ (业务服务)\n│   ├── calibration_manager.py\n│   ├── calibration_scheduler.py\n│   └── peer_cache.py\n├── utils/ (工具函数)\n│   ├── logger.py\n│   ├── helpers.py\n│   └── dedup.py\n└── core/ (核心模块)\n    ├── client.py\n    ├── queue.py\n    └── startup.py\n```\n\n**依赖层次**:\n- Level 1 (基础层): config.py, constants.py, utils/\n- Level 2 (数据层): database.py, storage/\n- Level 3 (业务层): services/, handlers/\n- Level 4 (应用层): app.py, main.py\n\n**脆弱依赖**:\n1. `libtorrent`: 二进制依赖,跨平台兼容性问题\n2. `playwright`: 大型依赖(浏览器下载),仅用于测试\n3. `webdavclient3`: 第三方库维护状态不确定\n\n**缺失依赖管理**:\n- 无锁定文件(requirements.lock/Pipfile.lock)\n- 依赖版本未固定(除pytest)\n- 建议: 使用poetry或pipenv管理依赖",
+
+  "integration_points": "## 前后端集成点\n\n### 1. API端点集成\n\n**笔记操作API**\n- `GET /notes?page=1&search=关键词&source=源ID`: 笔记列表(app.py:196-252)\n  - 返回: Jinja2渲染HTML页面(非JSON API)\n  - 前端: 页面跳转而非AJAX请求\n  - 问题: 无法实现SPA体验,每次刷新页面\n\n- `POST /delete_note/<note_id>`: 删除笔记(app.py:486-494)\n  - 返回: JSON `{success: bool, error?: string}`\n  - 前端调用: `deleteNote()` -> `NetworkManager.fetchWithRetry()`\n  - 集成点: notes.html:1749-1773\n\n- `POST /toggle_favorite/<note_id>`: 收藏切换(app.py:496-505)\n  - 返回: JSON `{success: bool}`\n  - 前端调用: `toggleFavorite()` -> 更新DOM类名\n  - 集成点: notes.html:1726-1747\n\n- `POST /api/calibrate/<note_id>`: 磁力链接校准(app.py:668-776)\n  - 返回: JSON `{success: bool, total: int, success_count: int, results: array}`\n  - 前端调用: `calibrateNote()` -> subprocess调用calibrate_helper.py\n  - 集成点: notes.html:1794-1839\n  - 超时策略: 基础超时 * 链接数,最多60秒\n\n**媒体访问API**\n- `GET /media/<storage_location>`: 媒体文件代理(app.py:343-457)\n  - 支持: Range请求(HTTP 206 Partial Content)\n  - WebDAV代理: 透明转发到远程存储\n  - 本地文件: send_from_directory + 自定义Range处理\n  - 集成点: notes.html:854-872(img标签)\n  - 优化: Cache-Control头设置为1年\n\n**配置管理API**\n- `GET/POST /admin/calibration`: 校准配置(app.py:551-602)\n- `GET/POST /admin/webdav`: WebDAV配置(app.py:282-341)\n- `GET/POST /admin/viewer`: 观看网站配置(app.py:507-549)\n- 集成点: 各admin_*.html表单提交\n\n### 2. 状态同步集成点\n\n**侧边栏状态同步**\n- localStorage持久化: `localStorage.getItem('mobileUIState')`(notes.html:1105)\n- DOM同步: `MobileUIState.syncDOM()`(notes.html:1189-1216)\n- 事件监听:\n  - 按钮点击: `toggleSidebar()`(notes.html:1335)\n  - 窗口resize: `MobileUIState.updateViewport()`(notes.html:1449)\n  - 主内容区点击: 自动收起侧边栏(notes.html:1434-1442)\n- 集成问题: 手动DOM同步易出错,无响应式机制\n\n**主题切换同步**\n- localStorage持久化: `localStorage.getItem('theme')`(notes.html:1413)\n- DOM应用: `document.documentElement.setAttribute('data-theme', 'dark')`\n- CSS变量级联: `[data-theme=\"dark\"]`选择器(main.css:90-101)\n\n### 3. 数据流集成点\n\n**笔记创建流程**\n```\nTelegram消息 -> Pyrogram handlers\n  -> database.add_note() (database.py:307-386)\n  -> 提取磁力链接: _extract_magnet_link()\n  -> 校准队列: calibration_manager.add_note_to_calibration_queue()\n  -> SQLite notes表\n```\n- 集成点: database.py:353-377(异步校准触发)\n- 解耦机制: 线程异步调用,避免阻塞\n\n**校准工作流**\n```\n前端点击\"校准\" -> /api/calibrate/<note_id>\n  -> subprocess.run(['python3', 'calibrate_helper.py', info_hash])\n  -> libtorrent获取种子元数据\n  -> update_note_with_calibrated_dns() (database.py:547-615)\n  -> 前端刷新页面\n```\n- 集成点: app.py:686-736(校准逻辑)\n- 问题: 同步subprocess阻塞请求,超时30秒\n\n**自动校准后台流程**\n```\ncalibration_scheduler定时扫描\n  -> get_pending_calibration_tasks() (database.py:796-814)\n  -> 并发执行校准(concurrent_limit限制)\n  -> update_calibration_task() (database.py:817-853)\n  -> 重试策略: 指数退避\n```\n- 集成点: bot/services/calibration_scheduler.py\n- 配置表: auto_calibration_config(database.py:171-192)\n\n### 4. 文件系统集成点\n\n**媒体文件存储**\n- 本地存储: `{DATA_DIR}/media/{storage_location}`\n- WebDAV存储: HTTP URL代理访问\n- StorageManager抽象层(bot/storage/webdav_client.py)\n- 集成点: app.py:343-457(media路由)\n\n**配置文件持久化**\n- 位置: `{DATA_DIR}/config/{config_name}.json`\n- 加载: config.py:load_*_config()函数\n- 保存: config.py:save_*_config()函数\n- 同步: fsync()保证写入磁盘\n- 集成点: app.py各配置管理路由\n\n### 5. 并发集成点\n\n**数据库事务隔离**\n- Context Manager: `get_db_connection()` (database.py:23-34)\n- 自动提交/回滚\n- 问题: SQLite不支持真并发写入,串行化\n\n**校准任务并发控制**\n- 配置: `concurrent_limit=5` (database.py:182)\n- 实现: 信号量或队列限制并发数\n- 集成点: calibration_scheduler线程池\n\n**前端请求并发控制**\n- 节流: `throttle(fn, 1000)` (notes.html:1469-1497)\n- 防抖: `debounce(fn, 300)` (notes.html:1500-1517)\n- 应用: 收藏按钮、删除按钮、搜索输入\n\n### 6. 移动端集成点\n\n**触摸手势检测**\n- Touch Events: touchstart/touchmove/touchend(notes.html:1234-1258)\n- 手势识别: 左滑关闭侧边栏(deltaX < -50px)\n- 集成点: `MobileUIState.handleSwipeGesture()`(notes.html:1264-1303)\n- 优化: `touch-action: pan-y`允许垂直滚动\n\n**虚拟键盘处理**\n- Visual Viewport API: 检测键盘弹出(notes.html:1306-1331)\n- 自动滚动: `element.scrollIntoView({block: 'center'})`\n- 适配: 表单输入框自动居中\n\n**网络连接自适应**\n- Network Information API: navigator.connection.effectiveType\n- 超时映射: slow-2g(15s), 2g(10s), 3g(8s), 4g(5s)\n- 重试策略: slow-2g重试3次, 4g重试1次\n- 集成点: `NetworkManager.fetchWithRetry()`(notes.html:1592-1654)\n\n### 7. 安全集成点\n\n**用户认证**\n- Flask-Login会话管理\n- 密码哈希: bcrypt(database.py:197,514)\n- 路由保护: `if 'username' not in session`检查\n- 问题: 每个路由手动检查,易遗漏\n\n**XSS防护**\n- Jinja2自动转义\n- MarkupSafe: `escape()`, `Markup()` (app.py:4,54,61)\n- 高亮过滤器: 先转义再替换(app.py:48-61)\n- 问题: 部分模板使用`|safe`,需审查\n\n**CSRF防护**\n- 缺失: 无CSRF token验证\n- 风险: POST端点易受CSRF攻击\n- 建议: 引入Flask-WTF或手动实现CSRF保护\n\n### 8. 性能优化集成点\n\n**缓存策略**\n- 媒体文件: `Cache-Control: public, max-age=31536000, immutable`(app.py:388,442)\n- 静态资源版本: `main.css?v=2.1`(notes.html:7)\n- 问题: 缺少ETag/Last-Modified支持\n\n**懒加载集成**\n- Intersection Observer: 200px提前加载(notes.html:1029-1073)\n- 占位符图片: SVG base64编码(notes.html:1018)\n- 加载状态类: .image-loading, .image-loaded, .image-error\n\n**分页优化**\n- 服务器端分页: LIMIT/OFFSET(database.py:438-439)\n- 固定页大小: 50条/页(app.py:18)\n- 问题: 深度分页性能差(OFFSET大时)\n- 建议: 游标分页或keyset分页\n\n## 关键集成文件位置\n\n| 集成类型 | 文件位置 | 行号 |\n|---------|---------|------|\n| API路由定义 | /root/Save-Restricted-Bot/app.py | 63-777 |\n| 前端状态管理 | /root/Save-Restricted-Bot/templates/notes.html | 1076-1332 |\n| 数据库事务 | /root/Save-Restricted-Bot/database.py | 23-34 |\n| 磁力链接校准 | /root/Save-Restricted-Bot/app.py | 668-776 |\n| 媒体文件代理 | /root/Save-Restricted-Bot/app.py | 343-457 |\n| 网络管理 | /root/Save-Restricted-Bot/templates/notes.html | 1519-1724 |\n| 触摸手势 | /root/Save-Restricted-Bot/templates/notes.html | 1229-1303 |",
+
+  "constraints": "## 技术限制\n\n### 1. 数据库限制(SQLite)\n- **并发写入限制**: SQLite不支持真正的并发写入,多个写入请求会串行化\n  - 影响: 高并发场景下性能瓶颈\n  - 缓解: 使用WAL模式(未启用),或迁移到PostgreSQL/MySQL\n- **全文搜索限制**: 使用LIKE '%关键词%'进行搜索,无法使用索引\n  - 位置: database.py:423-425\n  - 影响: 大数据量搜索慢\n  - 建议: 引入FTS5全文搜索扩展\n- **JSON存储限制**: 使用TEXT存储JSON(media_paths),无法索引JSON字段\n  - 位置: database.py:66\n  - 影响: 无法按媒体类型筛选\n- **时区问题**: SQLite无原生时区支持,需Python层转换\n  - 位置: database.py:15(CHINA_TZ),341\n  - 风险: 时区转换错误导致时间混乱\n\n### 2. Flask框架限制\n- **单进程阻塞**: Flask开发服务器单线程,长时间请求阻塞其他请求\n  - 位置: app.py:686-736(校准API使用subprocess,阻塞30秒)\n  - 影响: 校准期间其他用户无法访问\n  - 缓解: 使用Gunicorn多worker,或异步任务队列(Celery)\n- **会话管理限制**: 使用Flask内置session,存储在cookie中\n  - 位置: app.py:12(secret_key)\n  - 问题: cookie大小限制4KB,无法存储大量数据\n  - 安全: secret_key硬编码,生产环境需环境变量\n- **静态文件服务限制**: Flask不适合生产环境静态文件服务\n  - 位置: app.py:343-457(媒体文件路由)\n  - 问题: Range请求手动实现,易出错\n  - 建议: 使用Nginx反向代理服务静态文件\n\n### 3. 前端技术限制\n- **无框架限制**: 原生JavaScript无响应式数据绑定\n  - 影响: 状态同步需手动更新DOM(notes.html:1189-1216)\n  - 风险: 状态和UI不一致\n  - 优势: 无构建步骤,零依赖\n- **浏览器兼容性限制**: 依赖现代浏览器API\n  - Intersection Observer: IE不支持\n  - Network Information API: Safari不支持\n  - Visual Viewport API: iOS Safari 13+\n  - 缓解: 已添加降级逻辑(notes.html:1022-1026,1307-1309)\n- **localStorage限制**: 5-10MB存储上限\n  - 位置: notes.html:1221(存储UI状态)\n  - 影响: 无法存储大量数据\n- **SEO限制**: JavaScript渲染内容搜索引擎不可见\n  - 缓解: 使用SSR(已实现Jinja2服务器渲染)\n\n### 4. 移动端限制\n- **触摸事件passive限制**: 为了性能,touch事件使用passive:true\n  - 位置: notes.html:1243,1247,1255\n  - 影响: 无法调用preventDefault()阻止默认行为\n  - 解决: 使用touch-action CSS属性控制\n- **虚拟键盘遮挡**: 键盘弹出时输入框可能被遮挡\n  - 缓解: Visual Viewport API自动滚动(notes.html:1312-1327)\n  - 局限: API支持度有限,部分设备无效\n- **网络不稳定限制**: 移动网络经常切换(4G/WiFi/弱网)\n  - 缓解: NetworkManager自适应超时重试(notes.html:1519-1724)\n  - 局限: 无法检测所有网络状况\n- **性能限制**: 低端移动设备性能差\n  - 优化: 懒加载(notes.html:1020-1073)\n  - 优化: 防抖节流(notes.html:1467-1517)\n  - 局限: 大列表滚动仍可能卡顿\n\n### 5. 依赖库限制\n- **libtorrent跨平台限制**: C++库,Windows/Mac编译困难\n  - 位置: requirements.txt:9\n  - 影响: 校准功能在非Linux环境可能不可用\n  - 建议: 提供Docker镜像统一环境\n- **Pyrogram API限制**: Telegram限流(FloodWait)\n  - 影响: 大量消息转发时被限制\n  - 缓解: 需实现FloodWait重试逻辑\n- **webdavclient3维护限制**: 第三方库更新不频繁\n  - 位置: requirements.txt:7\n  - 风险: 可能存在未修复的bug\n  - 建议: fork维护或迁移到官方维护库\n\n### 6. 架构约束\n- **单体应用限制**: 所有功能在一个Flask进程中\n  - 影响: 无法独立扩展bot/web/校准服务\n  - 建议: 微服务拆分(bot服务、web服务、校准服务)\n- **无消息队列限制**: 校准任务使用数据库轮询\n  - 位置: database.py:796-814(get_pending_calibration_tasks)\n  - 影响: 实时性差,数据库压力大\n  - 建议: 引入Redis/RabbitMQ消息队列\n- **无缓存层限制**: 所有请求直接查询数据库\n  - 影响: 笔记列表、来源列表等高频查询效率低\n  - 建议: 引入Redis缓存热点数据\n\n### 7. 安全约束\n- **无CSRF保护**: POST请求易受跨站请求伪造攻击\n  - 影响: /delete_note, /toggle_favorite等敏感操作\n  - 建议: 引入Flask-WTF CSRF保护\n- **无XSS审计**: 部分模板使用|safe标记\n  - 风险: 用户输入未正确转义可能导致XSS\n  - 建议: 审计所有|safe使用,确保数据已清理\n- **密码强度限制**: 仅要求6位密码\n  - 位置: app.py:269\n  - 风险: 易被暴力破解\n  - 建议: 增强密码策略,加入验证码\n- **无HTTPS强制**: 生产环境需Nginx配置HTTPS\n  - 风险: 会话cookie明文传输\n  - 建议: 启用Secure和HttpOnly标志\n\n### 8. 性能约束\n- **OFFSET分页性能**: 深度分页时OFFSET大,查询慢\n  - 位置: database.py:438-439\n  - 影响: 第100页查询需跳过5000条记录\n  - 建议: 游标分页(WHERE id > last_id)\n- **N+1查询问题**: 笔记列表每条笔记可能触发额外查询\n  - 位置: app.py:221-231(为每条笔记提取dn)\n  - 影响: 50条笔记可能产生50+次数据库查询\n  - 建议: 批量查询或JOIN优化\n- **大文件代理限制**: 媒体文件代理需读取整个文件到内存(本地)\n  - 位置: app.py:429-432(本地Range处理)\n  - 影响: 大视频文件可能OOM\n  - 缓解: 已使用streaming(app.py:399),但本地Range仍有问题\n- **单线程同步阻塞**: 校准API使用subprocess.run阻塞\n  - 位置: app.py:699-704\n  - 影响: 30秒超时期间阻塞worker线程\n  - 建议: 使用Celery异步任务\n\n### 9. 部署约束\n- **数据持久化约束**: 数据目录需正确挂载\n  - 位置: database.py:19(DATA_DIR环境变量)\n  - Docker: 需volume挂载/data目录\n  - 风险: 容器重启数据丢失\n- **端口冲突约束**: 默认5000端口\n  - 位置: app.py:780\n  - 解决: 通过PORT环境变量覆盖\n- **依赖安装约束**: libtorrent需系统级依赖\n  - Docker: 已在Dockerfile中处理\n  - 裸机: 需手动安装编译依赖\n\n### 10. 业务逻辑约束\n- **磁力链接格式约束**: 依赖特定格式提取\n  - 位置: database.py:286-287(正则表达式)\n  - 风险: 非标准格式无法识别\n  - 建议: 增强正则表达式兼容性\n- **媒体组去重约束**: 依赖media_group_id\n  - 位置: database.py:249-260\n  - 局限: 单条媒体消息无法去重\n  - 缓解: 时间窗口去重(database.py:263-276)\n- **校准超时约束**: 单个磁力链接30秒超时\n  - 位置: app.py:703(timeout=30)\n  - 影响: 冷门种子可能超时失败\n  - 建议: 可配置超时,或重试机制\n\n## 必须遵守的约束\n\n1. **数据库操作必须使用Context Manager**(database.py:23-34)\n2. **所有路由必须检查会话认证**(`if 'username' not in session`)\n3. **用户输入必须转义或验证**(XSS防护)\n4. **媒体文件访问必须鉴权**(app.py:346-347)\n5. **配置修改必须调用fsync()**(config.py:149,201,235)\n6. **时间戳必须使用中国时区**(database.py:15,341)\n7. **校准任务状态更新必须原子性**(database.py:817-853)\n8. **media_paths向后兼容**(database.py:388-401)\n9. **前端必须使用NetworkManager进行API调用**(容错重试)\n10. **移动端触摸事件必须passive模式**(性能)",
+
+  "clarification_needs": [
+    {
+      "question": "重构策略:全量重构还是渐进式重构?",
+      "context": "当前代码库约9551行,存在多个架构问题(God Object、重复代码、紧耦合)。全量重构风险大但效果好,渐进式重构安全但周期长。需明确重构策略以制定实施计划。",
+      "options": [
+        "全量重构: 推倒重来,重新设计架构(前后端分离、微服务、组件化),风险高但一次性解决所有问题,预计2-3周",
+        "渐进式重构: 保持现有架构,逐步拆分模块、提取组件、修复bug,低风险但周期长(4-6周),可分阶段上线",
+        "混合策略: 核心模块全量重构(如notes.html拆分),非核心模块渐进优化,平衡风险和效率",
+        "最小化重构: 仅修复已知bug和严重性能问题,保持现有架构基本不变,1周内完成"
+      ],
+      "recommended": 2
+    },
+    {
+      "question": "前端技术栈选型:继续原生JS还是引入框架?",
+      "context": "当前使用原生JavaScript,notes.html已达1843行(包含825行内联JS)。继续原生可保持零依赖但维护困难,引入框架(Vue/React)可组件化但需构建步骤。",
+      "options": [
+        "保持原生JavaScript: 拆分为多个JS模块文件,使用ES6 modules,无构建步骤,但手动DOM操作和状态管理",
+        "引入轻量级框架: Vue 3 Composition API或Alpine.js,响应式数据绑定,体积小(~40KB),学习成本低",
+        "完整框架重构: React + TypeScript + Vite,组件化开发,类型安全,现代化工具链,但需要完整构建流程",
+        "Web Components: 使用原生Web Components API(自定义元素、Shadow DOM),标准化,无框架依赖,但浏览器兼容性需考虑"
+      ],
+      "recommended": 1
+    },
+    {
+      "question": "数据库方案:继续SQLite还是迁移到其他数据库?",
+      "context": "当前使用SQLite,存在并发写入限制、全文搜索性能差、JSON字段无法索引等问题。是否需要迁移到PostgreSQL/MySQL以支持更高并发和更强查询能力?",
+      "options": [
+        "继续SQLite: 启用WAL模式优化并发,引入FTS5全文搜索扩展,适合单机部署,无额外依赖",
+        "迁移到PostgreSQL: 支持真并发、JSONB字段索引、全文搜索、地理位置等高级特性,适合生产环境,需额外服务",
+        "迁移到MySQL: 主流选择,生态丰富,但全文搜索和JSON支持不如PostgreSQL",
+        "双数据库架构: SQLite作为缓存/队列,PostgreSQL作为主存储,复杂度高但灵活"
+      ],
+      "recommended": 0
+    },
+    {
+      "question": "异步任务方案:校准功能是否需要引入任务队列?",
+      "context": "当前校准API使用subprocess同步阻塞30秒(app.py:699),影响用户体验。是否引入Celery/RQ异步任务队列?",
+      "options": [
+        "引入Celery+Redis: 专业异步任务队列,支持定时任务、重试、监控,需额外Redis依赖",
+        "使用RQ(Redis Queue): 轻量级异步队列,基于Redis,API简单,功能够用",
+        "自建线程池: 使用Python concurrent.futures,无外部依赖,但功能有限(无持久化、无分布式)",
+        "保持现状优化: 使用threading.Thread异步执行校准,前端轮询结果,简单但不可靠"
+      ],
+      "recommended": 1
+    },
+    {
+      "question": "已知bug优先级:哪些bug需要优先修复?",
+      "context": "根据代码分析发现多个潜在问题:1)侧边栏状态同步问题 2)CSRF保护缺失 3)深度分页性能 4)N+1查询 5)XSS风险(|safe使用) 6)全局状态线程安全。需明确修复优先级。",
+      "options": [
+        "安全优先: 先修复CSRF保护、XSS风险、密码强度等安全问题,再优化性能和体验",
+        "用户体验优先: 先修复侧边栏同步、移动端手势、网络容错等影响用户的bug,安全问题后续处理",
+        "性能优先: 先优化数据库查询(N+1、深度分页)、懒加载、缓存,提升系统性能",
+        "架构优先: 先重构God Object、拆分模块、解耦依赖,再逐步修复具体bug"
+      ],
+      "recommended": 0
+    },
+    {
+      "question": "CSS架构:是否需要引入CSS预处理器或工具链?",
+      "context": "当前使用原生CSS(915行),已有完整设计令牌系统。但存在重复样式(各admin页面内联样式)、维护困难。是否引入Sass/Tailwind/CSS Modules?",
+      "options": [
+        "保持原生CSS: 提取重复样式到main.css,使用CSS变量管理主题,无构建步骤",
+        "引入Sass/SCSS: 支持嵌套、mixin、函数,模块化导入,需构建步骤,学习成本低",
+        "使用Tailwind CSS: 原子化CSS,快速开发,体积小(按需),需构建步骤,设计约束强",
+        "CSS Modules: 作用域隔离,避免命名冲突,与组件化框架配合好,需构建步骤"
+      ],
+      "recommended": 0
+    },
+    {
+      "question": "测试覆盖率目标:重构后需要达到多少测试覆盖率?",
+      "context": "当前有38个测试文件(功能测试、性能测试、移动端E2E测试),但覆盖率未知。重构后需要制定测试覆盖率目标和测试策略。",
+      "options": [
+        "高覆盖率(80%+): 单元测试+集成测试+E2E测试全覆盖,CI/CD强制检查,开发周期长但质量高",
+        "中等覆盖率(60-80%): 核心业务逻辑必须测试,UI组件和边缘情况可选,平衡开发效率和质量",
+        "低覆盖率(40-60%): 仅测试关键路径和已知bug修复,快速迭代,风险较高",
+        "无强制要求: 根据模块重要性灵活决定,优先级高的模块高覆盖,辅助功能可不测试"
+      ],
+      "recommended": 1
+    }
+  ],
+
+  "_metadata": {
+    "timestamp": "2025-12-07T06:50:00+00:00",
+    "task_description": "GOAL: 重构网页系统,修复现有bug并优化架构\nSCOPE: 分析当前网页bug、根据项目功能和逻辑重新构建网页结构、修复已知问题\nCONTEXT: 现有网页存在多个bug,需要基于项目实际功能和业务逻辑进行全面重构",
+    "source": "cli-explore-agent",
+    "exploration_angle": "patterns",
+    "exploration_index": 2,
+    "total_explorations": 4,
+    "duration_seconds": 420
+  }
+}

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebDAV 存储配置 - Telegram 笔记</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-title h1 {
+            color: #333;
+            font-size: 28px;
+        }
+
+        .header-icon {
+            font-size: 36px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .card-title {
+            font-size: 22px;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="password"],
+        .form-group input[type="url"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 5px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .info-box h4 {
+            color: #1976D2;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            color: #555;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status-enabled {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-disabled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .nav-buttons {
+                width: 100%;
+            }
+
+            .btn {
+                flex: 1;
+                text-align: center;
+            }
+
+            .form-group input[type="text"],
+            .form-group input[type="password"],
+            .form-group input[type="url"] {
+                min-height: 48px;
+            }
+
+            .btn-primary {
+                min-height: 48px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <span class="header-icon">☁️</span>
+                <div>
+                    <h1>WebDAV 存储配置</h1>
+                    {% if config.enabled %}
+                    <span class="status-badge status-enabled">✓ 已启用</span>
+                    {% else %}
+                    <span class="status-badge status-disabled">✗ 未启用</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="nav-buttons">
+                <a href="{{ url_for('notes') }}" class="btn btn-primary">📝 笔记列表</a>
+                <a href="{{ url_for('admin') }}" class="btn btn-secondary">⚙️ 管理面板</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">🚪 退出登录</a>
+            </div>
+        </div>
+
+        {% if success %}
+        <div class="alert alert-success">
+            ✓ {{ success }}
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="alert alert-error">
+            ✗ {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="info-box">
+            <h4>💡 关于 WebDAV 存储</h4>
+            <ul>
+                <li><strong>解决存储空间问题：</strong>将媒体文件上传到 WebDAV 服务器，释放本地存储空间</li>
+                <li><strong>支持的服务：</strong>坚果云、Nextcloud、Synology NAS、ownCloud 等</li>
+                <li><strong>自动降级：</strong>如果 WebDAV 不可用，自动降级到本地存储</li>
+                <li><strong>可选本地备份：</strong>可以选择在上传到 WebDAV 后保留本地副本</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">WebDAV 服务器配置</h2>
+
+            <form method="POST">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="enabled" name="enabled" {% if config.enabled %}checked{% endif %}>
+                    <label for="enabled">启用 WebDAV 存储</label>
+                </div>
+
+                <div class="form-group">
+                    <label for="url">WebDAV 服务器地址 *</label>
+                    <input type="url" id="url" name="url" value="{{ config.url }}" placeholder="https://dav.jianguoyun.com/dav/" inputmode="url" autocomplete="url" autocapitalize="none" required>
+                    <small>例如：https://dav.jianguoyun.com/dav/ (坚果云)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="webdav_username">用户名 *</label>
+                    <input type="text" id="webdav_username" name="webdav_username" value="{{ config.username }}" placeholder="your@email.com" inputmode="email" autocomplete="username" autocapitalize="none" required>
+                    <small>WebDAV 服务的登录用户名或邮箱</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="webdav_password">密码 *</label>
+                    <input type="password" id="webdav_password" name="webdav_password" value="{{ config.password }}" placeholder="••••••••" autocomplete="current-password" required>
+                    <small>WebDAV 服务的密码或应用专用密码</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="base_path">基础路径</label>
+                    <input type="text" id="base_path" name="base_path" value="{{ config.base_path }}" placeholder="/telegram_media" autocapitalize="none">
+                    <small>文件将存储在此路径下（默认：/telegram_media）</small>
+                </div>
+
+                <div class="checkbox-group">
+                    <input type="checkbox" id="keep_local_copy" name="keep_local_copy" {% if config.keep_local_copy %}checked{% endif %}>
+                    <label for="keep_local_copy">上传后保留本地副本</label>
+                </div>
+                <small style="margin-left: 30px; display: block; margin-bottom: 20px; color: #888;">
+                    启用后，文件会同时保存在本地和 WebDAV 服务器上
+                </small>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 16px;">
+                    💾 保存配置
+                </button>
+            </form>
+        </div>
+
+        <div class="info-box" style="background: #fff3cd; border-left-color: #ffc107;">
+            <h4>⚠️ 常见 WebDAV 服务配置示例</h4>
+            <ul>
+                <li><strong>坚果云：</strong>
+                    <br>地址：https://dav.jianguoyun.com/dav/
+                    <br>用户名：你的邮箱
+                    <br>密码：应用密码（在坚果云账户安全中生成）
+                </li>
+                <li><strong>Nextcloud：</strong>
+                    <br>地址：https://your-domain.com/remote.php/dav/files/username/
+                    <br>用户名：你的用户名
+                    <br>密码：你的密码或应用密码
+                </li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

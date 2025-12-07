@@ -1,0 +1,21 @@
+{
+  "session_id": "sidebar-click-no-response-2025-12-07",
+  "bug_description": "左上角三条杠点击无反应,侧边栏不出现",
+  "timestamp": "2025-12-07T04:20:46.926Z",
+  "severity": "Medium",
+  "diagnosis_count": 2,
+  "diagnoses": [
+    {
+      "angle": "event-handling",
+      "file": "diagnosis-event-handling.json",
+      "path": ".workflow/.lite-fix/sidebar-click-no-response-2025-12-07/diagnosis-event-handling.json",
+      "index": 1
+    },
+    {
+      "angle": "state-management",
+      "file": "diagnosis-state-management.json",
+      "path": ".workflow/.lite-fix/sidebar-click-no-response-2025-12-07/diagnosis-state-management.json",
+      "index": 2
+    }
+  ]
+}

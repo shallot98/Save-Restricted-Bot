@@ -1,0 +1,115 @@
+{
+  "symptom": {
+    "description": "The hamburger menu (三条杠) button in the top-left corner is not responding to clicks. When clicked, the mobile sidebar should appear/disappear, but nothing happens.",
+    "error_message": null,
+    "stack_trace": null,
+    "frequency": "always",
+    "user_impact": "Mobile and tablet users cannot access the sidebar navigation menu, significantly impacting usability on small screens."
+  },
+  "root_cause": {
+    "file": "templates/notes.html",
+    "line_range": "686-687",
+    "function": "toggleMobileSidebar",
+    "issue": "The hamburger button's onclick handler is defined (line 686), but the toggleMobileSidebar() function (lines 1021-1040) checks for sidebar element existence and uses window width breakpoints, yet the fundamental event binding may fail due to race conditions, missing sidebar element on initial load, or the click event not properly reaching the handler. The sidebar element (#sidebar) must exist and the viewport width must be <= 1024px for the function to toggle the mobile-open class (line 1034).",
+    "confidence": 0.75,
+    "introduced_by": null,
+    "category": "logic_error"
+  },
+  "affected_files": [
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.95,
+      "rationale": "Contains the hamburger button (line 686) with onclick handler and the toggleMobileSidebar() function (lines 1021-1040). The event handler is defined here but may not fire properly due to missing sidebar element validation or timing issues.",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "static/css/main.css",
+      "relevance": 0.85,
+      "rationale": "Defines CSS rules for .sidebar (lines 126-139) and .sidebar.mobile-open (lines 750-752). The sidebar has position: fixed with left: 0, transform: translateX(-100%) at breakpoint. The mobile-open class uses transform: translateX(0) but the display property interaction may be blocking the transition.",
+      "change_type": "needs_update"
+    }
+  ],
+  "reproduction_steps": [
+    "Open the application in a mobile browser (viewport width <= 1024px) or use DevTools mobile emulation (e.g., iPhone 12)",
+    "Observe the top-left corner hamburger button (☰) in the topbar",
+    "Click the hamburger button",
+    "Expected: Sidebar slides in from the left with animation",
+    "Actual: No visual change, sidebar remains off-screen"
+  ],
+  "fix_hints": [
+    {
+      "description": "Ensure sidebar element exists before function executes",
+      "approach": "Add defensive check to wait for DOM to be fully loaded before attaching event listeners, or use event delegation on the button itself to ensure it captures clicks. The current console.log statements suggest the function fires, but the sidebar element reference may be null.",
+      "code_example": "// Move toggleMobileSidebar call into DOMContentLoaded wrapper\ndocument.addEventListener('DOMContentLoaded', function() {\n  const mobileSidebarBtn = document.querySelector('.topbar > .topbar-action:first-child');\n  if (mobileSidebarBtn) {\n    mobileSidebarBtn.addEventListener('click', toggleMobileSidebar);\n  }\n});",
+      "risk": "low"
+    },
+    {
+      "description": "Verify breakpoint logic is correct for mobile detection",
+      "approach": "The condition 'window.innerWidth <= 1024' matches the CSS media query breakpoint (@media (max-width: 1024px) at line 739). However, ensure the window resize event doesn't cause state inconsistency. Add a guard to prevent toggling on desktop mode.",
+      "code_example": "function toggleMobileSidebar() {\n  const sidebar = document.getElementById('sidebar');\n  if (!sidebar) {\n    console.error('Sidebar element not found!');\n    return;\n  }\n  \n  // Only toggle on mobile breakpoint\n  if (window.innerWidth <= 1024) {\n    sidebar.classList.toggle('mobile-open');\n  } else {\n    // On desktop, use collapsed state instead\n    toggleSidebar();\n  }\n}",
+      "risk": "low"
+    },
+    {
+      "description": "Check CSS transform and z-index for sidebar visibility",
+      "approach": "At mobile breakpoint (max-width: 1024px), the sidebar uses 'transform: translateX(-100%)' which hides it off-screen. The mobile-open class applies 'transform: translateX(0) !important'. Verify that the transition property is being respected and there's no z-index conflict with other elements.",
+      "code_example": "// In CSS, ensure proper stacking and animation\n.sidebar {\n  transform: translateX(-100%);\n  will-change: transform; /* Enable GPU acceleration */\n  transition: transform var(--transition-base);\n}\n\n.sidebar.mobile-open {\n  transform: translateX(0) !important;\n  z-index: 1001; /* Higher than topbar's z-index: 100 */\n}",
+      "risk": "low"
+    },
+    {
+      "description": "Remove or fix click event propagation issue on main content",
+      "approach": "Lines 1112-1118 show an event listener on mainContent that removes 'mobile-open' class when clicked. This is correct behavior (click outside sidebar closes it), but ensure the toggle button itself doesn't trigger this auto-close behavior. Add stopPropagation() or exclude the button from this handler.",
+      "code_example": "// Fix the auto-close handler to not interfere with toggle button\nif (sidebar && mainContent) {\n  mainContent.addEventListener('click', function(e) {\n    // Don't close if clicking the toggle button\n    if (e.target.closest('.topbar-action:first-child')) {\n      return;\n    }\n    if (window.innerWidth <= 768 && sidebar.classList.contains('mobile-open')) {\n      sidebar.classList.remove('mobile-open');\n    }\n  });\n}",
+      "risk": "medium"
+    }
+  ],
+  "dependencies": "No external dependencies. Issue is purely event-handling related within vanilla JavaScript and CSS. Browser must support classList API and CSS transforms.",
+  "constraints": "Mobile breakpoint (@media max-width: 1024px in CSS) must match the JavaScript window.innerWidth check (line 1033). The transition property uses CSS variables that must be defined in :root. The sidebar element must have id='sidebar' as referenced in JavaScript.",
+  "related_issues": [
+    {
+      "type": "similar_bug",
+      "reference": "lines 1107-1118",
+      "description": "The auto-close mechanism on main-content click (line 1112) may interfere with the toggle button, causing the sidebar to open and immediately close if the click propagates."
+    }
+  ],
+  "clarification_needs": [
+    {
+      "question": "Does the browser console show 'toggleMobileSidebar called' when you click the hamburger button?",
+      "context": "The function has console.log statements (lines 1022, 1024, 1025, 1035). If these logs appear, it means the event handler fired but the sidebar toggle didn't work. If no logs appear, the onclick handler itself isn't firing.",
+      "options": [
+        "Yes, logs appear in console (event handler fires but sidebar doesn't toggle)",
+        "No, no logs appear in console (event handler not firing at all)",
+        "Can't check console logs",
+        "Not tested on mobile viewport"
+      ]
+    },
+    {
+      "question": "Does the sidebar appear when viewing on desktop at normal size?",
+      "context": "On desktop (width > 1024px), the sidebar should be visible by default. This test determines if the sidebar element itself is rendering or if there's a deeper issue with sidebar visibility.",
+      "options": [
+        "Yes, sidebar is visible on desktop",
+        "No, sidebar is hidden on desktop too",
+        "Not tested",
+        "Desktop shows different layout"
+      ]
+    },
+    {
+      "question": "What is your current viewport/browser size when experiencing the issue?",
+      "context": "The toggleMobileSidebar function only activates on viewports <= 1024px. If testing on a desktop browser at full width, the button would use toggleSidebar() instead. This determines if the breakpoint condition is the issue.",
+      "options": [
+        "Mobile phone (< 768px)",
+        "Tablet (768px - 1024px)",
+        "Desktop (> 1024px)",
+        "Using mobile emulation in DevTools"
+      ]
+    }
+  ],
+  "_metadata": {
+    "timestamp": "2025-12-07T00:00:00Z",
+    "bug_description": "左上角三条杠点击无反应,侧边栏不出现",
+    "source": "cli-explore-agent",
+    "diagnosis_angle": "event-handling",
+    "diagnosis_index": 1,
+    "total_diagnoses": 2,
+    "duration_seconds": 120
+  }
+}

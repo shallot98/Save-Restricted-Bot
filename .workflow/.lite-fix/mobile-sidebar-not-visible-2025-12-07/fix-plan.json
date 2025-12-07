@@ -1,0 +1,111 @@
+{
+  "summary": "修复移动端侧边栏初始不可见问题,通过调整MobileUIState初始化逻辑实现首次访问默认打开侧边栏,并修复CSS渲染优先级冲突。主要涉及状态管理逻辑优化和CSS选择器权重调整两个方面。",
+  "root_cause": "综合两个诊断角度的发现:1) 状态管理层面:MobileUIState默认sidebarOpen=false且缺少首次访问检测,配合localStorage持久化形成永久隐藏循环;2) CSS渲染层面:移动端.mobile-open类的transform可能被@media (min-width: 768px)断点规则覆盖,导致CSS优先级冲突。",
+  "strategy": "comprehensive_fix",
+  "tasks": [
+    {
+      "id": "FIX1",
+      "title": "优化MobileUIState初始化逻辑实现首次访问默认打开",
+      "scope": "templates/notes.html",
+      "action": "Fix",
+      "description": "修改MobileUIState.init()方法,添加首次访问检测。当localStorage为空且isMobile=true时,默认sidebarOpen=true,并在3秒后自动关闭并显示提示信息。",
+      "modification_points": [
+        {
+          "file": "templates/notes.html",
+          "target": "MobileUIState.init:1076-1110",
+          "change": "添加首次访问检测逻辑,移动端首次访问时默认sidebarOpen=true,3秒后自动关闭并显示toast提示"
+        },
+        {
+          "file": "templates/notes.html",
+          "target": "MobileUIState:1001-1200",
+          "change": "添加showMobileHint()方法用于显示首次访问提示信息"
+        }
+      ],
+      "implementation": [
+        "在MobileUIState.init()中检测localStorage是否有保存的状态",
+        "如果localStorage为空且this.isMobile=true,设置sidebarOpen=true(首次访问默认打开)",
+        "调用syncDOM()应用状态到DOM",
+        "添加setTimeout延迟3秒后自动关闭侧边栏:this.sidebarOpen=false; this.syncDOM(); this.persist()",
+        "调用showMobileHint()显示toast提示:'点击左上角 ☰ 随时打开导航菜单'"
+      ],
+      "verification": [
+        "清除localStorage,使用手机浏览器(<768px)首次访问,侧边栏应该默认打开",
+        "等待3秒后侧边栏自动关闭,显示toast提示信息",
+        "刷新页面,侧边栏应该默认关闭(localStorage已保存关闭状态)"
+      ],
+      "depends_on": [],
+      "risk": "low"
+    },
+    {
+      "id": "FIX2",
+      "title": "修复CSS选择器优先级冲突",
+      "scope": "static/css/main.css",
+      "action": "Fix",
+      "description": "调整.mobile-open类的CSS选择器权重,确保在移动端viewport下不会被@media (min-width: 768px)断点规则覆盖。使用.sidebar.mobile-open复合选择器提升优先级。",
+      "modification_points": [
+        {
+          "file": "static/css/main.css",
+          "target": ".sidebar.mobile-open:154-156",
+          "change": "将.mobile-open改为.sidebar.mobile-open,提升选择器优先级"
+        },
+        {
+          "file": "static/css/main.css",
+          "target": "@media (min-width: 768px):855-857",
+          "change": "添加:not(.mobile-open)条件,防止覆盖移动端.mobile-open类"
+        }
+      ],
+      "implementation": [
+        "将line 154的.mobile-open改为.sidebar.mobile-open { transform: translateX(0); }",
+        "在@media (min-width: 768px)的.sidebar规则中添加:not(.mobile-open)条件:.sidebar:not(.mobile-open) { transform: translateX(0); }",
+        "确保移动端.mobile-open类的transform优先级高于平板端断点规则",
+        "保存并刷新浏览器验证CSS优先级"
+      ],
+      "verification": [
+        "使用Chrome DevTools切换到移动设备模式(375px)",
+        "点击汉堡菜单,检查Elements面板中侧边栏是否添加.mobile-open类",
+        "检查Computed面板中transform值是否为translateX(0)",
+        "侧边栏应该正确显示,无CSS优先级冲突"
+      ],
+      "depends_on": [],
+      "risk": "low"
+    }
+  ],
+  "flow_control": {
+    "execution_order": [
+      {
+        "phase": "parallel-1",
+        "tasks": ["FIX1", "FIX2"],
+        "type": "parallel"
+      }
+    ],
+    "exit_conditions": {
+      "success": "移动端首次访问侧边栏默认打开,3秒后自动关闭;点击汉堡菜单侧边栏正确显示,无CSS优先级冲突",
+      "failure": "侧边栏在移动端仍然无法显示,或CSS修改导致其他断点布局异常"
+    }
+  },
+  "focus_paths": [
+    "templates/notes.html",
+    "static/css/main.css"
+  ],
+  "test_strategy": {
+    "scope": "smoke",
+    "manual_verification": [
+      "清除localStorage,使用手机浏览器(Chrome DevTools Mobile 375px)首次访问",
+      "验证侧边栏默认打开,3秒后自动关闭并显示提示",
+      "点击汉堡菜单,验证侧边栏正确滑出",
+      "刷新页面,验证localStorage记录状态,侧边栏默认关闭",
+      "测试桌面↔移动视口切换,验证状态管理逻辑正确"
+    ]
+  },
+  "estimated_time": "30 minutes",
+  "recommended_execution": "Agent",
+  "severity": "Medium",
+  "risk_level": "low",
+  "_metadata": {
+    "timestamp": "2025-12-07T06:40:00Z",
+    "source": "direct-planning",
+    "planning_mode": "direct",
+    "diagnosis_angles": ["state-management", "rendering"],
+    "duration_seconds": 120
+  }
+}

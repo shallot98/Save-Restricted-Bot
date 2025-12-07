@@ -1,0 +1,16 @@
+{
+  "name": "save-restricted-bot",
+  "version": "1.0.0",
+  "description": "Telegram Save Restricted Bot - Asset Optimization",
+  "scripts": {
+    "minify:js": "node build/minify-js.js",
+    "minify:css": "node build/minify-css.js",
+    "minify:all": "npm run minify:js && npm run minify:css",
+    "build": "npm run minify:all"
+  },
+  "devDependencies": {
+    "terser": "^5.36.0",
+    "cssnano": "^7.0.6",
+    "postcss": "^8.4.49"
+  }
+}

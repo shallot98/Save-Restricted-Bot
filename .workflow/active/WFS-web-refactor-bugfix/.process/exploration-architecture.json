@@ -1,0 +1,115 @@
+{
+  "project_structure": "项目采用Flask单体Web应用架构+Telegram Bot后端混合架构。Flask Web层(/app.py)负责笔记管理界面(16个路由),Telegram Bot层(/bot/)负责消息采集。\n\n核心模块划分:\n- Web层(app.py): Flask路由+Jinja2模板渲染\n- 数据层(database.py): SQLite ORM封装,30+CRUD函数\n- 配置层(config.py): JSON配置管理+监控源动态加载\n- Bot层(bot/): handlers(消息处理)+services(校准/缓存)+core(客户端)\n- 模板层(templates/): 10个HTML模板,混合嵌入式JavaScript(1000+行)\n- 静态资源(static/): main.css单一样式表(网易云红色主题)\n\n架构特点:\n1. 单一应用入口(app.py 782行),职责过载\n2. 模板内嵌JavaScript(notes.html 1000+行),前后端耦合\n3. 数据库直连无ORM抽象层,SQL语句散布\n4. 无统一API层,路由直接返回HTML/JSON混合",
+  "relevant_files": [
+    {
+      "path": "/root/Save-Restricted-Bot/app.py",
+      "relevance": 0.95,
+      "rationale": "核心Web应用入口,包含所有路由定义、业务逻辑和磁力链接处理函数。已知问题:职责过载(782行),缺乏层次分离,需重构为控制器+服务层架构"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/database.py",
+      "relevance": 0.90,
+      "rationale": "数据访问层核心,971行包含30+数据库函数。已知问题:无事务管理抽象,错误处理不统一,部分函数参数验证缺失(如_validate_and_convert_params仅在add_note使用)"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/notes.html",
+      "relevance": 0.92,
+      "rationale": "主界面模板,内嵌1000+行JavaScript。已知bug:移动端侧边栏初始不可见、点击无响应(已有修复计划)。架构问题:前后端代码混杂,状态管理逻辑(MobileUIState)应提取为独立JS模块"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/login.html",
+      "relevance": 0.65,
+      "rationale": "登录模板,14389字节。潜在问题:与notes.html重复样式定义,缺少统一组件系统"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin_calibration.html",
+      "relevance": 0.70,
+      "rationale": "自动校准配置管理界面,14093字节。涉及复杂表单验证逻辑,应复用组件"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin_calibration_queue.html",
+      "relevance": 0.68,
+      "rationale": "校准任务队列视图,15404字节。包含状态过滤和分页逻辑"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/static/css/main.css",
+      "relevance": 0.75,
+      "rationale": "唯一CSS文件,网易云红色主题。已知问题:CSS选择器优先级冲突(mobile-open类被@media覆盖),需调整选择器权重"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/config.py",
+      "relevance": 0.80,
+      "rationale": "配置管理模块,239行。架构亮点:监控源动态加载机制(build_monitored_sources)。潜在问题:全局_monitored_sources状态存在竞态条件风险"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/bot/services/calibration_manager.py",
+      "relevance": 0.72,
+      "rationale": "自动校准服务管理器(CalibrationManager类)。架构问题:单例模式未加锁,多线程调用可能冲突"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/bot/services/calibration_scheduler.py",
+      "relevance": 0.68,
+      "rationale": "校准任务调度器,使用threading实现后台轮询。架构问题:无健壮性保障(线程异常处理缺失)"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/bot/handlers",
+      "relevance": 0.60,
+      "rationale": "Telegram消息处理器模块,与Web层集成点在database.add_note()触发校准任务"
+    }
+  ],
+  "patterns": "**代码模式**:\n1. **路由-模板直连模式**(反模式):\n   ```python\n   @app.route('/notes')\n   def notes():\n       notes_list = get_notes(...)  # 直接调用数据库函数\n       return render_template('notes.html', notes=notes_list)  # 无服务层\n   ```\n   问题:业务逻辑散布在路由函数中,难以复用和测试\n\n2. **内嵌JavaScript状态管理**:\n   ```javascript\n   const MobileUIState = {\n       sidebarOpen: false,\n       init: function() { localStorage.getItem(...) },\n       syncDOM: function() { document.getElementById('sidebar').classList... }\n   }  // 1000+行嵌入HTML模板\n   ```\n   问题:前后端耦合,无法独立测试,代码复用性差\n\n3. **上下文管理器模式**(良好实践):\n   ```python\n   @contextmanager\n   def get_db_connection():\n       conn = sqlite3.connect(DATABASE_FILE)\n       try:\n           yield conn\n           conn.commit()\n       except: conn.rollback(); raise\n       finally: conn.close()\n   ```\n   优点:事务管理清晰,资源释放可靠\n\n4. **单例服务模式**(CalibrationManager):\n   ```python\n   _manager_instance = None\n   def get_calibration_manager():\n       global _manager_instance\n       if not _manager_instance:\n           _manager_instance = CalibrationManager()\n       return _manager_instance\n   ```\n   问题:无线程锁保护,多线程环境下不安全\n\n5. **响应式设计模式**(CSS):\n   ```css\n   @media (max-width: 1024px) {\n       .sidebar { transform: translateX(-100%); }\n       .sidebar.mobile-open { transform: translateX(0); }\n   }  /* 已知bug:优先级冲突 */\n   ```\n\n**命名约定**:\n- 路由函数: 动词形式(notes/admin/edit_note)\n- 数据库函数: CRUD前缀(get_notes/add_note/update_note)\n- 私有辅助函数: _前缀(_validate_and_convert_params)\n- CSS变量: --前缀(--primary-color/--spacing-lg)\n\n**模板继承**:\n未使用Jinja2 extends机制,每个模板独立定义完整HTML结构,存在大量重复代码(侧边栏/topbar在每个模板重复定义)",
+  "dependencies": "**Web层依赖**:\n- Flask 核心框架(路由/模板/会话)\n- markupsafe 模板转义(Markup/escape)\n- bcrypt 密码哈希(用户认证)\n- requests HTTP客户端(WebDAV媒体代理)\n\n**数据层依赖**:\n- sqlite3 嵌入式数据库(notes.db)\n- zoneinfo 时区处理(Asia/Shanghai硬编码)\n\n**Bot层依赖**:\n- pyrogram Telegram客户端\n- libtorrent 磁力链接校准(calibrate_helper.py)\n\n**关键依赖关系**:\n1. app.py → database.py: 16个路由函数调用30+数据库函数\n2. app.py → config.py: 加载WebDAV/Viewer配置\n3. database.add_note() → calibration_manager.add_note_to_calibration_queue(): 新笔记自动触发校准任务\n4. templates → static/css/main.css: 模板通过<link>引用唯一样式表\n5. bot/handlers → database.add_note(): Telegram消息保存到数据库\n\n**循环依赖风险**:\n- database.py导入calibration_manager(Line 358),calibration_manager可能回调database函数,需验证是否存在循环导入\n\n**外部服务依赖**:\n- WebDAV服务器(可选,用于媒体存储)\n- Viewer网站(可选,用于磁力链接跳转)\n- Telegram API服务器(Bot核心依赖)",
+  "integration_points": "**前后端集成点**:\n1. **路由渲染接口**(app.py:196-252 /notes路由):\n   - 输入:URL参数(page/source/search/date_from/date_to/favorite)\n   - 处理:调用get_notes()过滤+extract_all_dns_from_note()提取磁力链接\n   - 输出:render_template('notes.html', notes=notes_list, viewer_url=...)\n   - **集成问题**:业务逻辑嵌入路由函数(221-232行磁力链接处理应提取为服务层方法)\n\n2. **AJAX API接口**(app.py:633-776):\n   - POST /api/calibrate/<note_id>: 手动校准磁力链接\n   - POST /toggle_favorite/<note_id>: 切换收藏状态\n   - POST /delete_note/<note_id>: 删除笔记\n   - **集成特点**:返回JSON响应,与HTML路由混合在同一app.py\n   - **位置建议**:应分离为blueprint或独立API模块\n\n3. **数据库事件触发**(database.py:352-378):\n   ```python\n   # Line 352-378: add_note()函数提交后触发\n   if note_id and magnet_link:\n       from bot.services.calibration_manager import get_calibration_manager\n       manager.add_note_to_calibration_queue(note_id)  # 异步校准任务\n   ```\n   - **集成问题**:使用threading.Thread避免阻塞,但无错误监控机制\n\n4. **模板JavaScript交互**(templates/notes.html:1076-1400):\n   - MobileUIState.init(): 页面加载时初始化状态\n   - toggleMobileSidebar(): 汉堡菜单点击处理\n   - initLazyLoading(): 图片懒加载观察器\n   - **集成位置**:DOMContentLoaded事件(Line 1107-1119)\n   - **已知bug**:移动端侧边栏初始化逻辑缺陷(见.lite-fix/mobile-sidebar-not-visible-2025-12-07)\n\n5. **WebDAV媒体代理**(app.py:343-457 /media/<path>路由):\n   - 输入:media/xxx存储路径\n   - 处理:storage_manager.get_file_path()判断本地/远程\n   - 输出:本地文件send_from_directory或WebDAV代理Response\n   - **集成亮点**:支持HTTP Range请求(视频流式播放)\n\n6. **配置热重载**(config.py:106-110/136-159):\n   ```python\n   def reload_monitored_sources():\n       global _monitored_sources\n       _monitored_sources = build_monitored_sources()  # 重新加载监控源\n   \n   def save_watch_config(config, auto_reload=True):\n       # 保存后自动触发reload_monitored_sources()\n   ```\n   - **集成点**:Bot消息过滤器依赖_monitored_sources全局状态\n\n**关键文件:行号引用**:\n- app.py:45 init_storage_manager()初始化\n- app.py:196 /notes主路由入口\n- app.py:668 /api/calibrate手动校准API\n- database.py:307 add_note()笔记保存核心函数\n- database.py:547 update_note_with_calibrated_dns()校准结果更新\n- templates/notes.html:1076 MobileUIState状态管理对象\n- templates/notes.html:1107 DOMContentLoaded初始化入口",
+  "constraints": "**技术约束**:\n1. **单进程Flask架构限制**:\n   - 并发处理能力有限(app.run()使用Werkzeug开发服务器)\n   - 建议:生产环境需切换为Gunicorn+Nginx反向代理\n   - 影响:大量并发请求时可能阻塞\n\n2. **SQLite数据库限制**:\n   - 无内置连接池,高并发写入冲突风险\n   - 最大并发写入:1个(数据库锁)\n   - 当前缓解:使用contextmanager自动提交/回滚\n   - 约束文件:database.py:23-34 get_db_connection()\n\n3. **无前端构建系统**:\n   - JavaScript/CSS直接嵌入模板,无压缩/打包\n   - 无TypeScript/Babel转译,浏览器兼容性依赖原生支持\n   - 约束:ES6语法(箭头函数/解构)需手动兼容性测试\n\n4. **模板内嵌JavaScript限制**:\n   - 无法使用模块化(import/export)\n   - 无法进行单元测试(需在浏览器环境运行)\n   - 全局作用域污染风险(MobileUIState/toggleSidebar等全局函数)\n   - 约束文件:templates/notes.html:1015-1400\n\n5. **中国时区硬编码**:\n   ```python\n   CHINA_TZ = ZoneInfo(\"Asia/Shanghai\")  # database.py:15\n   ```\n   - 约束:不支持多时区用户\n   - 影响范围:所有时间戳显示(笔记创建时间/校准任务调度)\n\n6. **无API版本控制**:\n   - API路由(/api/calibrate等)无版本前缀\n   - 约束:破坏性更新会影响已有前端代码\n\n7. **WebDAV媒体存储限制**:\n   - 同步上传阻塞请求(app.py:374-406)\n   - 无上传队列机制\n   - 约束:大文件上传时用户等待时间长\n\n8. **CSS选择器优先级问题**(已知bug):\n   - .mobile-open类被@media断点覆盖\n   - 约束文件:static/css/main.css:154-156和855-857\n   - 临时方案:使用!important强制优先级\n\n9. **会话管理约束**:\n   ```python\n   app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default-key')  # app.py:12\n   ```\n   - 约束:重启应用后所有会话失效(无持久化存储)\n   - 安全隐患:默认密钥在代码中硬编码\n\n10. **磁力链接校准超时限制**:\n    - 单个磁力链接超时30秒(app.py:703)\n    - 批量校准最大300秒(database.py:183)\n    - 约束:校准失败笔记需手动重试\n\n**数据结构约束**:\n- notes表无外键约束(user_id/source_chat_id为TEXT而非外键)\n- media_paths存储为JSON字符串需手动解析(database.py:388-402)\n- magnet_link字段无格式校验,可能存储无效链接",
+  "clarification_needs": [
+    {
+      "question": "Web重构范围确认:是否需要保持现有Flask单体架构,还是可以引入前后端分离(Vue/React + RESTful API)?",
+      "context": "当前架构前后端深度耦合(模板内嵌1000+行JavaScript),重构成本分为:\n- 保守重构:保持Jinja2模板,仅提取JavaScript为独立文件+优化路由层次(估计2-3天)\n- 激进重构:前后端分离,Flask改为纯API后端+SPA前端(估计1-2周)\n\n当前已知问题集中在前端(移动端侧边栏、CSS优先级),保守重构可快速修复bug但不解决架构债务。",
+      "options": [
+        "保守重构:保持Jinja2模板架构,提取JavaScript模块+修复已知bug+优化CSS",
+        "渐进式重构:保持现有路由,引入Vue/Alpine.js增强前端交互,逐步替换内嵌JS",
+        "激进重构:完全前后端分离,Flask改为RESTful API+独立前端框架(Vue/React)"
+      ],
+      "recommended": 1
+    },
+    {
+      "question": "数据库迁移决策:是否需要从SQLite迁移到PostgreSQL/MySQL以支持高并发?",
+      "context": "当前SQLite架构约束:\n- 无连接池,高并发写入冲突\n- 无复杂查询优化(如全文搜索需手动实现)\n- 数据库文件锁限制并发\n\n迁移成本分析:\n- SQLite → PostgreSQL: 需改写SQL语句(如AUTOINCREMENT → SERIAL)+配置连接池(估计3-5天)\n- 保持SQLite: 适用于中小规模(<10万笔记,<50并发用户)",
+      "options": [
+        "保持SQLite:适用于个人/小团队,无额外部署成本",
+        "迁移PostgreSQL:支持高并发+全文搜索+JSON列类型优化",
+        "使用SQLAlchemy ORM抽象层:暂时保持SQLite,预留数据库切换能力"
+      ],
+      "recommended": 2
+    },
+    {
+      "question": "已知bug修复优先级:是否立即修复移动端侧边栏bug,还是先重构架构后统一修复?",
+      "context": "当前.lite-fix/目录已有两个bug修复计划:\n1. mobile-sidebar-not-visible: 移动端侧边栏初始不可见(已有修复方案,估计30分钟)\n2. sidebar-click-no-response: 侧边栏点击无响应(已有修复方案,估计45分钟)\n\n策略选择:\n- 先修bug后重构: 立即解决用户痛点,但修复代码可能在重构时被覆盖\n- 先重构后修bug: 统一架构后修复,避免重复工作,但用户需等待更长时间",
+      "options": [
+        "立即修复已知bug(按.lite-fix修复计划执行),暂缓架构重构",
+        "先进行局部重构(提取JavaScript模块),在重构过程中解决bug",
+        "完全跳过bug修复,直接进行全面架构重构(bug自然修复)"
+      ],
+      "recommended": 1
+    },
+    {
+      "question": "CSS架构决策:是否引入Tailwind/Bootstrap等CSS框架,还是保持自定义CSS?",
+      "context": "当前CSS架构:\n- 单一main.css文件(网易云红色主题)\n- 自定义CSS变量系统(--primary-color等)\n- 已知问题:选择器优先级冲突,重复样式定义\n\n引入框架的权衡:\n- Tailwind: 原子化类名,减少CSS体积,但需构建系统\n- Bootstrap: 组件丰富,但样式定制受限,文件体积大\n- 保持自定义: 完全控制样式,但需手动维护响应式规则",
+      "options": [
+        "保持自定义CSS:仅优化选择器优先级+提取组件复用样式",
+        "引入Tailwind CSS:重写模板类名,引入PostCSS构建流程",
+        "引入Bootstrap 5:使用预制组件,减少自定义代码量"
+      ],
+      "recommended": 0
+    }
+  ],
+  "_metadata": {
+    "timestamp": "2025-12-07T07:00:00Z",
+    "task_description": "GOAL: 重构网页系统,修复现有bug并优化架构\nSCOPE: 分析当前网页bug、根据项目功能和逻辑重新构建网页结构、修复已知问题\nCONTEXT: 现有网页存在多个bug,需要基于项目实际功能和业务逻辑进行全面重构",
+    "source": "cli-explore-agent",
+    "exploration_angle": "architecture",
+    "exploration_index": 1,
+    "total_explorations": 4,
+    "duration_seconds": 180
+  }
+}

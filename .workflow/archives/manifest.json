@@ -1,0 +1,52 @@
+[
+  {
+    "session_id": "WFS-mobile-adaptation-complete",
+    "description": "Complete Mobile Adaptation for Telegram Bot Web Interface",
+    "archived_at": "2025-12-07T06:17:54Z",
+    "archive_path": ".workflow/archives/WFS-mobile-adaptation-complete",
+    "metrics": {
+      "duration_hours": 0.48,
+      "tasks_completed": 7,
+      "summaries_generated": 7,
+      "files_modified": 15,
+      "lines_changed": 906,
+      "test_cases": 43,
+      "device_configs": 5,
+      "success_rate": 1.0
+    },
+    "tags": [
+      "mobile-first",
+      "responsive-design",
+      "touch-optimization",
+      "vanilla-js",
+      "playwright-testing",
+      "progressive-enhancement",
+      "zero-build-system"
+    ],
+    "lessons": {
+      "successes": [
+        "移动优先CSS架构(@media min-width)大幅简化媒体查询逻辑,减少桌面端覆盖样式",
+        "渐进增强策略确保零破坏性变化,桌面端布局和功能完全保留",
+        "浏览器原生API(Intersection Observer, Network Information API, Visual Viewport API, Touch Events)在零构建约束下实现完整移动优化",
+        "统一状态管理对象(MobileUIState)配合localStorage持久化,消除桌面/移动状态冲突",
+        "手动实现触摸手势(滑动关闭侧边栏)虽然工作量大,但避免了第三方库依赖,符合零构建系统约束",
+        "Playwright设备模拟提供43个测试用例覆盖全部移动场景(5个设备配置,7个测试套件)"
+      ],
+      "challenges": [
+        "795行CSS完全重构风险高:通过逐节重构(sidebar→grid→forms→buttons)和每节后桌面端验证降低风险,备份文件提供回滚保障",
+        "零构建系统约束限制优化潜力:无法使用PostCSS/SCSS预处理,通过浏览器原生loading='lazy'和Intersection Observer找到可行方案",
+        "触摸事件与点击事件冲突导致双重触发:通过clickSuppressed标志和300ms超时实现事件去重,保留桌面端点击兼容性",
+        "Visual Viewport API浏览器兼容性有限(iOS 13+):实现window.innerHeight降级方案,在不支持设备上使用替代键盘检测",
+        "动态API超时需要Network Information API,Safari支持有限:默认4G连接类型作为降级方案,确保所有浏览器基本功能"
+      ],
+      "watch_patterns": [
+        "移动优先CSS重构必须保留所有选择器和设计令牌,使用选择器计数验证(rg -o '\\.[a-z-]+\\s*\\{' | wc -l)确保无意外删除",
+        "触摸目标尺寸标准必须严格遵守:按钮最小44x44px,表单输入最小48px,直接在CSS基础样式中设定",
+        "懒加载配合Intersection Observer可减少60%+初始带宽,但需要200px rootMargin预加载避免视觉延迟",
+        "Virtual Viewport API在iOS键盘处理中至关重要,必须在真实iOS设备测试(模拟器行为不同)",
+        "Playwright视觉回归测试baseline更新流程需文档化(--update-snapshots命令),避免意外覆盖正确基线",
+        "零构建系统适合小型项目(<10个模板,单一CSS文件),大型项目应考虑PostCSS/构建工具权衡开发效率"
+      ]
+    }
+  }
+]

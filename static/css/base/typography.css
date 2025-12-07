@@ -1,0 +1,18 @@
+.page-title {
+font-size: var(--font-size-2xl);
+font-weight: 700;
+color: var(--text-primary);
+margin-bottom: var(--spacing-sm);
+}
+.page-subtitle {
+font-size: var(--font-size-sm);
+color: var(--text-secondary);
+}
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+@media (min-width: 375px) {
+.page-title {
+font-size: var(--font-size-3xl);
+}
+}

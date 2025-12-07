@@ -1,0 +1,34 @@
+{
+  "id": "IMPL-2.2",
+  "title": "CSS架构优化",
+  "status": "pending",
+  "meta": {
+    "agent": "code-developer",
+    "type": "refactor",
+    "priority": "P0",
+    "estimated_hours": 3,
+    "execution_group": "parallel-css-refactor",
+    "phase": "Phase 2: 模块化重构"
+  },
+  "context": {
+    "objective": "重组CSS文件结构，消除重复规则，提升样式可维护性",
+    "background": "main.css和notes.css存在重复定义，需要按照组件化思想重组CSS架构",
+    "deliverables": [
+      "创建base目录: reset.css, variables.css, typography.css",
+      "创建components目录: sidebar.css, topbar.css, card.css, modal.css",
+      "创建pages目录: notes.css",
+      "更新main.css作为入口文件",
+      "消除所有重复CSS规则"
+    ],
+    "acceptance_criteria": [
+      "所有CSS文件创建成功",
+      "无重复CSS规则",
+      "样式一致性100%",
+      "CSS文件总大小减少>20%"
+    ]
+  },
+  "dependencies": {
+    "depends_on": ["IMPL-1.3"],
+    "blocks": ["IMPL-4.1"]
+  }
+}

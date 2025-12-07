@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自动校准设置 - Telegram 笔记</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-title h1 {
+            color: #333;
+            font-size: 28px;
+        }
+
+        .header-icon {
+            font-size: 40px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #555;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 22px;
+        }
+
+        .card p {
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            color: #555;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border: 1px solid #fcc;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .info-box p {
+            color: #333;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <span class="header-icon">🔧</span>
+                <h1>自动校准设置</h1>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="/admin/calibration/queue" class="btn btn-secondary">📋 查看队列</a>
+                <a href="/admin" class="btn btn-secondary">← 返回管理</a>
+            </div>
+        </div>
+
+        {% if success %}
+        <div class="card">
+            <div class="success-message">
+                ✓ {{ success }}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="card">
+            <div class="error-message">
+                ✗ {{ error }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 统计信息 -->
+        {% if stats %}
+        <div class="card">
+            <h2>📊 校准任务统计</h2>
+            <p>当前校准任务状态概览</p>
+            <div class="stats-container">
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.total }}</div>
+                    <div class="stat-label">总任务数</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.by_status.get('pending', 0) + stats.by_status.get('retrying', 0) }}</div>
+                    <div class="stat-label">待处理</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.by_status.get('success', 0) }}</div>
+                    <div class="stat-label">已成功</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.by_status.get('failed', 0) }}</div>
+                    <div class="stat-label">已失败</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 配置表单 -->
+        <div class="card">
+            <h2>⚙️ 校准配置</h2>
+            <p>配置自动校准的行为和参数</p>
+
+            <form method="POST" action="/admin/calibration">
+                <!-- 启用开关 -->
+                <div class="form-group">
+                    <label>启用自动校准</label>
+                    <div class="switch-container">
+                        <label class="switch">
+                            <input type="checkbox" name="enabled" {% if config.enabled %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                        <span style="color: #666;">{{ '已启用' if config.enabled else '已禁用' }}</span>
+                    </div>
+                    <div class="hint">开启后，新添加的笔记将自动加入校准队列</div>
+                </div>
+
+                <!-- 过滤模式 -->
+                <div class="form-group">
+                    <label for="filter_mode">过滤模式</label>
+                    <select name="filter_mode" id="filter_mode">
+                        <option value="empty_only" {% if config.filter_mode == 'empty_only' %}selected{% endif %}>仅校准 dn 为空的笔记</option>
+                        <option value="all" {% if config.filter_mode == 'all' %}selected{% endif %}>校准所有笔记</option>
+                    </select>
+                    <div class="hint">选择哪些笔记需要进行自动校准</div>
+                </div>
+
+                <!-- 首次延迟 -->
+                <div class="form-group">
+                    <label for="first_delay">首次校准延迟（秒）</label>
+                    <input type="number" name="first_delay" id="first_delay" value="{{ config.first_delay }}" min="60" max="3600" inputmode="numeric" required>
+                    <div class="hint">笔记添加后多久进行首次校准（默认600秒 = 10分钟）</div>
+                </div>
+
+                <!-- 重试延迟 -->
+                <div class="form-group">
+                    <label for="retry_delay_1">第1次重试延迟（秒）</label>
+                    <input type="number" name="retry_delay_1" id="retry_delay_1" value="{{ config.retry_delay_1 }}" min="60" max="86400" inputmode="numeric" required>
+                    <div class="hint">首次失败后的重试延迟（默认3600秒 = 1小时）</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="retry_delay_2">第2次重试延迟（秒）</label>
+                    <input type="number" name="retry_delay_2" id="retry_delay_2" value="{{ config.retry_delay_2 }}" min="60" max="86400" inputmode="numeric" required>
+                    <div class="hint">第二次失败后的重试延迟（默认14400秒 = 4小时）</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="retry_delay_3">第3次重试延迟（秒）</label>
+                    <input type="number" name="retry_delay_3" id="retry_delay_3" value="{{ config.retry_delay_3 }}" min="60" max="86400" inputmode="numeric" required>
+                    <div class="hint">第三次失败后的重试延迟（默认28800秒 = 8小时）</div>
+                </div>
+
+                <!-- 最大重试次数 -->
+                <div class="form-group">
+                    <label for="max_retries">最大重试次数</label>
+                    <input type="number" name="max_retries" id="max_retries" value="{{ config.max_retries }}" min="1" max="10" inputmode="numeric" required>
+                    <div class="hint">超过此次数仍失败的笔记将被标记 #*（默认3次）</div>
+                </div>
+
+                <!-- 并发限制 -->
+                <div class="form-group">
+                    <label for="concurrent_limit">并发处理数量</label>
+                    <input type="number" name="concurrent_limit" id="concurrent_limit" value="{{ config.concurrent_limit }}" min="1" max="20" inputmode="numeric" required>
+                    <div class="hint">每次批量处理的最大任务数（默认5个）</div>
+                </div>
+
+                <!-- 单个超时 -->
+                <div class="form-group">
+                    <label for="timeout_per_magnet">单个磁力超时（秒）</label>
+                    <input type="number" name="timeout_per_magnet" id="timeout_per_magnet" value="{{ config.timeout_per_magnet }}" min="10" max="120" inputmode="numeric" required>
+                    <div class="hint">单个磁力链接的校准超时时间（默认30秒）</div>
+                </div>
+
+                <!-- 批量超时 -->
+                <div class="form-group">
+                    <label for="batch_timeout">批量处理总超时（秒）</label>
+                    <input type="number" name="batch_timeout" id="batch_timeout" value="{{ config.batch_timeout }}" min="60" max="1800" inputmode="numeric" required>
+                    <div class="hint">批量处理的总超时时间（默认300秒 = 5分钟）</div>
+                </div>
+
+                <div class="info-box">
+                    <p>💡 <strong>工作原理说明：</strong></p>
+                    <p>1. 笔记添加后，经过"首次延迟"时间进入校准队列</p>
+                    <p>2. 系统每60秒检查一次待处理任务，按"并发限制"批量处理</p>
+                    <p>3. 失败的任务按渐进式延迟重试，直到达到"最大重试次数"</p>
+                    <p>4. 超过最大重试次数的笔记会在开头添加 #* 标记</p>
+                </div>
+
+                <button type="submit" class="btn btn-primary">💾 保存配置</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

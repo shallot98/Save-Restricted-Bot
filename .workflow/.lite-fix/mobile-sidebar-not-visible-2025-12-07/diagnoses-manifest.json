@@ -1,0 +1,21 @@
+{
+  "session_id": "mobile-sidebar-not-visible-2025-12-07",
+  "bug_description": "手机竖屏依旧无法看到侧边栏",
+  "timestamp": "2025-12-07T06:35:00Z",
+  "severity": "Medium",
+  "diagnosis_count": 2,
+  "diagnoses": [
+    {
+      "angle": "state-management",
+      "file": "diagnosis-state-management.json",
+      "path": ".workflow/.lite-fix/mobile-sidebar-not-visible-2025-12-07/diagnosis-state-management.json",
+      "index": 1
+    },
+    {
+      "angle": "rendering",
+      "file": "diagnosis-rendering.json",
+      "path": ".workflow/.lite-fix/mobile-sidebar-not-visible-2025-12-07/diagnosis-rendering.json",
+      "index": 2
+    }
+  ]
+}

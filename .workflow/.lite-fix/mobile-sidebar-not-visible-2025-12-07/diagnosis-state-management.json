@@ -1,0 +1,116 @@
+{
+  "symptom": {
+    "description": "手机竖屏模式下侧边栏不可见,用户无法访问导航菜单和系统设置功能",
+    "error_message": null,
+    "stack_trace": null,
+    "frequency": "always",
+    "user_impact": "移动端用户完全无法使用侧边栏导航,严重影响核心功能访问"
+  },
+  "root_cause": {
+    "file": "templates/notes.html",
+    "line_range": "1076-1164",
+    "function": "MobileUIState.init / MobileUIState.updateViewport",
+    "issue": "状态管理逻辑存在设计缺陷:1) 移动端默认sidebarOpen=false导致侧边栏初始隐藏;2) updateViewport在从桌面切换到移动端时强制关闭侧边栏(line 1158);3) localStorage持久化sidebarOpen=false后每次访问都默认关闭;4) 缺少移动端首次访问的特殊处理逻辑",
+    "confidence": 0.92,
+    "introduced_by": "移动优先响应式重构提交",
+    "category": "logic_error"
+  },
+  "affected_files": [
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.95,
+      "rationale": "包含MobileUIState状态管理核心逻辑,init/updateViewport/syncDOM方法控制侧边栏可见性",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "static/css/main.css",
+      "relevance": 0.85,
+      "rationale": "定义.sidebar基础样式transform:translateX(-100%)和.mobile-open可见性类,与状态管理紧密耦合",
+      "change_type": "reference_only"
+    },
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.75,
+      "rationale": "汉堡菜单按钮onclick=\"toggleMobileSidebar()\"(line 702)触发状态切换",
+      "change_type": "needs_update"
+    }
+  ],
+  "reproduction_steps": [
+    "使用手机浏览器(宽度<768px)访问笔记页面",
+    "观察页面加载完成后,侧边栏完全不可见(transform: translateX(-100%))",
+    "检查localStorage中mobileUIState.sidebarOpen为false",
+    "尝试点击汉堡菜单,侧边栏可以滑出(说明toggleMobileSidebar功能正常)",
+    "刷新页面,侧边栏再次隐藏(因为localStorage持久化了关闭状态)",
+    "从桌面模式缩小窗口到移动模式,触发updateViewport强制关闭侧边栏(line 1158)"
+  ],
+  "fix_hints": [
+    {
+      "description": "修改移动端初始化逻辑,区分首次访问和持久化状态",
+      "approach": "在MobileUIState.init()中添加首次访问检测:如果localStorage为空且isMobile=true,默认sidebarOpen=true并在syncDOM后立即显示侧边栏,同时添加遮罩层引导用户关闭",
+      "code_example": "init: function() {\n  const saved = localStorage.getItem(this.STORAGE_KEY);\n  if (!saved && this.isMobile) {\n    this.sidebarOpen = true; // 移动端首次访问默认打开\n  } else if (saved) {\n    this.sidebarOpen = JSON.parse(saved).sidebarOpen || false;\n  }\n  this.syncDOM();\n}",
+      "risk": "medium"
+    },
+    {
+      "description": "移除updateViewport中强制关闭移动端侧边栏的逻辑",
+      "approach": "删除line 1157-1160中\"从桌面切换到移动时自动关闭\"的代码,保留用户当前状态,只在桌面模式时自动打开",
+      "code_example": "} else if (!oldIsMobile && this.isMobile) {\n  // 保留用户状态,不强制关闭\n  // this.sidebarOpen = false; // 删除此行\n  console.log('Mobile mode: keeping current sidebar state');\n}",
+      "risk": "low"
+    },
+    {
+      "description": "添加移动端侧边栏自动显示提示",
+      "approach": "在首次加载时检测到isMobile=true且localStorage无记录时,显示toast提示'点击左上角☰打开菜单',避免用户困惑",
+      "code_example": "if (!saved && this.isMobile) {\n  this.showMobileHint('点击左上角 ☰ 打开导航菜单');\n}",
+      "risk": "low"
+    },
+    {
+      "description": "优化localStorage持久化策略",
+      "approach": "移动端和桌面端分别持久化状态:mobileUIState_mobile和mobileUIState_desktop,避免跨模式状态污染",
+      "code_example": "STORAGE_KEY: function() {\n  return this.isMobile ? 'mobileUIState_mobile' : 'mobileUIState_desktop';\n}",
+      "risk": "medium"
+    }
+  ],
+  "dependencies": "无外部依赖,纯JavaScript/CSS状态管理问题",
+  "constraints": "必须保持向后兼容性,不能破坏桌面端侧边栏折叠功能;移动端修复需考虑触摸手势(swipe)与点击(click)的交互冲突",
+  "related_issues": [
+    {
+      "type": "similar_bug",
+      "reference": "sidebar-click-no-response-2025-12-07",
+      "description": "可能与同目录下的侧边栏点击无响应问题相关,需检查clickSuppressed标志是否影响"
+    },
+    {
+      "type": "tech_debt",
+      "reference": "line 1158-1160",
+      "description": "updateViewport强制关闭移动端侧边栏的设计存在争议,应重新评估用户体验"
+    }
+  ],
+  "clarification_needs": [
+    {
+      "question": "移动端侧边栏默认行为应该是打开还是关闭?",
+      "context": "当前设计为off-canvas(默认关闭按需打开),但用户反馈\"无法看到侧边栏\"可能期望默认可见。需要明确产品需求:1)首次访问时默认打开侧边栏展示功能,还是2)保持隐藏状态等待用户主动触发?",
+      "options": [
+        "首次访问默认打开,显示3秒后自动关闭并提示手势操作",
+        "保持当前off-canvas设计,但添加明显的视觉提示(如动画箭头)",
+        "移动端始终默认打开,用户可手动关闭(localStorage记录)",
+        "根据页面类型智能判断:首页默认关闭,笔记页默认打开"
+      ]
+    },
+    {
+      "question": "从桌面缩放到移动端时,侧边栏应该保持当前状态还是自动关闭?",
+      "context": "line 1157-1160实现了\"切换到移动模式自动关闭侧边栏\"逻辑,但这可能与用户期望不符。需要确认:用户在桌面端打开侧边栏后缩小窗口,期望侧边栏状态保持还是重置?",
+      "options": [
+        "保持用户当前状态,不自动关闭",
+        "自动关闭侧边栏(当前实现)",
+        "显示确认对话框询问用户意图"
+      ]
+    }
+  ],
+  "_metadata": {
+    "timestamp": "2025-12-07T00:00:00Z",
+    "bug_description": "手机竖屏依旧无法看到侧边栏",
+    "source": "cli-explore-agent",
+    "diagnosis_angle": "state-management",
+    "diagnosis_index": 1,
+    "total_diagnoses": 2,
+    "duration_seconds": 180
+  }
+}

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>观看设置 - Telegram 笔记</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-title h1 {
+            color: #333;
+            font-size: 28px;
+        }
+
+        .header-icon {
+            font-size: 36px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .card-title {
+            font-size: 22px;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="url"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 5px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .info-box h4 {
+            color: #1976D2;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            color: #555;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status-enabled {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-disabled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .nav-buttons {
+                width: 100%;
+            }
+
+            .btn {
+                flex: 1;
+                text-align: center;
+            }
+
+            .form-group input[type="url"] {
+                min-height: 48px;
+            }
+
+            .btn-primary {
+                min-height: 48px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <span class="header-icon">🎬</span>
+                <div>
+                    <h1>观看设置</h1>
+                    {% if config.viewer_url %}
+                    <span class="status-badge status-enabled">✓ 已配置</span>
+                    {% else %}
+                    <span class="status-badge status-disabled">✗ 未配置</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="nav-buttons">
+                <a href="{{ url_for('notes') }}" class="btn btn-primary">📝 笔记列表</a>
+                <a href="{{ url_for('admin') }}" class="btn btn-secondary">⚙️ 管理面板</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-secondary">🚪 退出登录</a>
+            </div>
+        </div>
+
+        {% if success %}
+        <div class="alert alert-success">
+            ✓ {{ success }}
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="alert alert-error">
+            ✗ {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="info-box">
+            <h4>💡 关于观看设置</h4>
+            <ul>
+                <li><strong>在线观看：</strong>配置观看网站URL，为磁力链接生成在线观看链接</li>
+                <li><strong>自动拼接：</strong>系统会自动将观看网站URL与文件名拼接，生成完整的观看链接</li>
+                <li><strong>多种来源：</strong>文件名优先使用校准后的完整文件名，其次从磁力链接的dn参数提取，最后从笔记文本提取</li>
+                <li><strong>一键跳转：</strong>在笔记列表页面点击观看按钮即可跳转到配置的观看网站</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">观看网站配置</h2>
+
+            <form method="POST">
+                <div class="form-group">
+                    <label for="viewer_url">观看网站 URL *</label>
+                    <input type="url" id="viewer_url" name="viewer_url" value="{{ config.viewer_url }}" placeholder="https://example.com/watch/" inputmode="url" autocomplete="url" autocapitalize="none" required>
+                    <small>请输入完整的观看网站URL（以 http:// 或 https:// 开头），系统会自动在末尾拼接文件名</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 16px;">
+                    💾 保存配置
+                </button>
+            </form>
+        </div>
+
+        <div class="info-box" style="background: #fff3cd; border-left-color: #ffc107;">
+            <h4>📋 配置示例</h4>
+            <ul>
+                <li><strong>示例 1：</strong>
+                    <br>观看网站URL：https://open.shallot.ggff.net/d2/Downloads/
+                    <br>文件名：movie.mp4
+                    <br>生成的链接：https://open.shallot.ggff.net/d2/Downloads/movie.mp4
+                </li>
+                <li><strong>示例 2：</strong>
+                    <br>观看网站URL：https://example.com/view/
+                    <br>文件名：video.mkv
+                    <br>生成的链接：https://example.com/view/video.mkv
+                </li>
+            </ul>
+        </div>
+
+        <div class="info-box" style="background: #ffe7f0; border-left-color: #ff69b4;">
+            <h4>⚠️ 使用说明</h4>
+            <ul>
+                <li>请确保观看网站URL以斜杠 "/" 结尾，以便正确拼接文件名</li>
+                <li>观看网站URL必须是可访问的HTTP/HTTPS地址</li>
+                <li>如果文件名包含特殊字符，系统会自动进行URL编码</li>
+                <li>观看链接仅在笔记包含磁力链接或文件名时才会显示</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

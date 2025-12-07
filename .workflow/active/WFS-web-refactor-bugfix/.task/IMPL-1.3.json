@@ -1,0 +1,121 @@
+{
+  "id": "IMPL-1.3",
+  "title": "清理notes.html结构",
+  "status": "pending",
+  "meta": {
+    "agent": "code-developer",
+    "type": "refactor",
+    "priority": "P0",
+    "estimated_hours": 1,
+    "execution_group": "phase-1-separation",
+    "phase": "Phase 1: 代码分离"
+  },
+  "context": {
+    "objective": "移除notes.html中的所有内联代码，添加外部资源引用，将文件精简到300行以内",
+    "background": "完成CSS和JavaScript提取后，需要清理HTML文件，移除冗余代码，优化结构，提升可读性。",
+    "deliverables": [
+      "精简的templates/notes.html文件(目标<300行)",
+      "正确的外部CSS和JS引用",
+      "优化的HTML结构和缩进",
+      "添加必要的注释说明"
+    ],
+    "acceptance_criteria": [
+      "notes.html行数<300行",
+      "所有内联CSS和JS已移除",
+      "外部资源引用正确(CSS和JS)",
+      "HTML结构清晰，缩进规范",
+      "页面功能完整性100%"
+    ],
+    "constraints": [
+      "不能修改HTML结构和DOM元素ID",
+      "不能删除Jinja2模板语法",
+      "必须保持与Flask路由的兼容性",
+      "不能影响SEO和可访问性"
+    ],
+    "technical_notes": [
+      "需要保留Jinja2模板变量和控制结构",
+      "外部资源引用使用url_for()函数",
+      "添加defer或async属性优化JS加载",
+      "保持HTML语义化标签"
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "read_current_file",
+        "description": "读取当前的notes.html文件",
+        "command": "Read templates/notes.html",
+        "expected_output": "获取完整的HTML内容"
+      },
+      {
+        "step": "verify_external_files",
+        "description": "验证外部CSS和JS文件已创建",
+        "command": "检查static/css/notes.css和static/js/notes.js是否存在",
+        "expected_output": "确认文件存在且内容正确"
+      }
+    ],
+    "implementation": [
+      {
+        "step": "remove_inline_code",
+        "description": "移除所有内联CSS和JavaScript",
+        "command": "Edit templates/notes.html",
+        "expected_output": "删除<style>和<script>标签内的代码"
+      },
+      {
+        "step": "add_external_references",
+        "description": "添加外部资源引用",
+        "command": "在<head>中添加CSS链接，在</body>前添加JS引用",
+        "expected_output": "正确的<link>和<script>标签"
+      },
+      {
+        "step": "optimize_html_structure",
+        "description": "优化HTML结构和缩进",
+        "command": "格式化HTML代码，统一缩进",
+        "expected_output": "结构清晰的HTML文件"
+      },
+      {
+        "step": "add_comments",
+        "description": "添加必要的注释",
+        "command": "在关键部分添加HTML注释",
+        "expected_output": "带有说明注释的HTML文件"
+      }
+    ],
+    "verification": [
+      {
+        "step": "line_count_check",
+        "description": "检查文件行数",
+        "command": "wc -l templates/notes.html",
+        "expected_output": "行数<300"
+      },
+      {
+        "step": "full_page_test",
+        "description": "完整页面功能测试",
+        "command": "在浏览器中测试所有功能",
+        "expected_output": "所有功能正常，无错误"
+      },
+      {
+        "step": "html_validation",
+        "description": "HTML语法验证",
+        "command": "使用W3C Validator验证HTML",
+        "expected_output": "无语法错误"
+      }
+    ]
+  },
+  "dependencies": {
+    "depends_on": ["IMPL-1.1", "IMPL-1.2"],
+    "blocks": ["IMPL-2.1", "IMPL-2.2", "IMPL-2.3"]
+  },
+  "files": {
+    "input": [
+      "templates/notes.html",
+      "static/css/notes.css",
+      "static/js/notes.js"
+    ],
+    "output": [
+      "templates/notes.html"
+    ],
+    "backup": [
+      "templates/notes.html.bak"
+    ]
+  }
+}

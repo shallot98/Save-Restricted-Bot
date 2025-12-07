@@ -1,0 +1,193 @@
+{
+  "project_structure": "Flask web application with template-based rendering:\n- Flask backend (app.py): Handles routing, API endpoints, and server-side logic\n- Jinja2 templates (templates/*.html): HTML structure with embedded Python logic\n- Static assets (static/css/main.css): CSS design system with CSS custom properties\n- Database layer (database.py, config.py): Data persistence and configuration\n- Bot integration (bot/*): Telegram bot functionality\n\nKey architectural patterns:\n- Server-side rendering with Flask/Jinja2\n- RESTful API endpoints for AJAX operations (delete, favorite, calibrate)\n- CSS-based responsive design with media queries\n- JavaScript event handlers for client-side interactions\n- Modular component structure (sidebar, topbar, cards, modals)",
+
+  "relevant_files": [
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.95,
+      "rationale": "Main UI template with extensive mobile-specific code already present (lines 585-612: mobile media queries, 1021-1042: mobile sidebar toggle, 1109-1130: mobile viewport detection). Contains all major interaction points: sidebar navigation, search, filter panel, note cards, pagination, image modals."
+    },
+    {
+      "path": "static/css/main.css",
+      "relevance": 0.92,
+      "rationale": "CSS design system with existing responsive breakpoints (lines 734-778: @media queries for 1024px and 768px). Defines all interactive component styles: sidebar (lines 125-339), topbar (lines 355-537), buttons (lines 599-680), forms (lines 683-720). Uses CSS custom properties for theming."
+    },
+    {
+      "path": "app.py",
+      "relevance": 0.85,
+      "rationale": "Flask backend with API routes that need mobile optimization (lines 63-715: all routes). Critical endpoints: /notes (line 196), /toggle_favorite (line 434), /delete_note (line 424), /api/calibrate (line 606). No mobile-specific logic currently."
+    },
+    {
+      "path": "templates/admin.html",
+      "relevance": 0.65,
+      "rationale": "Admin panel with minimal responsive design. Contains form inputs and buttons that need touch optimization (lines 203-233: password form). Mobile media queries missing."
+    },
+    {
+      "path": "templates/login.html",
+      "relevance": 0.60,
+      "rationale": "Login page with single mobile media query (line 270: @media max-width 480px). Password toggle button (line 344) needs touch optimization."
+    },
+    {
+      "path": "templates/admin_webdav.html",
+      "relevance": 0.55,
+      "rationale": "WebDAV configuration page with one responsive breakpoint (line 220: @media max-width 768px). Form-heavy page requiring input field sizing optimization."
+    },
+    {
+      "path": "templates/edit_note.html",
+      "relevance": 0.58,
+      "rationale": "Note editing interface with mobile media query (line 201: @media max-width 600px). Textarea and buttons need touch-friendly sizing."
+    },
+    {
+      "path": "templates/admin_calibration_queue.html",
+      "relevance": 0.50,
+      "rationale": "Task queue management with inline onclick handlers (lines 367-371). Table layout may need horizontal scrolling on mobile."
+    },
+    {
+      "path": "config.py",
+      "relevance": 0.30,
+      "rationale": "Configuration management with no mobile-specific logic. May need viewport-based configuration loading in future."
+    },
+    {
+      "path": "database.py",
+      "relevance": 0.25,
+      "rationale": "Data layer with no direct UI integration. Backend optimization may affect mobile API response times."
+    }
+  ],
+
+  "patterns": {
+    "template_rendering": "Server-side Jinja2 rendering with inline JavaScript:\n- Pattern: Flask routes return render_template() with context data\n- Example: app.py:241-252 - notes() route passes notes_list, sources, pagination to template\n- Mobile consideration: No separate mobile templates; responsive design via CSS/JS only",
+
+    "event_handling": "Mixed inline onclick and addEventListener patterns:\n- Inline onclick: templates/notes.html:676 onclick=\"toggleSidebar()\"\n- Event delegation: templates/notes.html:1114 mainContent.addEventListener('click')\n- Mobile issue: Inline onclick lacks touch feedback, needs passive event listeners for scroll performance",
+
+    "api_interaction": "Fetch API for AJAX operations with JSON responses:\n- Pattern: fetch(`/api/endpoint/${id}`, {method: 'POST'})\n- Examples: toggleFavorite (line 1158), deleteNote (line 1175), calibrateNote (line 1214)\n- Mobile consideration: No request throttling or debouncing for slow connections",
+
+    "responsive_breakpoints": "CSS media queries with three breakpoints:\n- Desktop default (no media query)\n- Tablet: @media (max-width: 1024px) - main.css:739\n- Mobile: @media (max-width: 768px) - main.css:763\n- Small mobile: @media (max-width: 480px) - notes.html:608\n- Pattern: Mobile-last approach (desktop first, then override for smaller screens)",
+
+    "state_management": "Client-side state in DOM classes and localStorage:\n- Sidebar collapsed state: sidebar.classList.contains('collapsed')\n- Theme preference: localStorage.getItem('theme') - notes.html:1096\n- Mobile sidebar: sidebar.classList.toggle('mobile-open') - notes.html:1035\n- Issue: No state persistence for mobile-specific preferences",
+
+    "component_architecture": "BEM-like naming with component-based CSS:\n- Sidebar: .sidebar, .sidebar-header, .sidebar-nav, .nav-item\n- Cards: .note-card, .note-media, .note-content, .note-footer\n- Pattern: Modular components with shared design tokens (CSS custom properties)",
+
+    "form_handling": "Traditional form submission with POST requests:\n- Example: notes.html:774 <form method=\"GET\" action=\"/notes\">\n- Search: Hybrid approach - form submit OR Enter key listener (line 1083)\n- Mobile issue: No autocomplete attributes, no input mode hints for numeric keyboards"
+  },
+
+  "dependencies": {
+    "backend": "Flask 2.x framework with extensions:\n- Flask core: routing, request/response handling, session management\n- Jinja2: template rendering engine (version bundled with Flask)\n- MarkupSafe: HTML escaping (app.py:4 - from markupsafe import Markup, escape)\n- Database: SQLite with custom database.py module\n- No mobile-specific backend dependencies",
+
+    "frontend": "Vanilla JavaScript with no frameworks:\n- No jQuery, React, Vue, or other frameworks\n- Pure DOM manipulation: document.getElementById, classList API\n- Fetch API for AJAX (requires modern browser)\n- CSS Grid and Flexbox for layout\n- CSS Custom Properties (requires IE11+ or modern browsers)\n- No mobile gesture libraries (Hammer.js, etc.)",
+
+    "media_handling": "Server-side media streaming:\n- Local files: send_from_directory() - app.py:396\n- WebDAV proxy: requests.get() with streaming - app.py:369\n- Image modals: client-side modal with onclick events - notes.html:994\n- No lazy loading, no responsive images (srcset)",
+
+    "authentication": "Flask session-based auth:\n- Session storage: app.secret_key - app.py:12\n- Login check: 'username' in session - app.py:65, 198, etc.\n- No JWT, no OAuth, no mobile-specific auth flow",
+
+    "storage": "Hybrid local/WebDAV storage:\n- StorageManager class - app.py:21-43\n- WebDAV client for remote storage - bot/storage/webdav_client.py\n- Configuration: config.py with JSON file persistence\n- No mobile-specific caching strategy"
+  },
+
+  "integration_points": {
+    "ui_components": "Key touch interaction points requiring mobile optimization:\n\n1. Sidebar Navigation (templates/notes.html:618-680, static/css/main.css:125-339)\n   - Current: Fixed left sidebar, width transitions on desktop, translateX on mobile\n   - Mobile behavior: Off-canvas overlay (line 750: transform: translateX(-100%))\n   - Toggle: toggleMobileSidebar() at line 1021\n   - Issue: No swipe gesture support, Z-index conflict (line 752 notes mobile-open needs z-index 1001)\n   - Integration: Requires gesture detection library OR native touch events\n\n2. Search Bar (templates/notes.html:690-698)\n   - Current: Collapsible search with toggleSearch() at line 1052\n   - Mobile: Hidden by default (@media 768px), toggle button shows/hides\n   - Issue: No focus trap, search input too small (height: 32px line 432)\n   - Integration: Needs larger touch target (min 44x44px), autocomplete attributes\n\n3. Note Cards (templates/notes.html:824-903, static/css/main.css:202-606)\n   - Current: CSS Grid layout with responsive columns (line 197: minmax(320px, 1fr))\n   - Mobile: Single column at 768px (notes.html:587)\n   - Touch points: Favorite button (line 828), action buttons (line 880-897), expand text (line 871)\n   - Issue: Button sizes below 44px recommendation, no touch ripple feedback\n   - Integration: Swipe gestures for delete/favorite actions\n\n4. Image Modals (templates/notes.html:994-997, lines 1188-1204)\n   - Current: Click to open, ESC/click-outside to close\n   - Issue: No pinch-to-zoom, no swipe-to-dismiss\n   - Integration: Touch events for zoom (touch-action CSS), swipe gestures\n\n5. Pagination (templates/notes.html:906-932)\n   - Current: Traditional link-based pagination\n   - Issue: Small touch targets (min-width: 40px), no infinite scroll option\n   - Integration: Larger buttons OR infinite scroll with Intersection Observer API\n\n6. Filter Panel (templates/notes.html:762-820)\n   - Current: Accordion-style with CSS transitions (max-height animation)\n   - Mobile: Form inputs stack to single column (line 595)\n   - Issue: Date pickers may not be touch-optimized, dropdowns need larger hitboxes\n   - Integration: Native mobile date pickers (input type=\"date\"), custom dropdowns\n\n7. Action Buttons (templates/notes.html:880-898)\n   - Current: Small buttons (padding: 6px 12px, font-size: 12px) at line 404-405\n   - Issue: Below 44x44px minimum touch target\n   - Integration: Increase button sizing for mobile, add touch active states",
+
+    "api_endpoints": "Backend routes needing mobile-aware optimization:\n\n1. /notes (app.py:196-252)\n   - Returns: Server-rendered HTML with paginated notes\n   - Mobile need: Pagination parameter validation, smaller page size for mobile\n   - Integration point: Detect user-agent OR add ?mobile=1 query param\n\n2. /toggle_favorite/<note_id> (app.py:434-443)\n   - Returns: JSON {success: bool, error?: string}\n   - Mobile optimization: Add request debouncing (300ms), optimistic UI updates\n   - Integration: Client-side retry logic for flaky mobile connections\n\n3. /delete_note/<note_id> (app.py:424-432)\n   - Returns: JSON {success: bool, reload: bool}\n   - Mobile issue: No undo mechanism, confirmation dialog not touch-friendly\n   - Integration: Toast notifications instead of alert(), swipe-to-delete gesture\n\n4. /api/calibrate/<note_id> (app.py:606-714)\n   - Long-running operation (up to 30s timeout line 641)\n   - Mobile issue: No progress indicator, connection may timeout\n   - Integration: WebSocket OR SSE for progress updates, background task queue\n\n5. /media/<storage_location> (app.py:343-401)\n   - Returns: Image/video streaming\n   - Mobile issue: No responsive image sizes, full-resolution loads\n   - Integration: Image resizing service, srcset attributes, lazy loading",
+
+    "javascript_events": "Event handlers requiring mobile touch optimization:\n\n1. Sidebar Toggle (notes.html:1000-1042)\n   - Desktop: toggleSidebar() - width transition\n   - Mobile: toggleMobileSidebar() - translateX transform\n   - Integration need: Touch swipe from edge to open/close, velocity detection\n\n2. Click Outside to Close (notes.html:1114-1120)\n   - Pattern: mainContent.addEventListener('click') closes mobile sidebar\n   - Issue: May conflict with touch scrolling\n   - Integration: Use touchend instead of click, check if dragging occurred\n\n3. Image Modal (notes.html:838, 1188-1204)\n   - Opens: onclick=\"openImageModal(this.src)\"\n   - Closes: ESC key listener (line 1202) OR click modal background\n   - Integration need: Pinch-to-zoom with Hammer.js OR native touch-action\n\n4. Search Input (notes.html:1083-1091)\n   - Trigger: Enter key on input field\n   - Issue: Virtual keyboard may hide content, no dismiss on scroll\n   - Integration: Blur input on scroll, use input type=\"search\" for native X button\n\n5. Text Expansion (notes.html:871, 1143-1154)\n   - Toggle: onclick=\"toggleText(noteId)\" shows full note text\n   - Issue: No smooth scroll to expanded content on mobile\n   - Integration: scrollIntoView({behavior: 'smooth'}) after expansion\n\n6. Window Resize (notes.html:1133-1140)\n   - Listens: window.addEventListener('resize')\n   - Purpose: Reset sidebar state when switching desktop/mobile\n   - Issue: Fires too frequently on mobile (address bar show/hide)\n   - Integration: Debounce resize handler (200ms), use matchMedia instead",
+
+    "css_breakpoints": "Responsive design integration points:\n\n1. Main CSS Breakpoints (static/css/main.css:734-778)\n   - 1024px: Tablet/small desktop transition\n     - Sidebar becomes off-canvas (line 745-753)\n     - Main content loses left margin (line 756)\n     - Grid columns reduce (line 759-760)\n   - 768px: Mobile portrait\n     - Topbar padding reduces (line 765)\n     - Search bar hides (line 768)\n     - Page container padding reduces (line 772)\n     - Grid becomes single column (line 776)\n   - Integration: Add 480px breakpoint for small phones, 1440px for large desktops\n\n2. Template-Specific Breakpoints (templates/notes.html:585-612)\n   - 768px: Note cards, stats bar, filter grid, action buttons\n   - 480px: Stats bar single column\n   - Integration: Consolidate breakpoints with main.css, use CSS custom property for breakpoint values\n\n3. Component Responsive Patterns:\n   - Sidebar: Fixed → Off-canvas (main.css:739-753)\n   - Topbar: Full search → Hidden + toggle button (main.css:763, notes.html:481-482)\n   - Cards: Multi-column grid → Single column (notes.html:586-588)\n   - Forms: Multi-column → Stacked (notes.html:594-596)\n   - Buttons: Horizontal → Full-width stacked (notes.html:598-606)\n   - Integration point: Viewport meta tag (notes.html:5), CSS custom properties for breakpoint consistency",
+
+    "state_persistence": "Client-side state management integration:\n\n1. Theme Preference (notes.html:1044-1050, 1095-1099)\n   - Storage: localStorage.getItem('theme')\n   - Toggle: Sets data-theme attribute on <html>\n   - Integration: Sync with backend user preferences, detect system dark mode preference\n\n2. Sidebar Collapsed State\n   - Current: Only DOM class, no persistence\n   - Issue: Sidebar state resets on page reload\n   - Integration: localStorage for desktop, sessionStorage for mobile\n\n3. Search/Filter State\n   - Current: URL query parameters (?page=1&source=xxx&search=yyy)\n   - Issue: No history management, no state restoration\n   - Integration: History API for SPA-like navigation, preserve scroll position\n\n4. Form Input State\n   - Current: Browser autocomplete only\n   - Issue: Search query not preserved in collapsed search box\n   - Integration: sessionStorage for form values, autocomplete attributes",
+
+    "performance_bottlenecks": "Mobile-critical optimization points:\n\n1. Image Loading (templates/notes.html:833-856)\n   - Current: All images load immediately, no lazy loading\n   - Issue: Slow initial page load on mobile connections\n   - Integration: Intersection Observer API for lazy load, loading=\"lazy\" attribute\n\n2. JavaScript Execution (notes.html:999-1239)\n   - Current: All event listeners registered on DOMContentLoaded\n   - Issue: Blocking main thread, slow Time to Interactive\n   - Integration: Event delegation, passive event listeners, debouncing/throttling\n\n3. CSS Animations (static/css/main.css:82-86)\n   - Current: Backdrop-filter blur (line 358-359) is GPU-intensive\n   - Issue: Janky scrolling on low-end mobile devices\n   - Integration: Disable blur on mobile, use will-change sparingly\n\n4. API Request Timing (app.py calibrate endpoint)\n   - Current: Synchronous 30s timeout operations\n   - Issue: Mobile connection drops, no retry\n   - Integration: Background jobs, retry logic with exponential backoff",
+
+    "mobile_specific_needs": "Features requiring mobile-only implementation:\n\n1. Touch Gestures\n   - Swipe sidebar from left edge to open\n   - Swipe left/right on note cards to delete/favorite\n   - Pull-to-refresh on note list\n   - Pinch-to-zoom on images\n   - Integration: Hammer.js library OR native touch events with gesture detection\n\n2. Virtual Keyboard Handling\n   - Viewport resize when keyboard appears\n   - Fixed positioning issues with keyboard open\n   - Input field auto-scroll into view\n   - Integration: Visual viewport API, input focus detection, scroll behavior\n\n3. Offline Support\n   - Cache recent notes for offline viewing\n   - Queue actions (favorite/delete) when offline\n   - Sync when connection restored\n   - Integration: Service Worker, IndexedDB, Background Sync API\n\n4. Native Features\n   - Share API for sharing notes\n   - Vibration API for touch feedback\n   - Install as PWA\n   - Integration: Web Share API, navigator.vibrate(), manifest.json + service worker\n\n5. Network Awareness\n   - Detect connection type (2G/3G/4G/WiFi)\n   - Reduce image quality on slow connections\n   - Defer non-critical requests\n   - Integration: Network Information API, adaptive loading strategies"
+  },
+
+  "constraints": {
+    "technical": "1. No Frontend Framework: Vanilla JS only - no React/Vue/Angular means manual DOM manipulation and event handling. Adding mobile libraries (Hammer.js) must not conflict with existing code.\n\n2. Server-Side Rendering: Flask/Jinja2 templates - all HTML generated server-side. Client-side routing not possible without major refactor. Mobile optimizations must work with full page reloads.\n\n3. CSS Custom Properties: Extensive use of CSS variables (lines 6-86 in main.css). Mobile styles must respect existing design token system. Cannot use CSS frameworks (Bootstrap/Tailwind) without conflicts.\n\n4. Inline Event Handlers: Mixed onclick attributes and addEventListener. Mobile touch events must work with both patterns. Cannot easily add event delegation without refactoring all inline handlers.\n\n5. No Build Process: No webpack/vite/babel. Cannot use JSX, TypeScript, or modern ES modules. Mobile JS must be ES5-compatible or use feature detection.\n\n6. SQLite Database: Single-file DB with no replication. Mobile API optimizations cannot add complex queries that lock database.\n\n7. Single Threaded Flask: Development server is single-threaded. Mobile long-polling or SSE will block other requests. Need production WSGI server (gunicorn) for concurrent mobile connections.",
+
+    "design": "1. Existing Breakpoints: Three breakpoints already defined (1024px, 768px, 480px). Mobile styles must fit within this system. Cannot change breakpoint values without updating multiple files.\n\n2. Color Scheme: NetEase Cloud Music inspired (red primary #EC4141). Dark mode already implemented. Mobile components must respect existing color tokens and theme switching.\n\n3. Component Sizing: Sidebar width 200px/64px, topbar 56px, cards 320px min. Mobile adaptations must maintain visual consistency. Cannot drastically change component proportions.\n\n4. Grid Layout: CSS Grid with auto-fit minmax pattern. Mobile single-column is already implemented. Cannot use Flexbox without conflicting with existing grid definitions.\n\n5. Animation System: Transition timings defined (150ms/250ms/350ms). Mobile animations must use existing timing tokens. Cannot add jarring animations that conflict with design language.\n\n6. Font System: System fonts only (-apple-system, BlinkMacSystemFont, etc.). Mobile text sizing must scale from existing font-size tokens (12px-24px range). Cannot use custom web fonts.\n\n7. Icon System: Emoji-based icons (📝🏠⭐etc.). Mobile touch targets must accommodate emoji size. Cannot replace with icon fonts without redesigning entire UI.",
+
+    "browser_support": "1. Modern Browsers Only: Fetch API, CSS Grid, CSS Custom Properties required. Must support Chrome 90+, Safari 14+, Firefox 88+. IE11 not supported.\n\n2. Mobile Browsers: Primary targets are Chrome Mobile, Safari iOS, Samsung Internet. Must test on iOS 14+ and Android 10+. No support for outdated mobile browsers.\n\n3. Feature Detection: No polyfills for missing APIs. Mobile features (Web Share, Vibration) must have fallbacks. Use 'if (navigator.share)' pattern.\n\n4. CSS Prefixes: Backdrop-filter needs -webkit- prefix (line 359). Mobile CSS must include vendor prefixes for transform, transition, appearance.\n\n5. Touch Events: Must support both touch and pointer events. Cannot assume mouse-only or touch-only. Use pointer events where possible for unified handling.",
+
+    "performance": "1. No Code Splitting: All JS loads on page load. Mobile optimizations cannot add large libraries without affecting initial load time. Keep additional JS under 50KB.\n\n2. Image Sizes: Full-resolution images load from /media endpoint. Mobile cannot request different sizes without backend changes. Must use CSS to scale images.\n\n3. No CDN: Static files served from same domain. Mobile users far from server will have high latency. Cannot add CDN without infrastructure changes.\n\n4. Synchronous Operations: Calibrate endpoint blocks for 30s. Mobile optimizations cannot make it asynchronous without backend refactor. Must improve UX with loading states only.\n\n5. Database Locking: SQLite locks entire database on write. Mobile API calls cannot add concurrent writes. Must queue operations client-side.\n\n6. No Caching Strategy: No service worker or HTTP caching headers. Mobile offline support requires implementing entire caching layer from scratch.",
+
+    "compatibility": "1. Existing Users: Current desktop users must not experience regressions. Mobile changes must be additive, not replacing desktop functionality. Use CSS media queries, not separate mobile site.\n\n2. URL Structure: Routes are hardcoded (/notes, /admin, /login). Mobile cannot change URL patterns without breaking bookmarks. Must preserve query parameter structure.\n\n3. Session Management: Flask sessions with cookies. Mobile cannot use JWT or token auth without backend changes. Must work with existing session-based auth.\n\n4. Data Format: JSON responses from API endpoints have fixed structure. Mobile cannot request different data shapes. Must work with existing {success: bool, error: string} pattern.\n\n5. Template Structure: Jinja2 inheritance with base templates. Mobile cannot add separate template hierarchy. Must use same templates with responsive CSS.\n\n6. JavaScript Globals: Functions defined in template script tags (toggleSidebar, deleteNote, etc.). Mobile JS cannot use modules or bundling. Must add to global scope or refactor existing code.",
+
+    "deployment": "1. Docker Container: App runs in Docker with specific paths (/app/). Mobile features must work in containerized environment. Cannot rely on file system paths outside container.\n\n2. Environment Variables: Configuration via env vars (TOKEN, HASH, ID, etc.). Mobile cannot add new config without updating deployment scripts. Must use existing config.json pattern.\n\n3. Port Configuration: Flask runs on configurable port (default 5000). Mobile cannot assume specific ports. Must use relative URLs only.\n\n4. Volume Mounts: Data persists in /data volume. Mobile caching must use this path. Cannot write to other locations in container.\n\n5. No HTTPS: Development mode uses HTTP. Mobile features requiring HTTPS (Web Share, geolocation) will fail. Must detect protocol and disable features or require reverse proxy."
+  },
+
+  "clarification_needs": [
+    {
+      "question": "移动端适配的响应式断点策略",
+      "context": "当前存在3个断点(1024px, 768px, 480px),但分散在main.css和notes.html中。移动端适配需要统一断点管理并可能新增超小屏幕(320px-375px)和大屏手机(414px-428px)的专属断点。",
+      "options": [
+        "保持现有3个断点,仅优化现有断点下的样式(最小改动,快速完成)",
+        "统一到CSS变量管理,新增2个移动断点(320px小屏, 375px标准手机, 768px平板)",
+        "采用容器查询(Container Queries)替代媒体查询,实现组件级响应式(现代方案,需浏览器支持)",
+        "使用JavaScript动态检测视口并添加类名,CSS基于类名而非媒体查询(灵活但增加JS依赖)"
+      ],
+      "recommended": 1
+    },
+    {
+      "question": "触摸手势支持的实现方式",
+      "context": "移动端需要支持侧边栏滑动、图片缩放、笔记卡片滑动删除等手势。当前无任何手势库,需决定实现方式。",
+      "options": [
+        "不引入手势库,仅优化现有点击交互(按钮加大、增加触摸反馈,无滑动手势)",
+        "引入Hammer.js手势库(30KB gzipped),支持滑动、捏合、长按等手势",
+        "使用原生Touch Events手动实现必要手势(侧边栏滑动、图片缩放),代码量较大但无依赖",
+        "使用Pointer Events统一处理触摸和鼠标,仅实现基础滑动手势(现代API,兼容性好)"
+      ],
+      "recommended": 3
+    },
+    {
+      "question": "移动端图片加载优化策略",
+      "context": "当前所有图片立即加载,移动端网络较慢会导致页面卡顿。需决定图片优化方案。图片由/media/<storage_location>端点提供,支持本地和WebDAV。",
+      "options": [
+        "仅添加loading=\"lazy\"属性,利用浏览器原生懒加载(最简单,但无法自定义占位符)",
+        "使用Intersection Observer API实现懒加载+模糊占位符(用户体验好,需额外JS)",
+        "后端添加图片缩放服务,移动端请求小尺寸图片(最彻底,需后端开发)",
+        "添加渐进式JPEG支持+响应式图片(srcset),前端无需改动(需构建流程)"
+      ],
+      "recommended": 1
+    },
+    {
+      "question": "移动端离线支持的优先级",
+      "context": "笔记应用有离线查看需求,但实现Service Worker和IndexedDB需要大量工作。需确定是否纳入本次适配范围。",
+      "options": [
+        "不实现离线支持,仅优化网络慢时的加载体验(骨架屏、加载动画)",
+        "实现基础Service Worker缓存静态资源(CSS/JS),页面内容仍需网络",
+        "完整离线方案:缓存最近浏览的笔记+离线操作队列(工作量大,3-5天开发)",
+        "使用localStorage缓存笔记列表,下次访问优先展示缓存(简易离线,但容量限制5MB)"
+      ],
+      "recommended": 0
+    },
+    {
+      "question": "虚拟键盘遮挡问题的处理方案",
+      "context": "移动端输入时虚拟键盘会遮挡输入框和底部内容。当前无任何键盘适配逻辑,搜索框、筛选表单、编辑页面都会受影响。",
+      "options": [
+        "使用window.visualViewport API检测键盘高度,动态调整容器padding(现代方案,iOS 13+支持)",
+        "监听resize事件估算键盘高度,使用scrollIntoView滚动输入框到可见区域(兼容性好但不准确)",
+        "使用position: fixed布局的输入框自动避开键盘(简单但可能导致其他布局问题)",
+        "不做特殊处理,依赖浏览器默认行为(可能在某些设备上输入框被遮挡)"
+      ],
+      "recommended": 0
+    },
+    {
+      "question": "移动端API请求优化方式",
+      "context": "当前API无移动端优化:无请求去抖、无超时重试、无离线队列。校准操作可能耗时30秒,移动端易超时。",
+      "options": [
+        "仅前端优化:添加加载状态、防抖节流、乐观更新UI(不改后端,快速实现)",
+        "添加请求重试机制(指数退避)+超时提示(前端JS,增强鲁棒性)",
+        "后端改造:长耗时操作改为异步任务+轮询结果(需后端开发,用户体验最佳)",
+        "前端添加Service Worker拦截请求,实现离线队列和后台同步(复杂,需PWA基础设施)"
+      ],
+      "recommended": 1
+    }
+  ],
+
+  "_metadata": {
+    "timestamp": "2025-12-07T10:30:00Z",
+    "task_description": "GOAL: 完全适配移动端\nSCOPE: 移动端响应式布局、触摸交互优化、移动端用户体验\nCONTEXT: 现有项目需要全面移动端适配",
+    "source": "cli-explore-agent",
+    "exploration_angle": "integration-points",
+    "exploration_index": 2,
+    "total_explorations": 4,
+    "duration_seconds": 180
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "IMPL-4.1",
+  "title": "代码压缩优化",
+  "status": "pending",
+  "meta": {
+    "agent": "code-developer",
+    "type": "optimization",
+    "priority": "P1",
+    "estimated_hours": 2,
+    "execution_group": "phase-4-optimization",
+    "phase": "Phase 4: 性能优化"
+  },
+  "context": {
+    "objective": "压缩JavaScript和CSS文件，减少文件体积",
+    "background": "未压缩的JS和CSS文件体积较大，影响页面加载速度",
+    "deliverables": [
+      "使用Terser压缩JavaScript文件",
+      "使用cssnano压缩CSS文件",
+      "生成.min.js和.min.css文件",
+      "更新HTML引用压缩后的文件"
+    ],
+    "acceptance_criteria": [
+      "文件体积减少>30%",
+      "功能无损失",
+      "Lighthouse性能评分提升"
+    ]
+  },
+  "dependencies": {
+    "depends_on": ["IMPL-2.1", "IMPL-2.2", "IMPL-3.1", "IMPL-3.2", "IMPL-3.3", "IMPL-3.4"],
+    "blocks": ["IMPL-4.2"]
+  }
+}

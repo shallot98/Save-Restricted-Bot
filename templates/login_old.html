@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - Telegram 笔记</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 50px 40px;
+            max-width: 400px;
+            width: 100%;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 28px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            color: #555;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+            border: 1px solid #fcc;
+        }
+
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .remember-me input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .remember-me label {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 400;
+            color: #666;
+            cursor: pointer;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <div class="logo-icon">📝</div>
+            <h1>Telegram 笔记</h1>
+            <p class="subtitle">管理员登录</p>
+        </div>
+
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div class="remember-me">
+                <input type="checkbox" id="remember" name="remember" value="1">
+                <label for="remember">记住密码</label>
+            </div>
+
+            <button type="submit" class="btn-login">登录</button>
+        </form>
+
+        <div class="footer">
+            Telegram Bot 记录模式 © 2024
+        </div>
+    </div>
+
+    <script>
+        // 页面加载时，检查是否有保存的凭据
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedUsername = getCookie('saved_username');
+            const savedPassword = getCookie('saved_password');
+
+            if (savedUsername && savedPassword) {
+                document.getElementById('username').value = savedUsername;
+                document.getElementById('password').value = savedPassword;
+                document.getElementById('remember').checked = true;
+            }
+        });
+
+        // 表单提交时，根据复选框状态保存或清除凭据
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+
+            if (remember) {
+                // 保存凭据到Cookie（30天有效期）
+                setCookie('saved_username', username, 30);
+                setCookie('saved_password', password, 30);
+            } else {
+                // 清除保存的凭据
+                deleteCookie('saved_username');
+                deleteCookie('saved_password');
+            }
+        });
+
+        // Cookie操作函数
+        function setCookie(name, value, days) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+            document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires.toUTCString() + ';path=/';
+        }
+
+        function getCookie(name) {
+            const nameEQ = name + '=';
+            const ca = document.cookie.split(';');
+            for (let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+            }
+            return null;
+        }
+
+        function deleteCookie(name) {
+            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
+        }
+    </script>
+</body>
+</html>

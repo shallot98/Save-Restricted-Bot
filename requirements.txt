@@ -1,0 +1,12 @@
+pyrogram
+tgcrypto
+flask
+flask-login
+bcrypt
+pillow
+webdavclient3
+requests
+libtorrent
+pytest>=7.4.0
+pytest-playwright>=0.4.0
+playwright>=1.40.0

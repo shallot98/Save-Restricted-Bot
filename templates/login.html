@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - Telegram 笔记</title>
+    <link rel="stylesheet" href="/static/css/main.min.css?v=2.1">
+    <style>
+        /* 登录页面特定样式 */
+        body {
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: var(--spacing-lg);
+        }
+
+        .login-container {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            width: 100%;
+            max-width: 450px;
+            overflow: hidden;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: var(--spacing-2xl) var(--spacing-xl);
+            text-align: center;
+        }
+
+        .login-logo {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: var(--radius-xl);
+            margin: 0 auto var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .login-title {
+            font-size: var(--font-size-3xl);
+            font-weight: 700;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .login-subtitle {
+            font-size: var(--font-size-base);
+            opacity: 0.9;
+        }
+
+        .login-body {
+            padding: var(--spacing-xl);
+        }
+
+        .alert {
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            font-size: var(--font-size-sm);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .alert-error {
+            background: var(--error-light);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+
+        .alert-success {
+            background: var(--success-light);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .form-label {
+            display: block;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .form-input-wrapper {
+            position: relative;
+        }
+
+        .form-input-icon {
+            position: absolute;
+            left: var(--spacing-md);
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+            font-size: 20px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: var(--spacing-md) var(--spacing-md) var(--spacing-md) 48px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-base);
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            transition: all var(--transition-fast);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: var(--bg-secondary);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .form-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .form-checkbox-label {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: var(--spacing-lg);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-base);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .login-footer {
+            padding: var(--spacing-lg) var(--spacing-xl);
+            background: var(--bg-tertiary);
+            text-align: center;
+            font-size: var(--font-size-xs);
+            color: var(--text-tertiary);
+        }
+
+        .login-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: var(--spacing-md);
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            font-size: 20px;
+            padding: var(--spacing-sm);
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+            min-width: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .password-toggle:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        /* 背景装饰 */
+        .background-decoration {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .decoration-circle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .decoration-circle:nth-child(1) {
+            width: 300px;
+            height: 300px;
+            top: -100px;
+            right: -100px;
+            animation-delay: 0s;
+        }
+
+        .decoration-circle:nth-child(2) {
+            width: 200px;
+            height: 200px;
+            bottom: -50px;
+            left: -50px;
+            animation-delay: -7s;
+        }
+
+        .decoration-circle:nth-child(3) {
+            width: 150px;
+            height: 150px;
+            top: 50%;
+            left: 10%;
+            animation-delay: -14s;
+        }
+
+        /* 响应式 */
+        @media (max-width: 480px) {
+            .login-header {
+                padding: var(--spacing-xl) var(--spacing-lg);
+            }
+
+            .login-logo {
+                width: 64px;
+                height: 64px;
+                font-size: 32px;
+            }
+
+            .login-title {
+                font-size: var(--font-size-2xl);
+            }
+
+            .login-body {
+                padding: var(--spacing-lg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 背景装饰 -->
+    <div class="background-decoration">
+        <div class="decoration-circle"></div>
+        <div class="decoration-circle"></div>
+        <div class="decoration-circle"></div>
+    </div>
+
+    <!-- 登录容器 -->
+    <div class="login-container">
+        <div class="login-header">
+            <div class="login-logo">📝</div>
+            <h1 class="login-title">Telegram 笔记</h1>
+            <p class="login-subtitle">管理员登录</p>
+        </div>
+
+        <div class="login-body">
+            {% if error %}
+            <div class="alert alert-error">
+                <span style="font-size: 20px;">⚠️</span>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label for="username" class="form-label">用户名</label>
+                    <div class="form-input-wrapper">
+                        <span class="form-input-icon">👤</span>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            class="form-input"
+                            placeholder="请输入用户名"
+                            inputmode="email"
+                            autocomplete="username"
+                            autocapitalize="none"
+                            required
+                            autofocus
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">密码</label>
+                    <div class="form-input-wrapper">
+                        <span class="form-input-icon">🔒</span>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            class="form-input"
+                            placeholder="请输入密码"
+                            autocomplete="current-password"
+                            required
+                        >
+                        <button type="button" class="password-toggle" onclick="togglePassword()">
+                            <span id="toggleIcon">👁️</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-checkbox-group">
+                    <input
+                        type="checkbox"
+                        id="remember"
+                        name="remember"
+                        value="1"
+                        class="form-checkbox"
+                    >
+                    <label for="remember" class="form-checkbox-label">
+                        记住密码 (30天)
+                    </label>
+                </div>
+
+                <button type="submit" class="btn-login">
+                    登录
+                </button>
+            </form>
+        </div>
+
+        <div class="login-footer">
+            Telegram Bot 记录模式 © 2024
+            <br>
+            <a href="https://github.com" target="_blank">查看文档</a>
+        </div>
+    </div>
+
+    <script>
+        // 密码显示/隐藏切换
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('toggleIcon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.textContent = '🙈';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.textContent = '👁️';
+            }
+        }
+
+        // Cookie 操作函数
+        function setCookie(name, value, days) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+            document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires.toUTCString() + ';path=/';
+        }
+
+        function getCookie(name) {
+            const nameEQ = name + '=';
+            const ca = document.cookie.split(';');
+            for (let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+            }
+            return null;
+        }
+
+        function deleteCookie(name) {
+            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
+        }
+
+        // 页面加载时恢复保存的凭据
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedUsername = getCookie('saved_username');
+
+            if (savedUsername) {
+                document.getElementById('username').value = savedUsername;
+                document.getElementById('remember').checked = true;
+            }
+        });
+
+        // 表单提交时保存或清除凭据
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value;
+            const remember = document.getElementById('remember').checked;
+
+            if (remember) {
+                setCookie('saved_username', username, 30);
+            } else {
+                deleteCookie('saved_username');
+                deleteCookie('saved_password');
+            }
+        });
+
+        // 回车键登录
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.querySelector('form').submit();
+            }
+        });
+    </script>
+</body>
+</html>

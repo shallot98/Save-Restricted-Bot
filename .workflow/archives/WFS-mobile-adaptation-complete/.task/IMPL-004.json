@@ -1,0 +1,274 @@
+{
+  "id": "IMPL-004",
+  "title": "Implement Mobile Image Lazy Loading and Performance Optimization",
+  "status": "completed",
+  "context_package_path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "Add loading='lazy' attribute to all <img> tags in 8 templates: [notes.html, login.html, admin.html, edit_note.html, admin_webdav.html, admin_viewer.html, admin_calibration_queue.html, base templates]",
+      "Implement Intersection Observer API for 1 component: [note card image grid in notes.html]",
+      "Add placeholder images: 1 SVG data URI for loading state",
+      "Optimize 1 media serving endpoint: [/media route in app.py lines 343-401]",
+      "Add request throttling for 3 AJAX operations: [favorite, delete, calibrate API calls]",
+      "Implement debouncing for 1 search input: [search interface in notes.html lines 691-699]"
+    ],
+    "focus_paths": [
+      "templates/notes.html",
+      "templates/*.html",
+      "app.py",
+      "static/css/main.css"
+    ],
+    "acceptance": [
+      "loading='lazy' added to all images: verify by rg '<img' templates/ | grep -c 'loading=\"lazy\"' >= 10",
+      "Intersection Observer implemented: verify by grep 'IntersectionObserver' templates/notes.html",
+      "Placeholder image works: verify data URI SVG displays before image loads",
+      "Images load on scroll: manual test scroll note grid → verify images load as they enter viewport",
+      "AJAX throttling works: verify rapid favorite clicks don't send duplicate requests (max 1 request per second)",
+      "Search debounced: verify typing doesn't trigger search until 300ms after last keystroke",
+      "Bandwidth savings: verify network tab shows deferred image loading (not all images load on page load)"
+    ],
+    "depends_on": ["IMPL-001"],
+    "inherited": {
+      "from": "IMPL-001",
+      "context": [
+        "Mobile-first CSS architecture with responsive breakpoints",
+        "Performance-conscious mobile design principles"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Intersection Observer API", "Vanilla JavaScript", "Flask backend"],
+      "constraints": [
+        "Zero build system - use browser-native lazy loading",
+        "Browser compatibility: Intersection Observer (iOS 12.2+, Chrome 51+)",
+        "Server-side rendering - initial HTML must include loading attributes"
+      ],
+      "optimization_strategy": "Client-side lazy loading per CON-005 resolution",
+      "api_performance": {
+        "throttle_interval": "1000ms for AJAX operations",
+        "debounce_delay": "300ms for search input",
+        "image_loading_threshold": "200px before entering viewport"
+      }
+    },
+    "artifacts": [
+      {
+        "type": "exploration_analysis",
+        "source": "exploration-integration-points",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/exploration-integration-points.json",
+        "priority": "highest",
+        "usage": "Performance bottleneck identification and API endpoint analysis",
+        "contains": "Full-resolution image loading analysis, missing lazy loading, API timeout issues"
+      },
+      {
+        "type": "conflict_resolution",
+        "source": "context-package resolved_conflicts",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+        "priority": "high",
+        "usage": "CON-005 resolution: Client-side lazy loading with optional backend optimization",
+        "contains": "Strategy for browser-native loading='lazy' + Intersection Observer evaluation"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "Load context package for media serving and API endpoint analysis",
+        "commands": ["Read(.workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_image_tags",
+        "action": "Find all image tags in templates for lazy loading attribute addition",
+        "commands": [
+          "bash(rg '<img' templates/ -n --max-count 30)",
+          "bash(find templates/ -name '*.html' -type f | wc -l)"
+        ],
+        "output_to": "image_tag_inventory"
+      },
+      {
+        "step": "analyze_ajax_operations",
+        "action": "Identify AJAX API calls requiring throttling",
+        "commands": [
+          "bash(rg 'fetch\\(|XMLHttpRequest' templates/notes.html -n -C 3 --max-count 15)"
+        ],
+        "output_to": "ajax_operations_analysis"
+      },
+      {
+        "step": "analyze_media_serving",
+        "action": "Review /media endpoint for optimization opportunities",
+        "commands": [
+          "bash(sed -n '343,401p' app.py)"
+        ],
+        "output_to": "media_endpoint_analysis"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "Add browser-native lazy loading to all images",
+        "description": "Add loading='lazy' attribute to <img> tags across all templates",
+        "modification_points": [
+          "Add loading='lazy' to images in 8 templates: [notes.html, login.html, admin.html, edit_note.html, admin_webdav.html, admin_viewer.html, admin_calibration_queue.html, any base/partial templates]",
+          "Count affected images: estimate 10-20 <img> tags total",
+          "Add decoding='async' for performance: pair with loading='lazy'",
+          "Preserve existing alt attributes and accessibility"
+        ],
+        "logic_flow": [
+          "Search all template files for <img tags",
+          "Add loading='lazy' and decoding='async' attributes to each",
+          "Verify syntax: <img src='...' loading='lazy' decoding='async' alt='...'>",
+          "Test on modern browsers: verify deferred loading works",
+          "Check browser compatibility: fallback to immediate load on older browsers"
+        ],
+        "depends_on": [],
+        "output": "native_lazy_loading_implementation"
+      },
+      {
+        "step": 2,
+        "title": "Implement Intersection Observer for note card images",
+        "description": "Add progressive image loading with Intersection Observer API for note grid",
+        "modification_points": [
+          "Create IntersectionObserver instance in notes.html",
+          "Set rootMargin: '200px' to load images before entering viewport",
+          "Observe all note card images with data-src attribute",
+          "Swap data-src to src when intersection detected",
+          "Add loading class for CSS placeholder styling"
+        ],
+        "logic_flow": [
+          "Create IntersectionObserver with 200px rootMargin threshold",
+          "Query all img elements in note cards: document.querySelectorAll('.note-card img')",
+          "For each image, set data-src=original src, src=placeholder",
+          "When intersection detected, swap data-src → src and add 'loaded' class",
+          "Disconnect observer after all images loaded",
+          "Fallback: if IntersectionObserver not supported, load all images immediately"
+        ],
+        "depends_on": [1],
+        "output": "intersection_observer_implementation"
+      },
+      {
+        "step": 3,
+        "title": "Create placeholder image and loading states",
+        "description": "Add SVG placeholder and CSS loading animation for deferred images",
+        "modification_points": [
+          "Create 1 SVG data URI placeholder: gray rectangle with loading icon",
+          "Add CSS loading animation: fade-in transition when image loads",
+          "Add .image-loading and .image-loaded CSS classes",
+          "Set placeholder as default src for lazy-loaded images"
+        ],
+        "logic_flow": [
+          "Generate SVG data URI: <svg> with gray background and loading indicator",
+          "Add to JavaScript: const PLACEHOLDER = 'data:image/svg+xml,...'",
+          "Add CSS: .image-loading { opacity: 0.5; } .image-loaded { opacity: 1; transition: opacity 0.3s; }",
+          "Apply placeholder to img src, move original URL to data-src",
+          "On load, add 'image-loaded' class for fade-in effect"
+        ],
+        "depends_on": [2],
+        "output": "placeholder_implementation"
+      },
+      {
+        "step": 4,
+        "title": "Add request throttling for AJAX operations",
+        "description": "Implement throttling for favorite, delete, and calibrate API calls",
+        "modification_points": [
+          "Create throttle() utility function: limit calls to 1 per second (1000ms)",
+          "Wrap 3 AJAX operations: [toggleFavorite(), deleteNote(), calibrateNote()]",
+          "Track last call timestamp for each operation",
+          "Queue rapid requests and execute after throttle interval"
+        ],
+        "logic_flow": [
+          "Create throttle wrapper: function throttle(fn, delay) { ... }",
+          "Track lastCallTime per function with Map or closure",
+          "On function call, check if (Date.now() - lastCallTime) < delay",
+          "If throttled, queue call with setTimeout for remaining delay",
+          "If allowed, execute immediately and update lastCallTime",
+          "Apply to all fetch() calls in notes.html"
+        ],
+        "depends_on": [1],
+        "output": "ajax_throttling_implementation"
+      },
+      {
+        "step": 5,
+        "title": "Implement search input debouncing",
+        "description": "Add debouncing to search interface to reduce unnecessary requests",
+        "modification_points": [
+          "Create debounce() utility function: delay execution by 300ms",
+          "Apply to search input keyup/input event handler",
+          "Cancel previous timeout on new keystroke",
+          "Execute search only after 300ms of no typing"
+        ],
+        "logic_flow": [
+          "Create debounce wrapper: function debounce(fn, delay) { ... }",
+          "Track timeout ID for cancellation",
+          "On input event, clearTimeout(previous) and setTimeout(new, 300ms)",
+          "Execute search function only after 300ms silence",
+          "Add loading indicator during debounce delay",
+          "Test: rapid typing triggers single search after pause"
+        ],
+        "depends_on": [4],
+        "output": "search_debouncing_implementation"
+      },
+      {
+        "step": 6,
+        "title": "Optimize /media endpoint for mobile delivery (optional)",
+        "description": "Evaluate backend optimizations for responsive image serving",
+        "modification_points": [
+          "Review /media route at app.py lines 343-401",
+          "Add response headers: Cache-Control for browser caching",
+          "Consider Accept-Encoding: gzip compression for images",
+          "Evaluate Pillow integration for responsive sizes (optional future work)",
+          "Document optimization opportunities for Phase 2"
+        ],
+        "logic_flow": [
+          "Analyze current /media endpoint implementation",
+          "Add Cache-Control headers for long-term caching: max-age=31536000",
+          "Add Vary: Accept-Encoding for compression negotiation",
+          "Test with network throttling: verify caching reduces repeat requests",
+          "Document Pillow thumbnail generation as future enhancement",
+          "Measure bandwidth savings with browser network tab"
+        ],
+        "depends_on": [5],
+        "output": "media_endpoint_optimization"
+      },
+      {
+        "step": 7,
+        "title": "Test lazy loading and performance improvements",
+        "description": "Validate image lazy loading, AJAX throttling, and bandwidth savings",
+        "modification_points": [
+          "Test lazy loading: scroll note grid → verify images load progressively",
+          "Test AJAX throttling: rapid favorite clicks → verify max 1 request/second",
+          "Test search debouncing: rapid typing → verify single search after 300ms",
+          "Measure bandwidth: compare page load before/after optimization",
+          "Test browser compatibility: verify fallback behavior on unsupported browsers"
+        ],
+        "logic_flow": [
+          "Load notes.html in Chrome mobile emulator with network throttling (3G)",
+          "Check network tab: initial page load should defer images below fold",
+          "Scroll down: verify images load as they approach viewport (200px threshold)",
+          "Test rapid favorite clicks: verify only 1 request per second sent",
+          "Type in search: verify no requests until 300ms after last keystroke",
+          "Compare network payload: measure bandwidth reduction (target ~60% savings)",
+          "Test on Safari iOS: verify IntersectionObserver works or falls back gracefully"
+        ],
+        "depends_on": [6],
+        "output": "performance_validation"
+      }
+    ],
+    "target_files": [
+      "templates/notes.html",
+      "templates/login.html",
+      "templates/admin.html",
+      "templates/edit_note.html",
+      "templates/admin_webdav.html",
+      "templates/admin_viewer.html",
+      "templates/admin_calibration_queue.html",
+      "app.py:/media:343-401",
+      "static/css/main.css"
+    ]
+  }
+}

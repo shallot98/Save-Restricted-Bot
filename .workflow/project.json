@@ -1,0 +1,163 @@
+{
+  "project_name": "Save-Restricted-Bot",
+  "initialized_at": "2025-12-07T04:45:54Z",
+  "overview": {
+    "description": "A Telegram bot application for saving and forwarding restricted content from Telegram channels and groups, with web interface for record management and media storage capabilities",
+    "technology_stack": {
+      "languages": [
+        {
+          "name": "Python",
+          "file_count": 73,
+          "primary": true
+        },
+        {
+          "name": "HTML",
+          "file_count": 10,
+          "primary": false
+        },
+        {
+          "name": "CSS",
+          "file_count": 1,
+          "primary": false
+        }
+      ],
+      "frameworks": [
+        "Pyrogram",
+        "Flask",
+        "SQLite3"
+      ],
+      "build_tools": [
+        "pip",
+        "Docker",
+        "docker-compose"
+      ],
+      "test_frameworks": [
+        "pytest"
+      ]
+    },
+    "architecture": {
+      "style": "Layered modular architecture with MVC pattern for web interface",
+      "layers": [
+        "presentation",
+        "business-logic",
+        "data-access"
+      ],
+      "patterns": [
+        "Service Layer",
+        "Repository Pattern",
+        "Queue Pattern",
+        "Filter Chain",
+        "Singleton",
+        "Context Manager"
+      ]
+    },
+    "key_components": [
+      {
+        "name": "Bot Core",
+        "path": "bot/core",
+        "description": "Client initialization, message queue, and startup configuration management",
+        "importance": "high"
+      },
+      {
+        "name": "Message Handlers",
+        "path": "bot/handlers",
+        "description": "Telegram message, command, and callback handlers for bot interactions",
+        "importance": "high"
+      },
+      {
+        "name": "Content Filters",
+        "path": "bot/filters",
+        "description": "Keyword, regex, and extract filters for content processing",
+        "importance": "high"
+      },
+      {
+        "name": "Services Layer",
+        "path": "bot/services",
+        "description": "Configuration management, calibration scheduler, and peer caching services",
+        "importance": "high"
+      },
+      {
+        "name": "Flask Web App",
+        "path": "app.py",
+        "description": "Web interface for note management, admin panel, and media serving",
+        "importance": "high"
+      },
+      {
+        "name": "Database Layer",
+        "path": "database.py",
+        "description": "SQLite database operations for notes, users, and calibration tasks",
+        "importance": "high"
+      },
+      {
+        "name": "Storage Manager",
+        "path": "bot/storage",
+        "description": "WebDAV client and local/remote media storage management",
+        "importance": "medium"
+      },
+      {
+        "name": "Message Workers",
+        "path": "bot/workers",
+        "description": "Background message processing workers with queue management",
+        "importance": "medium"
+      },
+      {
+        "name": "Utilities",
+        "path": "bot/utils",
+        "description": "Logger, progress tracking, status management, and helper functions",
+        "importance": "medium"
+      },
+      {
+        "name": "Test Suite",
+        "path": "tests",
+        "description": "Unit and integration tests for bot functionality (34 test files)",
+        "importance": "low"
+      }
+    ]
+  },
+  "features": [
+    {
+      "id": "complete-mobile-adaptation-for-telegram-bot-web",
+      "title": "Complete Mobile Adaptation for Telegram Bot Web Interface",
+      "description": "Comprehensive mobile optimization delivering mobile-first CSS architecture, unified state management, touch gestures, lazy loading, adaptive API performance, and Playwright testing across 5 devices.",
+      "status": "completed",
+      "tags": [
+        "mobile-first",
+        "responsive-design",
+        "touch-optimization",
+        "vanilla-js",
+        "playwright-testing"
+      ],
+      "timeline": {
+        "created_at": "2025-12-07T06:17:54Z",
+        "implemented_at": "2025-12-07",
+        "updated_at": "2025-12-07T06:17:54Z"
+      },
+      "traceability": {
+        "session_id": "WFS-mobile-adaptation-complete",
+        "archive_path": ".workflow/archives/WFS-mobile-adaptation-complete",
+        "commit_hash": ""
+      },
+      "docs": [],
+      "relations": []
+    }
+  ],
+  "development_index": {
+    "feature": [
+      "complete-mobile-adaptation-for-telegram-bot-web"
+    ],
+    "enhancement": [],
+    "bugfix": [],
+    "refactor": [],
+    "docs": []
+  },
+  "statistics": {
+    "total_features": 1,
+    "total_sessions": 1,
+    "last_updated": "2025-12-07T06:17:54Z"
+  },
+  "_metadata": {
+    "initialized_by": "cli-explore-agent",
+    "analysis_timestamp": "2025-12-07T04:45:54Z",
+    "analysis_mode": "bash-fallback"
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "id": "IMPL-005",
+  "title": "Optimize Mobile Templates and Forms",
+  "status": "completed",
+  "context_package_path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "Optimize 7 template files for mobile UX: [login.html, admin.html, edit_note.html, admin_webdav.html, admin_viewer.html, admin_calibration_queue.html, notes.html forms]",
+      "Add mobile-optimized form attributes to 15+ input fields: [autocomplete, inputmode, autocapitalize]",
+      "Implement Virtual Viewport API handling for 1 use case: [keyboard obscuring input fields]",
+      "Add mobile-friendly validation patterns: 3 form types [login, note editing, admin settings]",
+      "Optimize 2 data tables for horizontal scroll: [calibration queue, admin panels]",
+      "Add 5 mobile breakpoint media queries to template-specific styles: [480px, 600px for forms]"
+    ],
+    "focus_paths": [
+      "templates/login.html",
+      "templates/admin.html",
+      "templates/edit_note.html",
+      "templates/admin_webdav.html",
+      "templates/admin_viewer.html",
+      "templates/admin_calibration_queue.html",
+      "templates/notes.html"
+    ],
+    "acceptance": [
+      "Mobile input attributes added: verify by rg 'inputmode=|autocapitalize=' templates/ | wc -l >= 15",
+      "Virtual keyboard handling works: manual test on iOS - tap input → verify page scrolls to show field above keyboard",
+      "Form validation mobile-friendly: verify error messages display above virtual keyboard",
+      "Data tables scroll horizontally: verify by testing calibration queue on 375px viewport → horizontal scroll works",
+      "Login form optimized: verify username input shows email keyboard, password shows secure keyboard",
+      "Edit note form optimized: verify textarea expands with keyboard, submit button always visible",
+      "Admin forms mobile-usable: verify all form controls meet 44x44px touch target minimum"
+    ],
+    "depends_on": ["IMPL-001"],
+    "inherited": {
+      "from": "IMPL-001",
+      "context": [
+        "Mobile-first CSS architecture with 320px, 375px, 480px, 768px, 1024px breakpoints",
+        "Touch-optimized base styles with 44x44px minimum touch targets"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["HTML5 input attributes", "Visual Viewport API", "Vanilla JavaScript"],
+      "constraints": [
+        "Server-side rendering - form attributes must be in initial HTML",
+        "Zero JavaScript frameworks - vanilla form handling only",
+        "Browser compatibility: Visual Viewport API (iOS 13+, Chrome 61+)"
+      ],
+      "mobile_form_best_practices": {
+        "inputmode": "Use numeric, tel, email, url, search for appropriate mobile keyboards",
+        "autocomplete": "Enable autofill for username, email, password, name fields",
+        "autocapitalize": "Disable for email/username, enable for text content",
+        "touch_targets": "Minimum 48px height for inputs, 44x44px for buttons"
+      }
+    },
+    "artifacts": [
+      {
+        "type": "exploration_analysis",
+        "source": "exploration-patterns",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/exploration-patterns.json",
+        "priority": "highest",
+        "usage": "Mobile form optimization patterns and touch target sizing",
+        "contains": "Analysis of existing form controls, mobile breakpoints, touch-optimized patterns"
+      },
+      {
+        "type": "source_code",
+        "source": "context-package assets",
+        "path": "templates/login.html",
+        "priority": "high",
+        "usage": "Login form with mobile breakpoint (480px) requiring optimization",
+        "contains": "Password toggle, form validation, mobile media query at line 270"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "Load context package for template analysis",
+        "commands": ["Read(.workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_form_inputs",
+        "action": "Inventory all form inputs across templates for mobile attribute addition",
+        "commands": [
+          "bash(rg '<input|<textarea|<select' templates/ -n --max-count 40)",
+          "bash(rg 'type=\"text\"|type=\"password\"|type=\"email\"' templates/ -n --max-count 20)"
+        ],
+        "output_to": "form_input_inventory"
+      },
+      {
+        "step": "analyze_data_tables",
+        "action": "Identify data tables requiring horizontal scroll optimization",
+        "commands": [
+          "bash(rg '<table' templates/ -n -C 3 --max-count 10)"
+        ],
+        "output_to": "data_table_analysis"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "Optimize login form for mobile keyboards",
+        "description": "Add mobile input attributes and keyboard optimization to login.html",
+        "modification_points": [
+          "Add inputmode='email' to username input (triggers email keyboard)",
+          "Add autocomplete='username' for autofill support",
+          "Add autocapitalize='none' to username (prevent auto-caps)",
+          "Add inputmode='text' and autocomplete='current-password' to password input",
+          "Ensure password toggle button meets 44x44px touch target",
+          "Add mobile breakpoint @media (max-width: 480px) for form layout"
+        ],
+        "logic_flow": [
+          "Update username input: <input type='text' inputmode='email' autocomplete='username' autocapitalize='none'>",
+          "Update password input: <input type='password' autocomplete='current-password'>",
+          "Verify password toggle button at line 344 has sufficient touch target size",
+          "Test on iOS: verify email keyboard appears for username",
+          "Test autofill: verify browser offers saved credentials"
+        ],
+        "depends_on": [],
+        "output": "login_form_optimization"
+      },
+      {
+        "step": 2,
+        "title": "Optimize note editing form for mobile",
+        "description": "Enhance edit_note.html with mobile keyboard handling and Virtual Viewport API",
+        "modification_points": [
+          "Add inputmode='text' to note title input",
+          "Add autocapitalize='sentences' to note content textarea",
+          "Implement Visual Viewport API: scroll input into view when keyboard opens",
+          "Add mobile breakpoint @media (max-width: 600px) for vertical form layout",
+          "Ensure submit button always visible above keyboard"
+        ],
+        "logic_flow": [
+          "Add mobile input attributes to title and content fields",
+          "Add visualViewport event listener for keyboard detection",
+          "On keyboard open (viewport resize), scroll active input into view",
+          "Position submit button in fixed position when keyboard visible",
+          "Test on iOS: tap textarea → verify keyboard doesn't obscure input",
+          "Verify form validation errors display above keyboard"
+        ],
+        "depends_on": [1],
+        "output": "note_editing_optimization"
+      },
+      {
+        "step": 3,
+        "title": "Optimize admin forms for mobile touch",
+        "description": "Enhance admin.html, admin_webdav.html, admin_viewer.html with mobile-friendly controls",
+        "modification_points": [
+          "Add mobile input attributes to 3 admin forms: [password change, WebDAV config, viewer settings]",
+          "Increase touch target size: all form buttons to 48px height minimum",
+          "Add mobile breakpoints: @media (max-width: 768px) for responsive layout",
+          "Optimize file upload controls for mobile: larger drop zones, clear tap targets",
+          "Add visual feedback for form submission: loading states"
+        ],
+        "logic_flow": [
+          "Update password inputs: autocomplete='new-password' for password change form",
+          "Add inputmode='url' to WebDAV URL input",
+          "Increase button heights to 48px in mobile breakpoint",
+          "Add larger drop zone for file uploads on mobile",
+          "Add loading spinner during form submission",
+          "Test form validation on mobile: verify error messages readable"
+        ],
+        "depends_on": [2],
+        "output": "admin_forms_optimization"
+      },
+      {
+        "step": 4,
+        "title": "Add horizontal scroll optimization for data tables",
+        "description": "Optimize calibration queue and admin panel tables for mobile viewing",
+        "modification_points": [
+          "Wrap tables in scrollable container: <div class='table-scroll-wrapper'>",
+          "Add CSS: .table-scroll-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }",
+          "Add scroll indicators (CSS shadows) to show more content available",
+          "Optimize table column widths: minimum readable widths for mobile",
+          "Add sticky first column for row context while scrolling"
+        ],
+        "logic_flow": [
+          "Wrap <table> elements in admin_calibration_queue.html with scroll wrapper",
+          "Add CSS for smooth touch scrolling and scroll indicators",
+          "Set minimum column widths to prevent text truncation",
+          "Add position: sticky to first <th> and first <td> in each row",
+          "Test on 375px viewport: verify horizontal scroll works smoothly",
+          "Add visual cue (shadow/gradient) indicating more columns available"
+        ],
+        "depends_on": [3],
+        "output": "data_table_optimization"
+      },
+      {
+        "step": 5,
+        "title": "Add mobile search interface optimization",
+        "description": "Enhance search interface in notes.html for mobile usability",
+        "modification_points": [
+          "Add inputmode='search' to search input (triggers search keyboard)",
+          "Add autocomplete='off' to prevent autofill interference",
+          "Add clear button (X) for mobile search input",
+          "Optimize search results display for mobile viewports",
+          "Add search placeholder optimization: shorter text for mobile"
+        ],
+        "logic_flow": [
+          "Update search input at lines 691-699: add inputmode='search'",
+          "Add clear button with touch-optimized size (44x44px)",
+          "Add @media (max-width: 480px) for compact search layout",
+          "Optimize placeholder text: 'Search...' instead of long description on mobile",
+          "Test on mobile: verify search keyboard appears, clear button works"
+        ],
+        "depends_on": [4],
+        "output": "search_interface_optimization"
+      },
+      {
+        "step": 6,
+        "title": "Implement Virtual Viewport API for keyboard handling",
+        "description": "Add global keyboard detection and input scrolling for all forms",
+        "modification_points": [
+          "Add visualViewport event listener in notes.html (shared across templates)",
+          "Detect keyboard open: visualViewport.height < window.innerHeight",
+          "Scroll active input into view: element.scrollIntoView({ behavior: 'smooth', block: 'center' })",
+          "Adjust fixed elements (submit buttons) when keyboard visible",
+          "Add fallback for browsers without Visual Viewport API support"
+        ],
+        "logic_flow": [
+          "Check if (window.visualViewport) support exists",
+          "Add resize listener: visualViewport.addEventListener('resize', handleKeyboard)",
+          "On resize, calculate keyboard height: window.innerHeight - visualViewport.height",
+          "If keyboard open and input focused, scroll input to center of visible area",
+          "Adjust bottom-fixed elements (buttons) to appear above keyboard",
+          "Fallback: use window.innerHeight resize for older browsers"
+        ],
+        "depends_on": [5],
+        "output": "keyboard_handling_implementation"
+      },
+      {
+        "step": 7,
+        "title": "Test mobile form interactions across templates",
+        "description": "Validate all form optimizations on real mobile devices and browsers",
+        "modification_points": [
+          "Test 7 forms: [login, note editing, admin password, WebDAV, viewer, calibration, search]",
+          "Test on 3 mobile browsers: [Safari iOS, Chrome mobile, Firefox mobile]",
+          "Verify keyboard types: email, search, text keyboards appear correctly",
+          "Test Virtual Viewport: inputs don't get obscured by keyboard",
+          "Validate touch targets: all buttons/inputs meet 44x44px minimum"
+        ],
+        "logic_flow": [
+          "Manual test login form on iOS: verify email keyboard for username",
+          "Test note editing on Android: verify keyboard doesn't obscure textarea",
+          "Test admin forms on tablet (768px): verify responsive layout works",
+          "Test data table scroll on small mobile (375px): verify smooth horizontal scroll",
+          "Test search interface: verify search keyboard and clear button work",
+          "Measure form completion time: compare mobile vs desktop usability",
+          "Validate accessibility: ensure all form controls keyboard-navigable"
+        ],
+        "depends_on": [6],
+        "output": "mobile_form_validation"
+      }
+    ],
+    "target_files": [
+      "templates/login.html",
+      "templates/edit_note.html",
+      "templates/admin.html",
+      "templates/admin_webdav.html",
+      "templates/admin_viewer.html",
+      "templates/admin_calibration_queue.html",
+      "templates/notes.html",
+      "static/css/main.css"
+    ]
+  }
+}

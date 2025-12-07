@@ -1,0 +1,94 @@
+{
+  "symptom": {
+    "description": "手机竖屏(<768px)时,侧边栏默认隐藏且无法通过汉堡菜单显示。用户点击汉堡菜单后侧边栏仍然不可见,表现为CSS渲染层面的显示失败。",
+    "error_message": null,
+    "stack_trace": null,
+    "frequency": "always",
+    "user_impact": "移动端用户完全无法访问侧边栏导航功能,严重影响移动端用户体验和功能可用性"
+  },
+  "root_cause": {
+    "file": "static/css/main.css",
+    "line_range": "134-156",
+    "issue": "CSS渲染逻辑存在致命缺陷:侧边栏在移动端默认使用 transform: translateX(-100%) 隐藏,仅依赖 .mobile-open 类的 transform: translateX(0) 显示。但 @media (min-width: 768px) 断点在平板端强制应用 transform: translateX(0),可能覆盖移动端的 .mobile-open 类,导致移动端在添加 .mobile-open 类后仍然无法显示(CSS优先级冲突)。核心问题:移动优先设计未正确隔离移动端(<768px)和平板端(>=768px)的CSS渲染规则。",
+    "confidence": 0.90,
+    "category": "logic_error"
+  },
+  "affected_files": [
+    {
+      "path": "static/css/main.css",
+      "relevance": 0.98,
+      "rationale": "包含侧边栏的全部CSS渲染规则,包括 .sidebar 基础样式(134-151行)、.mobile-open 类(154-156行)、@media (min-width: 768px) 断点覆盖规则(855-857行),是CSS渲染问题的核心文件",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.85,
+      "rationale": "包含侧边栏HTML结构(634-694行)和MobileUIState.syncDOM()函数(1167-1194行),负责根据视口宽度动态切换 .mobile-open 和 .collapsed 类,需要验证JavaScript与CSS的协作逻辑是否正确",
+      "change_type": "needs_update"
+    },
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.75,
+      "rationale": "第702-704行包含汉堡菜单按钮 onclick=\"toggleMobileSidebar()\",第1319-1322行包含函数定义,需要验证点击事件是否正确触发 MobileUIState.toggleSidebar()",
+      "change_type": "reference_only"
+    }
+  ],
+  "reproduction_steps": [
+    "使用手机或Chrome DevTools切换到移动设备视口(宽度<768px,如iPhone SE: 375×667)",
+    "刷新页面,观察侧边栏是否默认隐藏(transform: translateX(-100%)生效)",
+    "点击顶部栏左上角汉堡菜单按钮(☰)",
+    "打开浏览器开发者工具 -> Elements面板,检查 <aside id=\"sidebar\"> 元素",
+    "观察是否添加了 .mobile-open 类,但侧边栏仍然不可见(transform未变为translateX(0))",
+    "检查Computed样式中 transform 属性的最终计算值,验证是否被@media查询覆盖"
+  ],
+  "fix_hints": [
+    {
+      "description": "修复CSS优先级冲突:确保移动端 .mobile-open 类的 transform: translateX(0) 不被 @media (min-width: 768px) 规则覆盖",
+      "approach": "在 @media (min-width: 768px) 断点内添加显式规则,禁止平板端覆盖移动端的 .mobile-open 类。或者调整 .mobile-open 选择器优先级,使用 !important 或更高权重选择器(如 .sidebar.mobile-open)",
+      "risk": "low"
+    },
+    {
+      "description": "隔离移动端和平板端的CSS渲染路径:使用@media查询明确区分<768px和>=768px的transform规则",
+      "approach": "将 .sidebar 的默认 transform: translateX(-100%) 包裹在 @media (max-width: 767px) 内,将 @media (min-width: 768px) 的 transform: translateX(0) 添加条件(如 .sidebar:not(.mobile-open)),确保两个断点的CSS规则互不干扰",
+      "risk": "medium"
+    },
+    {
+      "description": "验证JavaScript与CSS的协作:确保MobileUIState.syncDOM()正确添加 .mobile-open 类",
+      "approach": "在浏览器控制台验证 MobileUIState.toggleSidebar() 是否正确切换 sidebarOpen 状态,检查 syncDOM() 是否正确调用 sidebar.classList.add('mobile-open'),排除JavaScript层面的问题",
+      "code_example": "// 在浏览器控制台测试:\nconst sidebar = document.getElementById('sidebar');\nconsole.log('Before:', sidebar.className);\nMobileUIState.toggleSidebar();\nconsole.log('After:', sidebar.className);\nconsole.log('Computed transform:', getComputedStyle(sidebar).transform);",
+      "risk": "low"
+    }
+  ],
+  "dependencies": "无外部CSS框架依赖,纯原生CSS实现。浏览器兼容性:transform和@media查询兼容所有现代浏览器(iOS Safari 12+, Chrome 80+)",
+  "constraints": "移动优先设计(Mobile-First)架构要求默认样式为移动端(<768px),通过@media (min-width: 768px)渐进增强到平板端和桌面端。修复时必须保持移动优先原则,不能破坏响应式断点逻辑。",
+  "clarification_needs": [
+    {
+      "question": "请在手机浏览器中打开开发者工具,点击汉堡菜单后检查侧边栏元素:<aside id=\"sidebar\">是否包含 .mobile-open 类?",
+      "context": "需要确定问题是CSS渲染层面(类已添加但transform未生效)还是JavaScript层面(类未正确添加)。如果 .mobile-open 类已添加但侧边栏仍不可见,则确认是CSS优先级冲突;如果类未添加,则是JavaScript问题。",
+      "options": [
+        "已添加 .mobile-open 类,但侧边栏仍然不可见(CSS渲染问题)",
+        "未添加 .mobile-open 类(JavaScript逻辑问题)",
+        "无法确定,需要进一步调试"
+      ]
+    },
+    {
+      "question": "请检查浏览器开发者工具Computed面板中,侧边栏的 transform 属性最终计算值是什么?",
+      "context": "需要确定 transform: translateX(0) 是否被正确应用。如果计算值仍为 translateX(-100%),则说明 @media (min-width: 768px) 规则错误覆盖了 .mobile-open 类;如果计算值为 translateX(0) 但侧边栏不可见,则可能是其他CSS属性(如 z-index, visibility, opacity)导致。",
+      "options": [
+        "transform: translateX(-100%) (未生效,CSS优先级问题)",
+        "transform: translateX(0) (已生效,可能是其他CSS属性问题)",
+        "transform: none (被@media覆盖,断点逻辑错误)",
+        "无法确定,需要截图"
+      ]
+    }
+  ],
+  "_metadata": {
+    "timestamp": "2025-12-07T00:00:00Z",
+    "bug_description": "手机竖屏依旧无法看到侧边栏",
+    "source": "cli-explore-agent",
+    "diagnosis_angle": "rendering",
+    "diagnosis_index": 2,
+    "total_diagnoses": 2,
+    "duration_seconds": 120
+  }
+}

@@ -1,0 +1,358 @@
+{
+  "id": "IMPL-007",
+  "title": "Implement Comprehensive Mobile Testing with Playwright",
+  "status": "completed",
+  "context_package_path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+  "meta": {
+    "type": "test-gen",
+    "agent": "@code-developer",
+    "execution_group": null,
+    "test_framework": "pytest",
+    "coverage_target": "80%"
+  },
+  "context": {
+    "requirements": [
+      "Install 1 testing framework: [Playwright with pytest-playwright plugin]",
+      "Create 5 mobile device configurations: [iPhone SE, iPhone 12, Pixel 5, iPad, Galaxy S21]",
+      "Implement 8 test suites: [responsive layout, touch interactions, form inputs, API integration, image lazy loading, sidebar state, keyboard handling, offline mode]",
+      "Write 25+ test cases covering mobile-specific scenarios",
+      "Add viewport testing: 4 breakpoints [320px, 375px, 768px, 1024px]",
+      "Implement visual regression testing: 3 critical pages [login, notes list, note editing]"
+    ],
+    "focus_paths": [
+      "tests/",
+      "tests/mobile/",
+      "tests/fixtures/",
+      "pytest.ini"
+    ],
+    "acceptance": [
+      "Playwright installed: verify by pip list | grep playwright",
+      "5 device configs created: verify in tests/mobile/conftest.py device fixtures",
+      "8 test suites created: verify by ls tests/mobile/test_*.py | wc -l = 8",
+      "25+ test cases: verify by rg 'def test_' tests/mobile/ | wc -l >= 25",
+      "Viewport tests pass: verify all 4 breakpoints render correctly",
+      "Touch interaction tests pass: verify swipe, tap, scroll gestures work",
+      "Visual regression tests pass: verify screenshots match baseline for 3 pages",
+      "Test coverage >=80%: verify by pytest --cov=. --cov-report=term | grep 'mobile.*80%'"
+    ],
+    "depends_on": ["IMPL-001", "IMPL-002", "IMPL-003", "IMPL-004", "IMPL-005", "IMPL-006"],
+    "inherited": {
+      "from": "IMPL-001",
+      "context": [
+        "Mobile-first CSS architecture with 5 breakpoints",
+        "All mobile optimizations implemented"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Playwright", "pytest", "pytest-playwright", "Python"],
+      "constraints": [
+        "Integrate with existing pytest framework",
+        "Zero build system - test vanilla JS/CSS directly",
+        "Server-side rendering - test full page loads"
+      ],
+      "testing_strategy": "Per CON-006 resolution: Playwright with device emulation + selective visual regression",
+      "critical_user_flows": [
+        "Login → view notes → search → view note details",
+        "Mobile sidebar toggle → swipe to close",
+        "Edit note → virtual keyboard handling",
+        "Lazy load images → scroll performance",
+        "Offline mode → API retry behavior"
+      ]
+    },
+    "artifacts": [
+      {
+        "type": "exploration_analysis",
+        "source": "exploration-testing",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/exploration-testing.json",
+        "priority": "highest",
+        "usage": "Testing infrastructure gap analysis and mobile testing requirements",
+        "contains": "No mobile testing framework currently, manual assertions, responsive test needs"
+      },
+      {
+        "type": "conflict_resolution",
+        "source": "context-package resolved_conflicts",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+        "priority": "high",
+        "usage": "CON-006 resolution: Playwright with mobile emulation + selective visual regression",
+        "contains": "Strategy for comprehensive mobile testing with device emulation"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "Load context package for testing requirements",
+        "commands": ["Read(.workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_existing_tests",
+        "action": "Review existing test structure and patterns",
+        "commands": [
+          "bash(find tests/ -name '*.py' -type f | head -10)",
+          "bash(rg 'def test_|class Test' tests/ -n --max-count 20)"
+        ],
+        "output_to": "existing_test_patterns"
+      },
+      {
+        "step": "check_playwright_installation",
+        "action": "Verify if Playwright is already installed or needs installation",
+        "commands": [
+          "bash(pip list | grep -i playwright || echo 'Playwright not installed')"
+        ],
+        "output_to": "playwright_status"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "Install and configure Playwright for mobile testing",
+        "description": "Set up Playwright with pytest integration and mobile device emulation",
+        "modification_points": [
+          "Add 2 dependencies to requirements.txt: [playwright, pytest-playwright]",
+          "Run playwright install to download browsers: chromium, webkit, firefox",
+          "Create pytest.ini configuration for Playwright",
+          "Create conftest.py with mobile device fixtures"
+        ],
+        "logic_flow": [
+          "Add 'playwright>=1.40.0' and 'pytest-playwright>=0.4.0' to requirements.txt",
+          "Run: pip install -r requirements.txt",
+          "Run: playwright install chromium webkit (for iOS Safari emulation)",
+          "Create tests/mobile/conftest.py with device fixtures",
+          "Configure pytest.ini: add playwright markers and options",
+          "Verify installation: playwright --version"
+        ],
+        "depends_on": [],
+        "output": "playwright_installation"
+      },
+      {
+        "step": 2,
+        "title": "Create mobile device configuration fixtures",
+        "description": "Define 5 mobile device emulation profiles for testing",
+        "modification_points": [
+          "Create 5 pytest fixtures: [iphone_se, iphone_12, pixel_5, ipad, galaxy_s21]",
+          "Configure viewport sizes: [(375x667), (390x844), (393x851), (768x1024), (360x800)]",
+          "Set user agents for mobile browsers: iOS Safari, Chrome mobile",
+          "Configure touch support: has_touch=True for all mobile devices",
+          "Add geolocation and permissions configurations"
+        ],
+        "logic_flow": [
+          "In conftest.py, define device fixture factory",
+          "Create iphone_se fixture: viewport={width: 375, height: 667}, user_agent=iOS",
+          "Create iphone_12 fixture: viewport={width: 390, height: 844}",
+          "Create pixel_5 fixture: viewport={width: 393, height: 851}, user_agent=Android",
+          "Create ipad fixture: viewport={width: 768, height: 1024}",
+          "Create galaxy_s21 fixture: viewport={width: 360, height: 800}",
+          "Set has_touch=True and is_mobile=True for all devices"
+        ],
+        "depends_on": [1],
+        "output": "device_fixtures"
+      },
+      {
+        "step": 3,
+        "title": "Implement responsive layout test suite",
+        "description": "Test all breakpoints and responsive design across devices",
+        "modification_points": [
+          "Create tests/mobile/test_responsive_layout.py",
+          "Write 5 test cases: [test_mobile_320px, test_mobile_375px, test_tablet_768px, test_desktop_1024px, test_breakpoint_transitions]",
+          "Test sidebar visibility at each breakpoint",
+          "Test grid column count at each breakpoint",
+          "Test touch target sizes (minimum 44x44px)"
+        ],
+        "logic_flow": [
+          "test_mobile_320px: set viewport, verify single-column layout, sidebar off-canvas",
+          "test_mobile_375px: verify optimized spacing for modern iPhone",
+          "test_tablet_768px: verify sidebar visible, multi-column grid",
+          "test_desktop_1024px: verify original desktop layout preserved",
+          "test_breakpoint_transitions: resize viewport, verify layout adapts smoothly",
+          "Assert touch target sizes: page.locator('button').bounding_box().width >= 44"
+        ],
+        "depends_on": [2],
+        "output": "responsive_layout_tests"
+      },
+      {
+        "step": 4,
+        "title": "Implement touch interaction test suite",
+        "description": "Test swipe gestures, tap interactions, and touch-specific behaviors",
+        "modification_points": [
+          "Create tests/mobile/test_touch_interactions.py",
+          "Write 4 test cases: [test_sidebar_swipe_to_close, test_button_tap_no_delay, test_scroll_performance, test_touch_event_deduplication]",
+          "Use Playwright touch actions: page.touchscreen.tap(), page.touchscreen.swipe()",
+          "Verify 300ms tap delay eliminated",
+          "Test passive scroll listeners"
+        ],
+        "logic_flow": [
+          "test_sidebar_swipe_to_close: open sidebar, swipe left 100px, assert sidebar closed",
+          "test_button_tap_no_delay: measure tap response time, assert <100ms",
+          "test_scroll_performance: rapid scroll, check for jank (frame drops)",
+          "test_touch_event_deduplication: tap button, verify single event fired",
+          "Use: page.touchscreen.swipe(start_x, start_y, end_x, end_y)",
+          "Assert: sidebar.getAttribute('class') does not contain 'mobile-open'"
+        ],
+        "depends_on": [3],
+        "output": "touch_interaction_tests"
+      },
+      {
+        "step": 5,
+        "title": "Implement form input and keyboard test suite",
+        "description": "Test mobile keyboard handling, input attributes, and Virtual Viewport API",
+        "modification_points": [
+          "Create tests/mobile/test_form_inputs.py",
+          "Write 5 test cases: [test_login_form_mobile_keyboard, test_note_editing_keyboard_handling, test_search_input_optimization, test_virtual_viewport_scroll, test_form_autofill]",
+          "Verify inputmode attributes trigger correct keyboards",
+          "Test Virtual Viewport API keyboard detection",
+          "Validate form submission on mobile"
+        ],
+        "logic_flow": [
+          "test_login_form_mobile_keyboard: check username input has inputmode='email'",
+          "test_note_editing_keyboard_handling: focus textarea, verify viewport adjusts",
+          "test_search_input_optimization: check inputmode='search', test clear button",
+          "test_virtual_viewport_scroll: focus input, assert input visible above keyboard",
+          "test_form_autofill: verify autocomplete attributes present",
+          "Use: page.locator('input').get_attribute('inputmode')"
+        ],
+        "depends_on": [4],
+        "output": "form_input_tests"
+      },
+      {
+        "step": 6,
+        "title": "Implement lazy loading and performance test suite",
+        "description": "Test image lazy loading, Intersection Observer, and API performance",
+        "modification_points": [
+          "Create tests/mobile/test_performance.py",
+          "Write 4 test cases: [test_image_lazy_loading, test_intersection_observer, test_ajax_throttling, test_search_debouncing]",
+          "Measure initial page load image count",
+          "Test scroll-triggered lazy loading",
+          "Verify API throttling and debouncing"
+        ],
+        "logic_flow": [
+          "test_image_lazy_loading: load page, count loaded images, assert < total images",
+          "test_intersection_observer: scroll to bottom, wait, assert all images loaded",
+          "test_ajax_throttling: rapid favorite clicks, count network requests, assert <=1/sec",
+          "test_search_debouncing: rapid typing, verify single search request after 300ms",
+          "Use: page.evaluate('document.querySelectorAll(\"img[loading=lazy]\").length')",
+          "Monitor network: page.on('request', lambda req: ...)"
+        ],
+        "depends_on": [5],
+        "output": "performance_tests"
+      },
+      {
+        "step": 7,
+        "title": "Implement API integration and network test suite",
+        "description": "Test mobile network scenarios, retries, timeouts, and offline mode",
+        "modification_points": [
+          "Create tests/mobile/test_api_integration.py",
+          "Write 5 test cases: [test_api_timeout_dynamic, test_api_retry_logic, test_offline_detection, test_network_connection_detection, test_range_request_media]",
+          "Simulate slow networks with page.route() throttling",
+          "Test offline mode and error handling",
+          "Verify retry with exponential backoff"
+        ],
+        "logic_flow": [
+          "test_api_timeout_dynamic: mock navigator.connection, verify timeout adapts",
+          "test_api_retry_logic: fail API call, verify automatic retry with backoff",
+          "test_offline_detection: set offline, verify offline banner appears",
+          "test_network_connection_detection: check connection type detection works",
+          "test_range_request_media: verify /media endpoint supports Range headers",
+          "Use: page.route('**/api/**', lambda route: route.abort()) for network errors",
+          "Assert: page.locator('.offline-banner').is_visible()"
+        ],
+        "depends_on": [6],
+        "output": "api_integration_tests"
+      },
+      {
+        "step": 8,
+        "title": "Implement state management test suite",
+        "description": "Test unified sidebar state, localStorage persistence, viewport transitions",
+        "modification_points": [
+          "Create tests/mobile/test_state_management.py",
+          "Write 3 test cases: [test_sidebar_state_persistence, test_viewport_transition_state, test_unified_state_object]",
+          "Test state survives page reload",
+          "Test mobile↔desktop viewport transitions",
+          "Verify MobileUIState object functionality"
+        ],
+        "logic_flow": [
+          "test_sidebar_state_persistence: toggle sidebar, reload, verify state restored",
+          "test_viewport_transition_state: resize 375px→1024px, verify state synchronizes",
+          "test_unified_state_object: verify MobileUIState exists, check properties",
+          "Use: page.evaluate('localStorage.getItem(\"mobileUIState\")')",
+          "Assert: sidebar state consistent across viewport changes"
+        ],
+        "depends_on": [7],
+        "output": "state_management_tests"
+      },
+      {
+        "step": 9,
+        "title": "Implement visual regression testing",
+        "description": "Add screenshot comparison for 3 critical mobile pages",
+        "modification_points": [
+          "Create tests/mobile/test_visual_regression.py",
+          "Create baseline screenshots directory: tests/mobile/screenshots/baseline/",
+          "Write 3 test cases: [test_login_page_visual, test_notes_list_visual, test_note_editing_visual]",
+          "Capture screenshots at 375px (mobile) and 768px (tablet)",
+          "Compare with baseline using Playwright's expect(page).to_have_screenshot()"
+        ],
+        "logic_flow": [
+          "test_login_page_visual: navigate to /login, capture screenshot, compare",
+          "test_notes_list_visual: navigate to /notes, capture screenshot, compare",
+          "test_note_editing_visual: navigate to /edit_note, capture screenshot, compare",
+          "First run: generate baseline screenshots",
+          "Subsequent runs: compare current vs baseline, fail on differences >5%",
+          "Use: expect(page).to_have_screenshot('login-mobile.png', threshold=0.05)"
+        ],
+        "depends_on": [8],
+        "output": "visual_regression_tests"
+      },
+      {
+        "step": 10,
+        "title": "Create test documentation and run all mobile tests",
+        "description": "Document test suite, create test runner, validate coverage",
+        "modification_points": [
+          "Create tests/mobile/README.md: test documentation",
+          "Create test runner script: run_mobile_tests.sh",
+          "Document 8 test suites and 25+ test cases",
+          "Add pytest configuration for coverage reporting",
+          "Validate test coverage >=80%"
+        ],
+        "logic_flow": [
+          "Create README.md documenting all test suites and usage",
+          "Create run_mobile_tests.sh: pytest tests/mobile/ --cov --html=report.html",
+          "Run all tests: verify 25+ tests pass",
+          "Generate coverage report: pytest --cov=templates --cov=app --cov-report=html",
+          "Verify coverage >=80% for mobile-related code",
+          "Document test maintenance: updating baselines, adding new tests",
+          "Add CI/CD integration instructions (GitHub Actions, GitLab CI)"
+        ],
+        "depends_on": [9],
+        "output": "test_documentation_and_validation"
+      }
+    ],
+    "target_files": [
+      "requirements.txt",
+      "pytest.ini",
+      "tests/mobile/conftest.py",
+      "tests/mobile/test_responsive_layout.py",
+      "tests/mobile/test_touch_interactions.py",
+      "tests/mobile/test_form_inputs.py",
+      "tests/mobile/test_performance.py",
+      "tests/mobile/test_api_integration.py",
+      "tests/mobile/test_state_management.py",
+      "tests/mobile/test_visual_regression.py",
+      "tests/mobile/README.md",
+      "run_mobile_tests.sh"
+    ],
+    "reusable_test_tools": [
+      "tests/conftest.py",
+      "tests/test_functional.py",
+      "tests/test_feature.py"
+    ],
+    "test_commands": {
+      "run_tests": "pytest tests/mobile/",
+      "run_coverage": "pytest tests/mobile/ --cov=templates --cov=app --cov-report=html",
+      "run_specific": "pytest tests/mobile/test_{suite}.py",
+      "run_visual": "pytest tests/mobile/test_visual_regression.py --screenshot=only-on-failure",
+      "update_baselines": "pytest tests/mobile/test_visual_regression.py --screenshot=only-on-failure --update-snapshots"
+    }
+  }
+}

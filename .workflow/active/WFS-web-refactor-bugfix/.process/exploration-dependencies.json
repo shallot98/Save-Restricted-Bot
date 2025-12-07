@@ -1,0 +1,125 @@
+{
+  "project_structure": "三层架构: 1) Web层(Flask/app.py) - 处理HTTP请求、路由、模板渲染; 2) 数据层(database.py) - SQLite数据库操作、笔记CRUD、校准任务管理; 3) Bot层(bot/*) - Telegram客户端、消息处理、存储管理。依赖关系: app.py依赖database.py和config.py; bot层通过database.py与Web层共享数据; templates/*.html依赖static/css/main.css和内联JavaScript。",
+  "relevant_files": [
+    {
+      "path": "/root/Save-Restricted-Bot/app.py",
+      "relevance": 0.95,
+      "rationale": "Web核心路由文件,导入依赖Flask/database/config/WebDAVClient/requests,定义所有路由端点,依赖database模块进行数据操作,依赖config模块加载配置"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/database.py",
+      "relevance": 0.95,
+      "rationale": "数据层核心文件,依赖sqlite3/bcrypt/json/logging,被app.py和bot层广泛引用,管理notes/users/calibration_tasks三张表,提供所有数据操作接口"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/config.py",
+      "relevance": 0.85,
+      "rationale": "配置管理模块,依赖json/os/logging,被app.py和bot层引用,管理watch_config/webdav_config/viewer_config三类配置文件,提供监控源管理功能"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/requirements.txt",
+      "relevance": 0.9,
+      "rationale": "Python依赖声明文件,定义外部包依赖: pyrogram(Telegram客户端)/flask(Web框架)/bcrypt(密码加密)/pillow(图片处理)/webdavclient3(云存储)/requests(HTTP客户端)/libtorrent(种子解析)/pytest(测试框架)"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/notes.html",
+      "relevance": 0.88,
+      "rationale": "笔记页面模板,依赖static/css/main.css样式文件,包含大量内联JavaScript依赖(NetworkManager/MobileUIState/fetch API),与app.py的/notes路由紧密耦合,使用Jinja2模板语法依赖Flask上下文"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin.html",
+      "relevance": 0.75,
+      "rationale": "管理面板模板,使用独立样式(内联CSS),与app.py的/admin路由绑定,表单提交依赖Flask会话管理和POST路由"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/static/css/main.css",
+      "relevance": 0.82,
+      "rationale": "全局样式表,被所有HTML模板引用,定义CSS变量和响应式布局,移动端侧边栏样式依赖JavaScript状态管理(MobileUIState)"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/bot/storage/webdav_client.py",
+      "relevance": 0.78,
+      "rationale": "WebDAV存储客户端,被app.py和bot层引用,依赖webdavclient3/requests库,提供远程文件上传下载功能,与config.py的webdav_config配置绑定"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/bot/services/calibration_manager.py",
+      "relevance": 0.8,
+      "rationale": "自动校准管理器,依赖database/subprocess/libtorrent,被bot层和app.py的校准API引用,管理校准任务队列和重试逻辑"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin_webdav.html",
+      "relevance": 0.65,
+      "rationale": "WebDAV配置页面,与app.py的/admin/webdav路由绑定,表单字段依赖config.py的webdav配置结构"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin_viewer.html",
+      "relevance": 0.62,
+      "rationale": "观看网站配置页面,与app.py的/admin/viewer路由绑定,配置存储依赖config.py的viewer_config"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin_calibration.html",
+      "relevance": 0.68,
+      "rationale": "自动校准配置页面,与app.py的/admin/calibration路由绑定,配置存储依赖database.py的calibration_config表"
+    },
+    {
+      "path": "/root/Save-Restricted-Bot/templates/admin_calibration_queue.html",
+      "relevance": 0.64,
+      "rationale": "校准队列查看页面,与app.py的/admin/calibration/queue路由绑定,数据查询依赖database.py的calibration_tasks表"
+    }
+  ],
+  "patterns": "1. **模块导入模式**: 使用相对导入(from database import)和绝对导入(import os),延迟导入避免循环依赖(如database.py第358行from bot.services.calibration_manager import); 2. **配置管理模式**: 多层优先级(config.json > 环境变量),配置文件存储在data/config/目录,使用JSON序列化,通过reload_monitored_sources()实现配置热重载; 3. **数据库连接模式**: 使用上下文管理器(@contextmanager get_db_connection),自动提交/回滚事务,sqlite3.Row作为row_factory返回字典; 4. **前后端交互模式**: Flask路由返回render_template(),AJAX请求返回jsonify(),使用session管理登录状态,templates使用Jinja2语法({{变量}}、{% if %}); 5. **JavaScript依赖注入**: NetworkManager提供fetch重试和网络检测,MobileUIState管理侧边栏状态,函数使用throttle/debounce防抖节流; 6. **CSS架构**: CSS变量定义在:root,暗色模式用[data-theme='dark']覆盖,移动优先响应式(@media max-width: 768px)",
+  "dependencies": "**Python包依赖**(requirements.txt): pyrogram+tgcrypto(Telegram客户端), flask+flask-login(Web框架+会话), bcrypt(密码哈希), pillow(图片处理), webdavclient3(WebDAV客户端), requests(HTTP请求), libtorrent(种子解析), pytest+pytest-playwright+playwright(测试框架); **内部模块依赖**: app.py→{database,config,bot.storage.webdav_client}, database.py→{sqlite3,bcrypt,json,logging,constants}, config.py→{json,os,logging}, bot层→{database,config,pyrogram}; **前端依赖**: 无外部CDN依赖,所有JavaScript内联在HTML中,CSS使用单一main.css文件; **数据库依赖**: SQLite3本地文件数据库(data/notes.db),三张表notes/users/calibration_tasks,使用外键约束(FOREIGN KEY...ON DELETE CASCADE); **运行时依赖**: Python3环境变量(TOKEN/HASH/ID/STRING/OWNER_ID), 数据目录(DATA_DIR默认./data), calibrate_helper.py辅助脚本(用于subprocess校准)",
+  "integration_points": "1. **app.py:20-45行**: init_storage_manager()集成WebDAV客户端,依赖config.py的load_webdav_config(),返回StorageManager实例; 2. **app.py:196-252行**: /notes路由集成database.get_notes()和extract_all_dns_from_note(),将数据传递给templates/notes.html; 3. **app.py:668-776行**: /api/calibrate/<note_id>路由集成subprocess调用calibrate_helper.py,通过update_note_with_calibrated_dns()更新数据库; 4. **database.py:352-378行**: add_note()函数集成calibration_manager.add_note_to_calibration_queue(),使用threading.Thread异步添加校准任务; 5. **templates/notes.html:1726-1747行**: toggleFavorite()函数通过fetch('/toggle_favorite/<id>', {method:'POST'})调用app.py的toggle_favorite_route; 6. **templates/notes.html:1794-1839行**: calibrateNote()函数通过fetch('/api/calibrate/<id>')调用校准API,使用NetworkManager.fetchWithRetry()处理网络重试; 7. **config.py:135-159行**: save_watch_config()保存后自动调用reload_monitored_sources()重新加载监控源,确保bot层同步; 8. **static/css/main.css:134-160行**: .sidebar样式通过transform: translateX()与JavaScript的MobileUIState.syncDOM()集成,实现移动端侧边栏动画",
+  "constraints": "1. **循环依赖约束**: database.py不能在顶层导入bot.services模块,必须在函数内延迟导入(第358行),否则导致ImportError; 2. **数据库事务约束**: 校准任务添加必须在add_note()事务提交后(第352行注释标注),否则外键约束失败; 3. **Flask会话约束**: 所有管理路由必须检查session['username'],否则重定向到/login,依赖Flask的secret_key配置; 4. **模板路径约束**: Flask默认从templates/目录加载模板,静态文件从static/目录服务,路径硬编码在app.py第7行link标签; 5. **媒体文件路径约束**: 存储路径格式为{user_id}_{timestamp}_{filename},通过storage_manager.get_file_path()解析,支持本地文件和WebDAV URL; 6. **JavaScript全局作用域约束**: NetworkManager/MobileUIState等对象定义在notes.html内联脚本中,无法跨页面复用,需要在每个页面重复定义; 7. **CSS变量作用域约束**: 所有组件必须使用:root定义的CSS变量,自定义样式会导致暗色模式失效; 8. **SQLite并发约束**: 使用context manager确保连接正确关闭,避免database is locked错误,写操作需要显式提交; 9. **时区约束**: 所有时间戳使用中国时区(ZoneInfo('Asia/Shanghai')),SQLite的CURRENT_TIMESTAMP使用UTC需要手动转换(database.py第341/782行); 10. **移动端输入约束**: 表单输入框使用inputmode属性(search/none)优化移动端键盘,使用autocomplete/autocapitalize控制自动完成",
+  "clarification_needs": [
+    {
+      "question": "Web系统重构的优先级是修复现有bug还是优化架构?",
+      "context": "当前网页存在多个已知bug(移动端侧边栏、搜索功能、校准API等),同时存在架构问题(JavaScript代码重复、CSS耦合、循环依赖)。如果优先修复bug,可能需要在现有架构上打补丁;如果优先优化架构,可能需要大规模重构代码结构,影响开发周期。",
+      "options": [
+        "优先修复现有bug,保持架构稳定(快速修复用户可见问题)",
+        "优先优化架构,统一重构后修复bug(从根本解决技术债务)",
+        "并行进行: 紧急bug立即修复,非紧急bug在重构中一并解决(平衡速度和质量)"
+      ],
+      "recommended": 2
+    },
+    {
+      "question": "前端JavaScript应该如何组织以消除代码重复?",
+      "context": "当前所有JavaScript代码内联在HTML模板中(notes.html 1015-1840行),导致NetworkManager/MobileUIState等工具类无法跨页面复用。需要决定是将JS抽取为独立文件(如static/js/main.js),还是使用模块化方案(如ES6 modules),或保持内联但使用Jinja2模板继承共享代码。",
+      "options": [
+        "抽取为static/js/*.js独立文件,使用<script src=''/>引入(传统方案,兼容性好)",
+        "使用ES6 modules方案(type='module'),实现import/export(现代化,需要考虑IE兼容性)",
+        "使用Jinja2模板继承,将JS放在base.html的{% block scripts %}中(保持内联,利用模板引擎共享代码)"
+      ],
+      "recommended": 2
+    },
+    {
+      "question": "database.py与bot层的循环依赖应该如何解决?",
+      "context": "database.py第358行延迟导入calibration_manager避免循环依赖,但这是临时方案。根本问题是database.py(数据层)调用bot.services(业务层),违反了分层架构原则。可以通过依赖注入、事件发布订阅或将校准逻辑移至独立服务层解决。",
+      "options": [
+        "保持延迟导入,在文档中标注循环依赖(最小改动,维护成本高)",
+        "使用事件发布订阅模式: database.py发布'note_added'事件,calibration_manager订阅处理(解耦,但增加复杂度)",
+        "引入service层: 创建note_service.py封装add_note+校准逻辑,database.py只提供纯数据操作(清晰分层,需要较大重构)"
+      ],
+      "recommended": 2
+    },
+    {
+      "question": "移动端侧边栏bug的修复策略是什么?",
+      "context": "当前移动端侧边栏通过transform: translateX()和JavaScript的MobileUIState管理,存在状态同步问题。CSS使用.mobile-open类(移动端)和.collapsed类(桌面端)两套逻辑,JavaScript通过localStorage持久化状态。bug可能源于状态管理混乱或CSS选择器冲突。",
+      "options": [
+        "修复现有MobileUIState逻辑,统一移动端和桌面端的状态管理(保持架构,针对性修复)",
+        "重构为CSS-only方案: 使用checkbox hack或:target伪类实现,移除JavaScript依赖(简化实现,但功能受限)",
+        "引入状态管理库(如Zustand/Pinia轻量级方案),统一管理所有UI状态(规范化,但增加依赖)"
+      ],
+      "recommended": 0
+    }
+  ],
+  "_metadata": {
+    "timestamp": "2025-12-07T00:00:00Z",
+    "task_description": "GOAL: 重构网页系统,修复现有bug并优化架构\nSCOPE: 分析当前网页bug、根据项目功能和逻辑重新构建网页结构、修复已知问题\nCONTEXT: 现有网页存在多个bug,需要基于项目实际功能和业务逻辑进行全面重构",
+    "source": "cli-explore-agent",
+    "exploration_angle": "dependencies",
+    "exploration_index": 3,
+    "total_explorations": 4,
+    "duration_seconds": 180
+  }
+}

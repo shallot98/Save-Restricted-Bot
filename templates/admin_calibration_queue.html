@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校准任务队列 - Telegram 笔记</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-title h1 {
+            color: #333;
+            font-size: 28px;
+        }
+
+        .header-icon {
+            font-size: 40px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #555;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-small {
+            padding: 5px 12px;
+            font-size: 12px;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .filter-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        .table-scroll-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 10px;
+            background: linear-gradient(to right, white 30%, rgba(255,255,255,0)),
+                        linear-gradient(to left, white 30%, rgba(255,255,255,0)) 100% 0,
+                        radial-gradient(farthest-side at 0% 50%, rgba(0,0,0,.2), rgba(0,0,0,0)),
+                        radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.2), rgba(0,0,0,0)) 100% 0;
+            background-repeat: no-repeat;
+            background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+            background-attachment: local, local, scroll, scroll;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            min-width: 800px;
+        }
+
+        thead {
+            background: #f8f9fa;
+        }
+
+        th {
+            padding: 12px 10px;
+            text-align: left;
+            color: #555;
+            font-weight: 600;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        th:first-child {
+            position: sticky;
+            left: 0;
+            background: #f8f9fa;
+            z-index: 10;
+        }
+
+        td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #666;
+        }
+
+        td:first-child {
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 5;
+        }
+
+        tbody tr:hover td:first-child {
+            background: #f8f9fa;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #ffc107;
+            color: #856404;
+        }
+
+        .status-retrying {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .status-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-failed {
+            background: #dc3545;
+            color: white;
+        }
+
+        .hash-short {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <span class="header-icon">📋</span>
+                <h1>校准任务队列</h1>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="/admin/calibration" class="btn btn-secondary">⚙️ 配置设置</a>
+                <a href="/admin" class="btn btn-secondary">← 返回管理</a>
+            </div>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="card">
+            <h2>📊 任务统计</h2>
+            <div class="stats-container">
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.total }}</div>
+                    <div class="stat-label">总任务数</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.by_status.get('pending', 0) }}</div>
+                    <div class="stat-label">等待中</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.by_status.get('retrying', 0) }}</div>
+                    <div class="stat-label">重试中</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.by_status.get('success', 0) }}</div>
+                    <div class="stat-label">已成功</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.by_status.get('failed', 0) }}</div>
+                    <div class="stat-label">已失败</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">{{ stats.ready_to_process }}</div>
+                    <div class="stat-label">待处理</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 任务列表 -->
+        <div class="card">
+            <h2>🔍 任务列表</h2>
+
+            <!-- 过滤器 -->
+            <div class="filter-bar">
+                <a href="/admin/calibration/queue" class="filter-btn {% if not status_filter %}active{% endif %}">
+                    全部
+                </a>
+                <a href="/admin/calibration/queue?status=pending" class="filter-btn {% if status_filter == 'pending' %}active{% endif %}">
+                    等待中
+                </a>
+                <a href="/admin/calibration/queue?status=retrying" class="filter-btn {% if status_filter == 'retrying' %}active{% endif %}">
+                    重试中
+                </a>
+                <a href="/admin/calibration/queue?status=success" class="filter-btn {% if status_filter == 'success' %}active{% endif %}">
+                    已成功
+                </a>
+                <a href="/admin/calibration/queue?status=failed" class="filter-btn {% if status_filter == 'failed' %}active{% endif %}">
+                    已失败
+                </a>
+            </div>
+
+            {% if tasks %}
+            <div class="table-scroll-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>任务ID</th>
+                            <th>笔记ID</th>
+                            <th>磁力Hash</th>
+                            <th>状态</th>
+                            <th>重试次数</th>
+                            <th>下次尝试</th>
+                            <th>错误信息</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr>
+                            <td>{{ task.id }}</td>
+                            <td>
+                                <a href="/notes?search={{ task.note_id }}" style="color: #667eea; text-decoration: none;">
+                                    #{{ task.note_id }}
+                                </a>
+                            </td>
+                            <td>
+                                <span class="hash-short" title="{{ task.magnet_hash }}">
+                                    {{ task.magnet_hash[:12] }}...
+                                </span>
+                            </td>
+                            <td>
+                                {% if task.status == 'pending' %}
+                                <span class="status-badge status-pending">等待中</span>
+                                {% elif task.status == 'retrying' %}
+                                <span class="status-badge status-retrying">重试中</span>
+                                {% elif task.status == 'success' %}
+                                <span class="status-badge status-success">已成功</span>
+                                {% elif task.status == 'failed' %}
+                                <span class="status-badge status-failed">已失败</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ task.retry_count }}</td>
+                            <td style="font-size: 12px;">
+                                {{ task.next_attempt if task.next_attempt else '-' }}
+                            </td>
+                            <td style="font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ task.error_message }}">
+                                {{ task.error_message if task.error_message else '-' }}
+                            </td>
+                            <td>
+                                <div class="actions">
+                                    {% if task.status in ['pending', 'retrying', 'failed'] %}
+                                    <button class="btn btn-small btn-success" onclick="retryTask({{ task.id }})">
+                                        🔄 重试
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-small btn-danger" onclick="deleteTask({{ task.id }})">
+                                        🗑️ 删除
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                <p>暂无任务</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function retryTask(taskId) {
+            if (!confirm('确定要立即重试此任务吗？')) {
+                return;
+            }
+
+            fetch(`/api/calibration/task/${taskId}/retry`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    location.reload();
+                } else {
+                    alert('❌ ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('❌ 操作失败: ' + error);
+            });
+        }
+
+        function deleteTask(taskId) {
+            if (!confirm('确定要删除此任务吗？此操作不可恢复。')) {
+                return;
+            }
+
+            fetch(`/api/calibration/task/${taskId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    location.reload();
+                } else {
+                    alert('❌ ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('❌ 操作失败: ' + error);
+            });
+        }
+    </script>
+</body>
+</html>

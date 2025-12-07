@@ -1,0 +1,83 @@
+:root {
+--primary-gradient: linear-gradient(135deg, #EC4141 0%, #D33A3A 100%);
+--primary-color: #EC4141;
+--primary-hover: #D33A3A;
+--primary-light: #FF5E5E;
+--primary-dark: #C93030;
+--bg-primary: #f5f5f7;
+--bg-secondary: #ffffff;
+--bg-tertiary: #fafafa;
+--bg-dark: #1f1f1f;
+--bg-dark-secondary: #252525;
+--bg-sidebar: #1a1a1a;
+--bg-sidebar-hover: #2a2a2a;
+--text-primary: #333333;
+--text-secondary: #666666;
+--text-tertiary: #999999;
+--text-white: #ffffff;
+--text-sidebar: #eeeeee;
+--text-sidebar-secondary: #999999;
+--border-color: #e5e5e5;
+--border-hover: #d5d5d5;
+--border-sidebar: #333333;
+--success: #31c27c;
+--success-light: #d4f4dd;
+--warning: #ff9800;
+--warning-light: #fff3cd;
+--error: #f44336;
+--error-light: #ffebee;
+--info: #2196f3;
+--info-light: #e3f2fd;
+--shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+--shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.2);
+--radius-sm: 4px;
+--radius-md: 8px;
+--radius-lg: 12px;
+--radius-xl: 16px;
+--radius-full: 9999px;
+--spacing-xs: 4px;
+--spacing-sm: 8px;
+--spacing-md: 12px;
+--spacing-lg: 16px;
+--spacing-xl: 20px;
+--spacing-2xl: 24px;
+--font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+--font-size-xs: 11px;
+--font-size-sm: 13px;
+--font-size-base: 14px;
+--font-size-lg: 16px;
+--font-size-xl: 18px;
+--font-size-2xl: 20px;
+--font-size-3xl: 22px;
+--sidebar-width: 280px;
+--sidebar-collapsed-width: 64px;
+--topbar-height: 56px;
+--transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+--transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+--transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+[data-theme="dark"] {
+--bg-primary: #1a1d2e;
+--bg-secondary: #242942;
+--bg-tertiary: #2d3250;
+--text-primary: #e2e8f0;
+--text-secondary: #a0aec0;
+--text-tertiary: #718096;
+--border-color: #2d3250;
+--border-hover: #4a5568;
+}
+@media (min-width: 375px) {
+:root {
+--spacing-xl: 24px;
+--spacing-2xl: 28px;
+--font-size-3xl: 24px;
+}
+}
+@media (min-width: 480px) {
+:root {
+--spacing-xl: 24px;
+--spacing-2xl: 32px;
+}
+}

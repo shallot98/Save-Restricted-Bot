@@ -1,0 +1,268 @@
+{
+  "id": "IMPL-006",
+  "title": "Optimize Mobile API Performance and Network Handling",
+  "status": "completed",
+  "context_package_path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": "parallel-api-optimization"
+  },
+  "context": {
+    "requirements": [
+      "Optimize 1 API endpoint timeout: [calibrate API from 30s to 5s (cellular) / 10s (WiFi)]",
+      "Add retry logic for 3 API operations: [calibrate, favorite, delete with exponential backoff]",
+      "Implement network detection: 1 utility function [detectConnectionType() using Network Information API]",
+      "Add request timeout configuration: dynamic timeout based on connection type (2G/3G/4G/WiFi)",
+      "Optimize 1 media serving endpoint: [/media route with Content-Length and range request support]",
+      "Add error handling for 3 mobile network scenarios: [offline, slow connection, timeout]"
+    ],
+    "focus_paths": [
+      "app.py",
+      "templates/notes.html"
+    ],
+    "acceptance": [
+      "Calibrate timeout reduced: verify by grep 'timeout.*=.*[5-10]' in AJAX code",
+      "Retry logic implemented: verify by testing failed API call → automatic retry with backoff",
+      "Network detection works: verify by navigator.connection.effectiveType detection in console",
+      "Dynamic timeouts: verify 2G connection uses 10s timeout, 4G uses 5s timeout",
+      "Offline handling: verify graceful error message when network unavailable",
+      "Range requests supported: verify /media endpoint returns Accept-Ranges header",
+      "Mobile network test: simulate 3G Fast connection → verify operations complete successfully"
+    ],
+    "depends_on": ["IMPL-004"],
+    "inherited": {
+      "from": "IMPL-004",
+      "context": [
+        "AJAX throttling implemented (1 request/second)",
+        "Request debouncing for search interface",
+        "Performance-conscious mobile optimization approach"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Flask backend", "Fetch API", "Network Information API", "Vanilla JavaScript"],
+      "constraints": [
+        "Server-side Flask - limited control over network layer",
+        "Zero build system - cannot use service workers without manual implementation",
+        "Browser compatibility: Network Information API (Chrome/Edge, limited Safari support)"
+      ],
+      "timeout_strategy": "Per CON-004 resolution: 5s cellular / 10s WiFi with retry",
+      "connection_types": {
+        "slow-2g": "timeout 15s, retry 3 times",
+        "2g": "timeout 10s, retry 3 times",
+        "3g": "timeout 8s, retry 2 times",
+        "4g": "timeout 5s, retry 1 time",
+        "wifi": "timeout 5s, retry 1 time"
+      }
+    },
+    "artifacts": [
+      {
+        "type": "exploration_analysis",
+        "source": "exploration-integration-points",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/exploration-integration-points.json",
+        "priority": "highest",
+        "usage": "API timeout analysis and mobile network performance bottlenecks",
+        "contains": "30s calibrate timeout issue, no request throttling, mobile connection failures"
+      },
+      {
+        "type": "conflict_resolution",
+        "source": "context-package resolved_conflicts",
+        "path": ".workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json",
+        "priority": "high",
+        "usage": "CON-004 resolution: Timeout modification to 5s/10s with retry logic",
+        "contains": "Strategy for adaptive timeouts based on connection type"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "Load context package for API endpoint analysis",
+        "commands": ["Read(.workflow/active/WFS-mobile-adaptation-complete/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_api_endpoints",
+        "action": "Review API routes for timeout and error handling requirements",
+        "commands": [
+          "bash(rg '/api/|/calibrate|/favorite|/delete' app.py -n -C 5 --max-count 10)",
+          "bash(rg 'fetch\\(' templates/notes.html -n -C 3 --max-count 15)"
+        ],
+        "output_to": "api_endpoints_analysis"
+      },
+      {
+        "step": "analyze_media_serving",
+        "action": "Review /media endpoint for range request support",
+        "commands": [
+          "bash(sed -n '343,401p' app.py)"
+        ],
+        "output_to": "media_endpoint_current_state"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "Implement network detection utility",
+        "description": "Add Network Information API detection for adaptive timeout configuration",
+        "modification_points": [
+          "Create detectConnectionType() function using navigator.connection API",
+          "Return connection types: ['slow-2g', '2g', '3g', '4g', 'wifi', 'unknown']",
+          "Add fallback for browsers without Network Information API support (default to '4g')",
+          "Cache connection type detection with periodic refresh (every 30s)"
+        ],
+        "logic_flow": [
+          "Check if (navigator.connection && navigator.connection.effectiveType) exists",
+          "Read navigator.connection.effectiveType: slow-2g, 2g, 3g, 4g",
+          "Detect WiFi: navigator.connection.type === 'wifi' (if available)",
+          "Fallback: if API not supported, assume '4g' connection",
+          "Cache result in variable, refresh on connection change event",
+          "Return connection type string for timeout configuration"
+        ],
+        "depends_on": [],
+        "output": "network_detection_utility"
+      },
+      {
+        "step": 2,
+        "title": "Implement dynamic timeout configuration",
+        "description": "Create timeout configuration based on detected connection type",
+        "modification_points": [
+          "Create getApiTimeout() function: returns timeout based on connection",
+          "Map connection types to timeouts: {slow-2g: 15s, 2g: 10s, 3g: 8s, 4g: 5s, wifi: 5s}",
+          "Add timeout to all fetch() calls: signal: AbortSignal.timeout(timeout)",
+          "Handle AbortError for timeout scenarios"
+        ],
+        "logic_flow": [
+          "Define timeout map: const TIMEOUTS = { 'slow-2g': 15000, '2g': 10000, ... }",
+          "getApiTimeout() calls detectConnectionType() and returns mapped timeout",
+          "Update all fetch() calls to use AbortSignal.timeout(getApiTimeout())",
+          "Add try/catch for AbortError (timeout) and TypeError (network error)",
+          "Test with network throttling: verify timeout adapts to connection speed"
+        ],
+        "depends_on": [1],
+        "output": "dynamic_timeout_implementation"
+      },
+      {
+        "step": 3,
+        "title": "Add retry logic with exponential backoff",
+        "description": "Implement automatic retry for failed API calls with exponential backoff",
+        "modification_points": [
+          "Create fetchWithRetry() wrapper function",
+          "Add retry configuration: {slow-2g: 3 retries, 2g: 3, 3g: 2, 4g: 1, wifi: 1}",
+          "Implement exponential backoff: delay = baseDelay * 2^attempt (base 1s)",
+          "Retry on timeout (AbortError) and network errors (TypeError)",
+          "Do not retry on 4xx client errors (400, 404, 401)"
+        ],
+        "logic_flow": [
+          "fetchWithRetry(url, options, maxRetries) wrapper function",
+          "Attempt fetch with timeout, catch errors",
+          "On AbortError or TypeError, check if retries remaining",
+          "Calculate backoff delay: Math.min(1000 * 2^attempt, 10000) (max 10s)",
+          "Wait for backoff delay, then retry fetch",
+          "If maxRetries exceeded, throw error to caller",
+          "On success, return response immediately"
+        ],
+        "depends_on": [2],
+        "output": "retry_logic_implementation"
+      },
+      {
+        "step": 4,
+        "title": "Update API calls to use retry and dynamic timeouts",
+        "description": "Refactor calibrate, favorite, delete API calls to use new retry wrapper",
+        "modification_points": [
+          "Update 3 API operations: [calibrateNote(), toggleFavorite(), deleteNote()]",
+          "Replace fetch() with fetchWithRetry()",
+          "Pass dynamic timeout and retry count based on connection",
+          "Add loading indicators during retry attempts"
+        ],
+        "logic_flow": [
+          "Update calibrateNote(): fetchWithRetry('/api/calibrate', { timeout, maxRetries })",
+          "Update toggleFavorite(): fetchWithRetry('/api/favorite', { timeout, maxRetries })",
+          "Update deleteNote(): fetchWithRetry('/api/delete', { timeout, maxRetries })",
+          "Show retry indicator: 'Retrying (attempt 2/3)...' in UI",
+          "Test with network throttling: verify retries occur on slow connections",
+          "Validate error messages: clear feedback for timeout vs network error"
+        ],
+        "depends_on": [3],
+        "output": "api_calls_refactoring"
+      },
+      {
+        "step": 5,
+        "title": "Add offline detection and graceful degradation",
+        "description": "Implement offline detection and user-friendly error messages",
+        "modification_points": [
+          "Add navigator.onLine check before API calls",
+          "Listen to online/offline events: window.addEventListener('online/offline')",
+          "Show offline banner when network unavailable",
+          "Queue API calls when offline, execute when back online (optional)",
+          "Add visual indicator for offline state"
+        ],
+        "logic_flow": [
+          "Check navigator.onLine before fetch operations",
+          "If offline, show banner: 'You are offline. Changes will sync when online.'",
+          "Add online event listener: hide offline banner, resume operations",
+          "Add offline event listener: show offline banner, pause API calls",
+          "Optional: queue failed operations in localStorage for retry when online",
+          "Test: disable network → verify offline banner appears, API calls don't attempt"
+        ],
+        "depends_on": [4],
+        "output": "offline_handling_implementation"
+      },
+      {
+        "step": 6,
+        "title": "Optimize /media endpoint for mobile streaming",
+        "description": "Add range request support and caching headers to media endpoint",
+        "modification_points": [
+          "Add Accept-Ranges: bytes header to /media response",
+          "Implement HTTP Range request handling: parse Range header",
+          "Return 206 Partial Content for range requests",
+          "Add Cache-Control: max-age=31536000 for long-term caching",
+          "Add Content-Length header for accurate progress tracking"
+        ],
+        "logic_flow": [
+          "In /media route (app.py lines 343-401), check for Range header",
+          "Parse Range: bytes=start-end from request headers",
+          "Read file chunk using start/end byte positions",
+          "Return 206 status with Content-Range header: bytes start-end/total",
+          "Add Accept-Ranges: bytes to all media responses",
+          "Add Cache-Control: public, max-age=31536000, immutable",
+          "Test: verify video streaming works, images load progressively"
+        ],
+        "depends_on": [5],
+        "output": "media_endpoint_optimization"
+      },
+      {
+        "step": 7,
+        "title": "Test mobile network performance across connection types",
+        "description": "Validate API timeouts, retries, and offline handling on various networks",
+        "modification_points": [
+          "Test 5 connection types: [offline, slow-2g, 2g, 3g, 4g/WiFi]",
+          "Test 3 API operations with retries: [calibrate, favorite, delete]",
+          "Verify timeout values: 15s (2G) vs 5s (4G)",
+          "Test offline→online transition: verify queued operations execute",
+          "Measure API success rate on throttled networks"
+        ],
+        "logic_flow": [
+          "Use Chrome DevTools network throttling: test each connection type",
+          "Offline test: disable network → verify offline banner, no API attempts",
+          "Slow 2G test: verify 15s timeout, 3 retries with backoff",
+          "3G Fast test: verify 8s timeout, 2 retries",
+          "4G test: verify 5s timeout, 1 retry",
+          "Test calibrate API on 3G: should complete within timeout or retry",
+          "Measure success rate: target >95% on 3G+, >80% on 2G",
+          "Validate error messages: user-friendly feedback for all failure scenarios"
+        ],
+        "depends_on": [6],
+        "output": "network_performance_validation"
+      }
+    ],
+    "target_files": [
+      "templates/notes.html",
+      "app.py:/media:343-401",
+      "app.py:/api/calibrate",
+      "app.py:/api/favorite",
+      "app.py:/api/delete"
+    ]
+  }
+}

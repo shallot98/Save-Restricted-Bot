@@ -1,0 +1,120 @@
+{
+  "id": "IMPL-1.1",
+  "title": "提取notes.html内联CSS到独立文件",
+  "status": "completed",
+  "meta": {
+    "agent": "code-developer",
+    "type": "refactor",
+    "priority": "P0",
+    "estimated_hours": 2,
+    "execution_group": "phase-1-separation",
+    "phase": "Phase 1: 代码分离"
+  },
+  "context": {
+    "objective": "将templates/notes.html中的内联CSS (行8-629) 提取到独立的CSS文件static/css/notes.css，保持页面样式完全一致",
+    "background": "notes.html文件过长(1842行)，其中包含629行内联CSS，导致代码难以维护。需要将CSS提取到独立文件以提升代码可维护性。",
+    "deliverables": [
+      "创建static/css/notes.css文件，包含所有提取的CSS规则",
+      "更新templates/notes.html，移除内联CSS，添加外部CSS引用",
+      "确保页面样式无任何变化，视觉一致性100%",
+      "添加CSS文件版本号支持缓存控制"
+    ],
+    "acceptance_criteria": [
+      "notes.html中的<style>标签已完全移除",
+      "static/css/notes.css文件创建成功，包含所有CSS规则",
+      "页面在浏览器中渲染结果与原页面完全一致",
+      "CSS选择器优先级无冲突",
+      "移动端和桌面端样式均正常"
+    ],
+    "constraints": [
+      "不能修改任何CSS规则的语义",
+      "不能改变CSS选择器的优先级",
+      "必须保持与main.css的兼容性",
+      "不能影响其他页面的样式"
+    ],
+    "technical_notes": [
+      "内联CSS位置: templates/notes.html 行8-629",
+      "CSS包含移动端适配、动画、主题切换等复杂逻辑",
+      "需要注意CSS变量的作用域",
+      "建议使用相对路径引用CSS文件"
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "read_source_file",
+        "description": "读取templates/notes.html，定位内联CSS部分",
+        "command": "Read templates/notes.html",
+        "expected_output": "获取行8-629的完整CSS代码"
+      },
+      {
+        "step": "analyze_css_structure",
+        "description": "分析CSS结构，识别选择器、变量、媒体查询",
+        "command": "分析CSS规则的组织结构和依赖关系",
+        "expected_output": "CSS规则清单和依赖关系图"
+      },
+      {
+        "step": "check_main_css",
+        "description": "检查static/css/main.css，避免重复定义",
+        "command": "Read static/css/main.css",
+        "expected_output": "识别可能的重复CSS规则"
+      }
+    ],
+    "implementation": [
+      {
+        "step": "create_notes_css",
+        "description": "创建static/css/notes.css文件",
+        "command": "Write static/css/notes.css",
+        "expected_output": "包含所有提取CSS的新文件"
+      },
+      {
+        "step": "update_notes_html",
+        "description": "更新notes.html，移除内联CSS，添加外部引用",
+        "command": "Edit templates/notes.html",
+        "expected_output": "精简的HTML文件，包含<link>标签"
+      },
+      {
+        "step": "add_version_control",
+        "description": "添加CSS文件版本号",
+        "command": "在<link>标签中添加?v=参数",
+        "expected_output": "<link rel=\"stylesheet\" href=\"/static/css/notes.css?v=1.0\">"
+      }
+    ],
+    "verification": [
+      {
+        "step": "visual_comparison",
+        "description": "在浏览器中对比修改前后的页面",
+        "command": "启动Flask应用，访问/notes页面",
+        "expected_output": "页面样式完全一致"
+      },
+      {
+        "step": "mobile_test",
+        "description": "测试移动端响应式布局",
+        "command": "使用浏览器开发者工具测试不同屏幕尺寸",
+        "expected_output": "移动端样式正常"
+      },
+      {
+        "step": "theme_test",
+        "description": "测试明暗主题切换",
+        "command": "点击主题切换按钮",
+        "expected_output": "主题切换正常，无样式闪烁"
+      }
+    ]
+  },
+  "dependencies": {
+    "depends_on": [],
+    "blocks": ["IMPL-1.2", "IMPL-1.3"]
+  },
+  "files": {
+    "input": [
+      "templates/notes.html"
+    ],
+    "output": [
+      "static/css/notes.css",
+      "templates/notes.html"
+    ],
+    "backup": [
+      "templates/notes.html.bak"
+    ]
+  }
+}

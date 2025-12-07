@@ -1,0 +1,763 @@
+{
+  "metadata": {
+    "task_description": "GOAL: 重构网页系统,修复现有bug并优化架构\nSCOPE: 分析当前网页bug、根据项目功能和逻辑重新构建网页结构、修复已知问题\nCONTEXT: 现有网页存在多个bug,需要基于项目实际功能和业务逻辑进行全面重构",
+    "timestamp": "2025-12-07T07:30:00Z",
+    "keywords": [
+      "web-refactor",
+      "bug-fix",
+      "architecture-optimization",
+      "mobile-sidebar",
+      "javascript-module",
+      "css-priority",
+      "state-management",
+      "flask-routing"
+    ],
+    "complexity": "High",
+    "tech_stack": {
+      "backend": ["Python", "Flask", "SQLite3"],
+      "frontend": ["HTML5", "CSS3", "Vanilla JavaScript"],
+      "testing": ["pytest", "playwright"],
+      "deployment": ["Docker", "docker-compose"]
+    },
+    "session_id": "WFS-web-refactor-bugfix"
+  },
+  "project_context": {
+    "description": "A Telegram bot application for saving and forwarding restricted content from Telegram channels and groups, with web interface for record management and media storage capabilities",
+    "technology_stack": {
+      "languages": [
+        {
+          "name": "Python",
+          "file_count": 73,
+          "primary": true
+        },
+        {
+          "name": "HTML",
+          "file_count": 10,
+          "primary": false
+        },
+        {
+          "name": "CSS",
+          "file_count": 1,
+          "primary": false
+        }
+      ],
+      "frameworks": [
+        "Pyrogram",
+        "Flask",
+        "SQLite3"
+      ],
+      "build_tools": [
+        "pip",
+        "Docker",
+        "docker-compose"
+      ],
+      "test_frameworks": [
+        "pytest"
+      ]
+    },
+    "architecture": {
+      "style": "Layered modular architecture with MVC pattern for web interface",
+      "layers": [
+        "presentation",
+        "business-logic",
+        "data-access"
+      ],
+      "patterns": [
+        "Service Layer",
+        "Repository Pattern",
+        "Queue Pattern",
+        "Filter Chain",
+        "Singleton",
+        "Context Manager"
+      ]
+    },
+    "key_components": [
+      {
+        "name": "Bot Core",
+        "path": "bot/core",
+        "description": "Client initialization, message queue, and startup configuration management",
+        "importance": "high"
+      },
+      {
+        "name": "Message Handlers",
+        "path": "bot/handlers",
+        "description": "Telegram message, command, and callback handlers for bot interactions",
+        "importance": "high"
+      },
+      {
+        "name": "Content Filters",
+        "path": "bot/filters",
+        "description": "Keyword, regex, and extract filters for content processing",
+        "importance": "high"
+      },
+      {
+        "name": "Services Layer",
+        "path": "bot/services",
+        "description": "Configuration management, calibration scheduler, and peer caching services",
+        "importance": "high"
+      },
+      {
+        "name": "Flask Web App",
+        "path": "app.py",
+        "description": "Web interface for note management, admin panel, and media serving",
+        "importance": "high"
+      },
+      {
+        "name": "Database Layer",
+        "path": "database.py",
+        "description": "SQLite database operations for notes, users, and calibration tasks",
+        "importance": "high"
+      },
+      {
+        "name": "Storage Manager",
+        "path": "bot/storage",
+        "description": "WebDAV client and local/remote media storage management",
+        "importance": "medium"
+      },
+      {
+        "name": "Message Workers",
+        "path": "bot/workers",
+        "description": "Background message processing workers with queue management",
+        "importance": "medium"
+      },
+      {
+        "name": "Utilities",
+        "path": "bot/utils",
+        "description": "Logger, progress tracking, status management, and helper functions",
+        "importance": "medium"
+      },
+      {
+        "name": "Test Suite",
+        "path": "tests",
+        "description": "Unit and integration tests for bot functionality (34 test files)",
+        "importance": "low"
+      }
+    ]
+  },
+  "assets": {
+    "documentation": [
+      {
+        "path": "/root/Save-Restricted-Bot/README.md",
+        "scope": "project-wide",
+        "contains": [
+          "project overview",
+          "deployment guides",
+          "feature descriptions",
+          "record mode documentation"
+        ],
+        "relevance_score": 0.82
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/.workflow/archives/manifest.json",
+        "scope": "historical-context",
+        "contains": [
+          "mobile adaptation lessons",
+          "architecture decisions",
+          "performance optimization patterns"
+        ],
+        "relevance_score": 0.88
+      }
+    ],
+    "source_code": [
+      {
+        "path": "/root/Save-Restricted-Bot/app.py",
+        "role": "web-application-core",
+        "dependencies": [
+          "database",
+          "config",
+          "bot.storage.webdav_client"
+        ],
+        "exports": [
+          "16 Flask routes",
+          "storage_manager",
+          "highlight_filter"
+        ],
+        "relevance_score": 0.99,
+        "issues": [
+          "782行单体应用,职责过载",
+          "路由函数混合业务逻辑",
+          "磁力链接提取函数应提取为服务层",
+          "缺少API版本控制",
+          "无CSRF保护"
+        ]
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/database.py",
+        "role": "data-access-layer",
+        "dependencies": [
+          "sqlite3",
+          "bcrypt",
+          "bot.services.calibration_manager"
+        ],
+        "exports": [
+          "get_notes",
+          "add_note",
+          "update_note",
+          "delete_note",
+          "30+ CRUD functions"
+        ],
+        "relevance_score": 0.98,
+        "issues": [
+          "971行包含过多业务逻辑",
+          "循环依赖风险(line 358延迟导入)",
+          "无事务管理抽象",
+          "部分函数参数验证缺失",
+          "SQLite并发写入限制"
+        ]
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/templates/notes.html",
+        "role": "main-ui-template",
+        "dependencies": [
+          "static/css/main.css",
+          "embedded JavaScript (1800+ lines)"
+        ],
+        "exports": [
+          "MobileUIState",
+          "NetworkManager",
+          "懒加载逻辑",
+          "触摸手势处理"
+        ],
+        "relevance_score": 0.97,
+        "issues": [
+          "1843行God Object模板",
+          "1000+行内嵌JavaScript无法单独测试",
+          "前后端代码混杂",
+          "移动端侧边栏初始不可见bug",
+          "点击无响应bug",
+          "无模块化,代码复用困难"
+        ]
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/static/css/main.css",
+        "role": "global-stylesheet",
+        "exports": [
+          "CSS变量系统",
+          "响应式断点",
+          "移动优先设计"
+        ],
+        "relevance_score": 0.89,
+        "issues": [
+          "CSS选择器优先级冲突(.mobile-open被@media覆盖)",
+          "需调整选择器权重",
+          "各admin页面存在重复内联样式"
+        ]
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/config.py",
+        "role": "configuration-manager",
+        "exports": [
+          "load_watch_config",
+          "save_watch_config",
+          "load_webdav_config",
+          "load_viewer_config"
+        ],
+        "relevance_score": 0.85,
+        "issues": [
+          "全局_monitored_sources状态存在竞态条件风险",
+          "无线程锁保护"
+        ]
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/bot/services/calibration_manager.py",
+        "role": "calibration-service",
+        "relevance_score": 0.78,
+        "issues": [
+          "单例模式未加锁",
+          "多线程调用可能冲突"
+        ]
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/bot/services/calibration_scheduler.py",
+        "role": "background-scheduler",
+        "relevance_score": 0.72,
+        "issues": [
+          "无健壮性保障",
+          "线程异常处理缺失"
+        ]
+      }
+    ],
+    "config": [
+      {
+        "path": "/root/Save-Restricted-Bot/requirements.txt",
+        "relevance_score": 0.88,
+        "contains": [
+          "flask",
+          "pyrogram",
+          "bcrypt",
+          "pillow",
+          "webdavclient3",
+          "requests",
+          "libtorrent",
+          "pytest",
+          "playwright"
+        ]
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/docker-compose.yml",
+        "relevance_score": 0.75
+      }
+    ],
+    "tests": [
+      {
+        "path": "/root/Save-Restricted-Bot/tests/test_functional.py",
+        "relevance_score": 0.90,
+        "test_type": "unit"
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/tests/mobile/conftest.py",
+        "relevance_score": 0.95,
+        "test_type": "e2e-config"
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/tests/mobile/test_touch_interactions.py",
+        "relevance_score": 0.92,
+        "test_type": "e2e-mobile"
+      },
+      {
+        "path": "/root/Save-Restricted-Bot/tests/mobile/test_state_management.py",
+        "relevance_score": 0.88,
+        "test_type": "e2e-mobile"
+      }
+    ]
+  },
+  "dependencies": {
+    "internal": [
+      {
+        "from": "app.py",
+        "to": "database.py",
+        "type": "data-access",
+        "functions_called": [
+          "get_notes",
+          "get_note_by_id",
+          "update_note",
+          "delete_note",
+          "verify_user"
+        ]
+      },
+      {
+        "from": "app.py",
+        "to": "config.py",
+        "type": "configuration",
+        "functions_called": [
+          "load_webdav_config",
+          "load_viewer_config",
+          "save_viewer_config"
+        ]
+      },
+      {
+        "from": "database.py",
+        "to": "bot.services.calibration_manager",
+        "type": "business-logic",
+        "note": "延迟导入(line 358)避免循环依赖",
+        "risk": "high"
+      },
+      {
+        "from": "templates/notes.html",
+        "to": "app.py",
+        "type": "api-integration",
+        "endpoints": [
+          "/notes",
+          "/api/calibrate/<note_id>",
+          "/toggle_favorite/<note_id>",
+          "/delete_note/<note_id>",
+          "/media/<storage_location>"
+        ]
+      }
+    ],
+    "external": [
+      {
+        "package": "flask",
+        "version": "unspecified",
+        "usage": "Web framework, routing, template rendering",
+        "criticality": "high"
+      },
+      {
+        "package": "pyrogram",
+        "version": "unspecified",
+        "usage": "Telegram client library",
+        "criticality": "high"
+      },
+      {
+        "package": "sqlite3",
+        "version": "stdlib",
+        "usage": "Embedded database",
+        "criticality": "high",
+        "constraints": [
+          "无真并发写入",
+          "无连接池",
+          "全文搜索性能差"
+        ]
+      },
+      {
+        "package": "bcrypt",
+        "version": "unspecified",
+        "usage": "Password hashing",
+        "criticality": "high"
+      },
+      {
+        "package": "playwright",
+        "version": ">=1.40.0",
+        "usage": "Browser automation for E2E testing",
+        "criticality": "medium"
+      },
+      {
+        "package": "libtorrent",
+        "version": "unspecified",
+        "usage": "Magnet link calibration",
+        "criticality": "medium",
+        "issues": [
+          "跨平台兼容性问题",
+          "二进制依赖"
+        ]
+      }
+    ]
+  },
+  "brainstorm_artifacts": {
+    "guidance_specification": {
+      "path": null,
+      "exists": false,
+      "content": null
+    },
+    "role_analyses": [],
+    "synthesis_output": {
+      "path": null,
+      "exists": false,
+      "content": null
+    }
+  },
+  "conflict_detection": {
+    "risk_level": "high",
+    "risk_factors": {
+      "existing_implementations": [
+        "app.py (782行单体应用)",
+        "templates/notes.html (1843行包含1000+行JavaScript)",
+        "database.py (971行)",
+        "static/css/main.css (915行)"
+      ],
+      "api_changes": false,
+      "architecture_changes": true,
+      "data_model_changes": false,
+      "breaking_changes": [
+        "JavaScript模块提取可能破坏现有内联脚本",
+        "CSS选择器优先级调整可能影响其他页面样式",
+        "模板重构可能影响Jinja2变量引用",
+        "路由重构可能影响前端API调用"
+      ]
+    },
+    "affected_modules": [
+      "web-interface",
+      "templates",
+      "static-assets",
+      "flask-routing",
+      "javascript-state-management",
+      "css-responsive-design"
+    ],
+    "mitigation_strategy": "渐进式重构策略: 1) 优先修复已知bug(移动端侧边栏、CSS优先级); 2) 逐步提取JavaScript核心模块(MobileUIState、NetworkManager); 3) 保持Jinja2模板架构,仅优化JavaScript组织; 4) 增强Playwright回归测试覆盖; 5) 分阶段上线,每阶段独立验证",
+    "historical_conflicts": [
+      {
+        "session_id": "WFS-mobile-adaptation-complete",
+        "issue": "移动优先CSS重构必须保留所有选择器和设计令牌",
+        "lesson": "使用选择器计数验证(rg -o '\\.[a-z-]+\\s*\\{' | wc -l)确保无意外删除",
+        "severity": "high"
+      },
+      {
+        "session_id": "WFS-mobile-adaptation-complete",
+        "issue": "触摸事件与点击事件冲突导致双重触发",
+        "lesson": "通过clickSuppressed标志和300ms超时实现事件去重,保留桌面端点击兼容性",
+        "severity": "medium"
+      },
+      {
+        "session_id": "WFS-mobile-adaptation-complete",
+        "issue": "零构建系统约束限制优化潜力",
+        "lesson": "无法使用PostCSS/SCSS预处理,通过浏览器原生loading='lazy'和Intersection Observer找到可行方案",
+        "severity": "medium"
+      }
+    ]
+  },
+  "exploration_results": {
+    "manifest_path": "/root/Save-Restricted-Bot/.workflow/active/WFS-web-refactor-bugfix/.process/explorations-manifest.json",
+    "exploration_count": 4,
+    "complexity": "High",
+    "angles": [
+      "architecture",
+      "patterns",
+      "dependencies",
+      "testing"
+    ],
+    "explorations": [
+      {
+        "angle": "architecture",
+        "file": "exploration-architecture.json",
+        "path": "/root/Save-Restricted-Bot/.workflow/active/WFS-web-refactor-bugfix/.process/exploration-architecture.json",
+        "index": 1,
+        "summary": {
+          "relevant_files_count": 11,
+          "key_patterns": "Flask单体Web应用+Telegram Bot混合架构,模板内嵌JavaScript,无统一API层",
+          "integration_points": "路由渲染接口、AJAX API接口、数据库事件触发、模板JavaScript交互、WebDAV媒体代理、配置热重载"
+        }
+      },
+      {
+        "angle": "patterns",
+        "file": "exploration-patterns.json",
+        "path": "/root/Save-Restricted-Bot/.workflow/active/WFS-web-refactor-bugfix/.process/exploration-patterns.json",
+        "index": 2,
+        "summary": {
+          "relevant_files_count": 10,
+          "key_patterns": "传统SSR架构、单例模式、Context Manager、Repository模式(不完整)、状态管理模式、网络管理模式、懒加载模式、设计令牌系统、移动优先响应式设计",
+          "integration_points": "API端点集成、状态同步集成、数据流集成、文件系统集成、并发集成、移动端集成、安全集成、性能优化集成"
+        }
+      },
+      {
+        "angle": "dependencies",
+        "file": "exploration-dependencies.json",
+        "path": "/root/Save-Restricted-Bot/.workflow/active/WFS-web-refactor-bugfix/.process/exploration-dependencies.json",
+        "index": 3,
+        "summary": {
+          "relevant_files_count": 13,
+          "key_patterns": "模块导入模式(相对+绝对+延迟导入)、配置管理模式(多层优先级)、数据库连接模式(Context Manager)、前后端交互模式(SSR+AJAX)、JavaScript依赖注入",
+          "integration_points": "init_storage_manager集成、/notes路由集成、/api/calibrate集成、add_note校准队列集成、toggleFavorite集成、侧边栏状态同步、媒体文件存储"
+        }
+      },
+      {
+        "angle": "testing",
+        "file": "exploration-testing.json",
+        "path": "/root/Save-Restricted-Bot/.workflow/active/WFS-web-refactor-bugfix/.process/exploration-testing.json",
+        "index": 4,
+        "summary": {
+          "relevant_files_count": 11,
+          "key_patterns": "Mock-based单元测试、Playwright端到端测试(设备模拟+触摸交互)、嵌入式JavaScript测试缺口、Bug修复回归测试模式",
+          "integration_points": "Python单元测试集成、移动端UI测试集成、前后端API集成、状态管理集成、已知Bug修复验证"
+        }
+      }
+    ],
+    "aggregated_insights": {
+      "critical_files": [
+        {
+          "path": "/root/Save-Restricted-Bot/templates/notes.html",
+          "relevance": 0.97,
+          "mentioned_by_angles": [
+            "architecture",
+            "patterns",
+            "dependencies",
+            "testing"
+          ],
+          "mention_count": 4
+        },
+        {
+          "path": "/root/Save-Restricted-Bot/app.py",
+          "relevance": 0.97,
+          "mentioned_by_angles": [
+            "architecture",
+            "patterns",
+            "dependencies",
+            "testing"
+          ],
+          "mention_count": 4
+        },
+        {
+          "path": "/root/Save-Restricted-Bot/database.py",
+          "relevance": 0.94,
+          "mentioned_by_angles": [
+            "architecture",
+            "patterns",
+            "dependencies"
+          ],
+          "mention_count": 3
+        },
+        {
+          "path": "/root/Save-Restricted-Bot/static/css/main.css",
+          "relevance": 0.85,
+          "mentioned_by_angles": [
+            "architecture",
+            "patterns",
+            "dependencies"
+          ],
+          "mention_count": 3
+        },
+        {
+          "path": "/root/Save-Restricted-Bot/config.py",
+          "relevance": 0.83,
+          "mentioned_by_angles": [
+            "architecture",
+            "patterns",
+            "dependencies"
+          ],
+          "mention_count": 3
+        },
+        {
+          "path": "/root/Save-Restricted-Bot/tests/mobile/conftest.py",
+          "relevance": 0.95,
+          "mentioned_by_angles": [
+            "testing"
+          ],
+          "mention_count": 1
+        },
+        {
+          "path": "/root/Save-Restricted-Bot/tests/mobile/test_touch_interactions.py",
+          "relevance": 0.88,
+          "mentioned_by_angles": [
+            "testing"
+          ],
+          "mention_count": 1
+        }
+      ],
+      "conflict_indicators": [
+        {
+          "type": "architecture_complexity",
+          "description": "templates/notes.html为1843行God Object,包含1000+行内嵌JavaScript,重构风险极高",
+          "source_angle": "architecture",
+          "severity": "critical"
+        },
+        {
+          "type": "circular_dependency",
+          "description": "database.py:358行延迟导入calibration_manager避免循环依赖,违反分层架构原则",
+          "source_angle": "dependencies",
+          "severity": "high"
+        },
+        {
+          "type": "css_priority_conflict",
+          "description": ".mobile-open类被@media断点覆盖,导致侧边栏点击无响应",
+          "source_angle": "architecture",
+          "severity": "high"
+        },
+        {
+          "type": "testing_gap",
+          "description": "1800+行内嵌JavaScript无独立单元测试,仅依赖Playwright端到端测试",
+          "source_angle": "testing",
+          "severity": "high"
+        },
+        {
+          "type": "anti_pattern",
+          "description": "app.py为782行单体应用,混合路由定义、业务逻辑、工具函数,可维护性差",
+          "source_angle": "patterns",
+          "severity": "high"
+        },
+        {
+          "type": "security_risk",
+          "description": "无CSRF保护,POST端点易受跨站请求伪造攻击",
+          "source_angle": "patterns",
+          "severity": "medium"
+        },
+        {
+          "type": "concurrency_issue",
+          "description": "全局_monitored_sources状态存在竞态条件风险,无线程锁保护",
+          "source_angle": "dependencies",
+          "severity": "medium"
+        }
+      ],
+      "clarification_needs": [
+        {
+          "question": "重构策略:全量重构还是渐进式重构?",
+          "context": "当前代码库约9551行,存在多个架构问题(God Object、重复代码、紧耦合)。全量重构风险大但效果好,渐进式重构安全但周期长",
+          "options": [
+            "全量重构: 推倒重来,重新设计架构(前后端分离、微服务、组件化),风险高但一次性解决所有问题,预计2-3周",
+            "渐进式重构: 保持现有架构,逐步拆分模块、提取组件、修复bug,低风险但周期长(4-6周),可分阶段上线",
+            "混合策略: 核心模块全量重构(如notes.html拆分),非核心模块渐进优化,平衡风险和效率",
+            "最小化重构: 仅修复已知bug和严重性能问题,保持现有架构基本不变,1周内完成"
+          ],
+          "source_angle": "patterns",
+          "recommended": 2
+        },
+        {
+          "question": "前端技术栈选型:继续原生JS还是引入框架?",
+          "context": "当前使用原生JavaScript,notes.html已达1843行(包含825行内联JS)。继续原生可保持零依赖但维护困难,引入框架(Vue/React)可组件化但需构建步骤",
+          "options": [
+            "保持原生JavaScript: 拆分为多个JS模块文件,使用ES6 modules,无构建步骤,但手动DOM操作和状态管理",
+            "引入轻量级框架: Vue 3 Composition API或Alpine.js,响应式数据绑定,体积小(~40KB),学习成本低",
+            "完整框架重构: React + TypeScript + Vite,组件化开发,类型安全,现代化工具链,但需要完整构建流程",
+            "Web Components: 使用原生Web Components API(自定义元素、Shadow DOM),标准化,无框架依赖,但浏览器兼容性需考虑"
+          ],
+          "source_angle": "patterns",
+          "recommended": 1
+        },
+        {
+          "question": "已知bug修复优先级:哪些bug需要优先修复?",
+          "context": "根据代码分析发现多个潜在问题:1)侧边栏状态同步问题 2)CSRF保护缺失 3)深度分页性能 4)N+1查询 5)XSS风险(|safe使用) 6)全局状态线程安全",
+          "options": [
+            "安全优先: 先修复CSRF保护、XSS风险、密码强度等安全问题,再优化性能和体验",
+            "用户体验优先: 先修复侧边栏同步、移动端手势、网络容错等影响用户的bug,安全问题后续处理",
+            "性能优先: 先优化数据库查询(N+1、深度分页)、懒加载、缓存,提升系统性能",
+            "架构优先: 先重构God Object、拆分模块、解耦依赖,再逐步修复具体bug"
+          ],
+          "source_angle": "patterns",
+          "recommended": 0
+        },
+        {
+          "question": "重构后是否需要保留嵌入式JavaScript,还是提取为独立模块?",
+          "context": "当前templates/notes.html包含1800+行JavaScript,无法单独单元测试。提取为独立.js文件可以添加Jest单元测试覆盖,但会破坏现有结构",
+          "options": [
+            "保留嵌入式结构,仅优化现有代码并增强Playwright端到端测试覆盖",
+            "完全提取为独立.js模块,添加Jest单元测试+Playwright集成测试双层覆盖",
+            "渐进式提取:先提取MobileUIState/NetworkManager等核心模块,其他保留嵌入式",
+            "采用Web Components封装,每个组件带独立测试"
+          ],
+          "source_angle": "testing",
+          "recommended": 2
+        }
+      ],
+      "constraints": [
+        {
+          "constraint": "零构建系统约束: 无法使用PostCSS/SCSS预处理,需通过浏览器原生API实现优化",
+          "source_angle": "architecture"
+        },
+        {
+          "constraint": "SQLite数据库限制: 无真并发写入,高并发场景性能瓶颈",
+          "source_angle": "architecture"
+        },
+        {
+          "constraint": "Flask单进程阻塞: 长时间请求(如校准API 30秒)阻塞其他用户访问",
+          "source_angle": "patterns"
+        },
+        {
+          "constraint": "循环依赖约束: database.py不能在顶层导入bot.services模块,必须函数内延迟导入",
+          "source_angle": "dependencies"
+        },
+        {
+          "constraint": "JavaScript全局作用域约束: NetworkManager/MobileUIState等对象定义在notes.html内联脚本中,无法跨页面复用",
+          "source_angle": "dependencies"
+        },
+        {
+          "constraint": "测试环境约束: 移动测试依赖Flask服务器运行在localhost:5000,无自动启动机制",
+          "source_angle": "testing"
+        }
+      ],
+      "all_patterns": [
+        {
+          "patterns": "路由-模板直连模式(反模式)、内嵌JavaScript状态管理、上下文管理器模式、单例服务模式、响应式设计模式",
+          "source_angle": "architecture"
+        },
+        {
+          "patterns": "传统SSR架构、单例模式、Context Manager、Repository模式(不完整)、状态管理模式、网络管理模式、懒加载模式、防抖节流模式、设计令牌系统、移动优先响应式设计、God Object反模式、Magic Number反模式、重复代码反模式、全局状态反模式、过度耦合反模式",
+          "source_angle": "patterns"
+        },
+        {
+          "patterns": "模块导入模式(相对+绝对+延迟导入)、配置管理模式(多层优先级)、数据库连接模式(Context Manager)、前后端交互模式(SSR+AJAX)、JavaScript依赖注入、CSS架构(CSS变量+暗色模式+移动优先)",
+          "source_angle": "dependencies"
+        },
+        {
+          "patterns": "Mock-based单元测试模式、Playwright端到端测试模式(设备模拟+触摸交互)、嵌入式JavaScript测试缺口、Bug修复回归测试模式",
+          "source_angle": "testing"
+        }
+      ],
+      "all_integration_points": [
+        {
+          "points": "路由渲染接口(app.py:196-252)、AJAX API接口(app.py:633-776)、数据库事件触发(database.py:352-378)、模板JavaScript交互(notes.html:1076-1400)、WebDAV媒体代理(app.py:343-457)、配置热重载(config.py:106-110)",
+          "source_angle": "architecture"
+        },
+        {
+          "points": "API端点集成(/notes、/delete_note、/toggle_favorite、/api/calibrate、/media)、状态同步集成(侧边栏状态、主题切换)、数据流集成(笔记创建流程、校准工作流、自动校准后台流程)、文件系统集成(媒体文件存储、配置文件持久化)、并发集成(数据库事务隔离、校准任务并发控制、前端请求并发控制)、移动端集成(触摸手势检测、虚拟键盘处理、网络连接自适应)、安全集成(用户认证、XSS防护、CSRF防护缺失)、性能优化集成(缓存策略、懒加载集成、分页优化)",
+          "source_angle": "patterns"
+        },
+        {
+          "points": "init_storage_manager集成(app.py:20-45)、/notes路由集成(app.py:196-252)、/api/calibrate集成(app.py:668-776)、add_note校准队列集成(database.py:352-378)、toggleFavorite集成(notes.html:1726-1747)、calibrateNote集成(notes.html:1794-1839)、save_watch_config自动重载(config.py:135-159)、侧边栏CSS动画集成(main.css:134-160 + MobileUIState.syncDOM)",
+          "source_angle": "dependencies"
+        },
+        {
+          "points": "Python单元测试集成(tests/test_functional.py导入bot模块)、移动端UI测试集成(conftest.py test_server_url fixture)、前后端API集成(/toggle_favorite、/api/calibrate、/media路由)、状态管理集成(MobileUIState.init、toggleSidebar)、已知Bug修复验证(回归测试for mobile-sidebar-not-visible、sidebar-click-no-response)",
+          "source_angle": "testing"
+        }
+      ]
+    }
+  }
+}

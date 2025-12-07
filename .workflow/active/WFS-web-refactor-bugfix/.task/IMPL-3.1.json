@@ -1,0 +1,44 @@
+{
+  "id": "IMPL-3.1",
+  "title": "修复侧边栏状态问题",
+  "status": "completed",
+  "meta": {
+    "agent": "code-developer",
+    "type": "bugfix",
+    "priority": "P0",
+    "estimated_hours": 2,
+    "execution_group": "parallel-bugfix-sidebar",
+    "phase": "Phase 3: Bug修复",
+    "completed_at": "2025-12-07"
+  },
+  "context": {
+    "objective": "修复移动端侧边栏状态不一致问题",
+    "background": "移动端侧边栏切换后状态与localStorage不同步，导致刷新后状态错误",
+    "deliverables": [
+      "修复MobileUIState.syncDOM()逻辑",
+      "修复MobileUIState.persist()逻辑",
+      "添加状态同步验证",
+      "添加单元测试"
+    ],
+    "acceptance_criteria": [
+      "侧边栏状态与localStorage完全同步",
+      "刷新页面后状态保持正确",
+      "移动端测试通过"
+    ]
+  },
+  "dependencies": {
+    "depends_on": ["IMPL-2.1"],
+    "blocks": []
+  },
+  "results": {
+    "files_modified": [
+      "/root/Save-Restricted-Bot/static/js/components/sidebar.js"
+    ],
+    "files_created": [
+      "/root/Save-Restricted-Bot/static/js/tests/sidebar.test.js",
+      "/root/Save-Restricted-Bot/static/tests/sidebar-test.html",
+      "/root/Save-Restricted-Bot/static/tests/SIDEBAR_TEST_GUIDE.md"
+    ],
+    "summary": ".summaries/IMPL-3.1-summary.md"
+  }
+}
