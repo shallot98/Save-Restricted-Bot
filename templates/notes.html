@@ -66,7 +66,7 @@
                         <select name="source">
                             <option value="">全部来源</option>
                             {% for source in sources %}
-                            <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
+                            <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id|string %}selected{% endif %}>
                                 {{ source.source_name or source.source_chat_id }}
                             </option>
                             {% endfor %}
@@ -193,7 +193,7 @@
 
         <div class="pagination">
             {% if current_page > 1 %}
-            <a href="?page={{ current_page - 1 }}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">« 上一页</a>
+            <a href="?page={{ current_page - 1 }}{% if search_query %}&search={{ search_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">« 上一页</a>
             {% else %}
             <button class="page-btn" disabled>« 上一页</button>
             {% endif %}
@@ -202,7 +202,7 @@
             {% set end_page = [total_pages, current_page + 2] | min %}
 
             {% if start_page > 1 %}
-            <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">1</a>
+            <a href="?page=1{% if search_query %}&search={{ search_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">1</a>
             {% if start_page > 2 %}
             <span class="page-btn" disabled>...</span>
             {% endif %}
@@ -212,7 +212,7 @@
             {% if page == current_page %}
             <span class="page-btn active">{{ page }}</span>
             {% else %}
-            <a href="?page={{ page }}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">{{ page }}</a>
+            <a href="?page={{ page }}{% if search_query %}&search={{ search_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">{{ page }}</a>
             {% endif %}
             {% endfor %}
 
@@ -220,11 +220,11 @@
             {% if end_page < total_pages - 1 %}
             <span class="page-btn" disabled>...</span>
             {% endif %}
-            <a href="?page={{ total_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">{{ total_pages }}</a>
+            <a href="?page={{ total_pages }}{% if search_query %}&search={{ search_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">{{ total_pages }}</a>
             {% endif %}
 
             {% if current_page < total_pages %}
-            <a href="?page={{ current_page + 1 }}{% if search_query %}&search={{ search_query }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">下一页 »</a>
+            <a href="?page={{ current_page + 1 }}{% if search_query %}&search={{ search_query | urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if favorite_only %}&favorite=1{% endif %}" class="page-btn">下一页 »</a>
             {% else %}
             <button class="page-btn" disabled>下一页 »</button>
             {% endif %}

@@ -115,20 +115,6 @@
             margin-bottom: var(--space-lg);
         }
         
-        .menu-toggle-btn {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            padding: var(--space-sm);
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            min-width: var(--touch-target);
-            min-height: var(--touch-target);
-            align-items: center;
-            justify-content: center;
-        }
-        
         @media (max-width: 768px) {
             .edit-card {
                 padding: var(--space-lg);
@@ -152,21 +138,23 @@
                     <span class="edit-icon">✏️</span>
                     <h1>编辑笔记</h1>
                 </div>
-                <button class="menu-toggle-btn" onclick="toggleMenu()" aria-label="菜单">
-                    <div class="menu-bar"></div>
-                    <div class="menu-bar"></div>
-                    <div class="menu-bar"></div>
-                </button>
-                <div class="menu-dropdown" id="menuDropdown" style="top: 60px; right: 0;">
-                    <a href="/notes" class="menu-item">
-                        <span class="menu-item-icon">📝</span>笔记列表
-                    </a>
-                    <a href="/admin" class="menu-item">
-                        <span class="menu-item-icon">⚙️</span>管理设置
-                    </a>
-                    <a href="/logout" class="menu-item">
-                        <span class="menu-item-icon">🚪</span>退出登录
-                    </a>
+                <div style="position: relative;">
+                    <button class="menu-toggle" onclick="toggleMenu()" aria-label="菜单">
+                        <div class="menu-bar"></div>
+                        <div class="menu-bar"></div>
+                        <div class="menu-bar"></div>
+                    </button>
+                    <div class="menu-dropdown" id="menuDropdown">
+                        <a href="/notes" class="menu-item">
+                            <span class="menu-item-icon">📝</span>笔记列表
+                        </a>
+                        <a href="/admin" class="menu-item">
+                            <span class="menu-item-icon">⚙️</span>管理设置
+                        </a>
+                        <a href="/logout" class="menu-item">
+                            <span class="menu-item-icon">🚪</span>退出登录
+                        </a>
+                    </div>
                 </div>
             </div>
 

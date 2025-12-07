@@ -43,6 +43,25 @@ document.addEventListener('click', function(event) {
     }
 });
 
+// Add keyboard shortcuts
+document.addEventListener('keydown', function(event) {
+    // ESC key closes modals
+    if (event.key === 'Escape') {
+        closeImageModal();
+        closeSelectionModal();
+        
+        // Close menu
+        const menu = document.getElementById('menuDropdown');
+        if (menu) menu.classList.remove('active');
+    }
+    
+    // Ctrl/Cmd + K to toggle search (like many modern apps)
+    if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault();
+        toggleSearchPanel();
+    }
+});
+
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', function() {
     // Sync search toggle state with panel
@@ -51,25 +70,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (panel && toggle && panel.classList.contains('active')) {
         toggle.classList.add('active');
     }
-    
-    // Add keyboard shortcuts
-    document.addEventListener('keydown', function(event) {
-        // ESC key closes modals
-        if (event.key === 'Escape') {
-            closeImageModal();
-            closeSelectionModal();
-            
-            // Close menu
-            const menu = document.getElementById('menuDropdown');
-            if (menu) menu.classList.remove('active');
-        }
-        
-        // Ctrl/Cmd + K to toggle search (like many modern apps)
-        if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
-            event.preventDefault();
-            toggleSearchPanel();
-        }
-    });
 });
 
 // Toggle favorite
