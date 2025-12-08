@@ -4,164 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>管理员面板 - Telegram 笔记</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .header {
-            background: white;
-            border-radius: 15px;
-            padding: 25px 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        /* Page-specific styles */
+        .header-nav {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            gap: var(--space-sm);
             flex-wrap: wrap;
-            gap: 20px;
         }
-
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .header-title h1 {
-            color: #333;
-            font-size: 28px;
-        }
-
-        .header-icon {
-            font-size: 40px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #555;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        .card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .card h2 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 22px;
-        }
-
-        .card p {
-            color: #666;
-            margin-bottom: 25px;
-            font-size: 14px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            color: #555;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        input[type="password"] {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-
-        input[type="password"]:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 30px;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .success-message {
-            background: #d4edda;
-            color: #155724;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            border: 1px solid #c3e6cb;
-        }
-
-        .error-message {
-            background: #fee;
-            color: #c33;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            border: 1px solid #fcc;
-        }
-
-        .info-box {
-            background: #e7f3ff;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 25px;
-        }
-
-        .info-box p {
-            color: #333;
-            margin: 0;
-            font-size: 14px;
+        
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .header-title {
+                padding-right: 0;
+                margin-bottom: var(--space-md);
+            }
+            
+            .header-nav {
+                justify-content: stretch;
+            }
+            
+            .header-nav .btn {
+                flex: 1;
+                min-width: 140px;
+            }
         }
     </style>
 </head>
@@ -172,7 +42,28 @@
                 <span class="header-icon">⚙️</span>
                 <h1>管理员面板</h1>
             </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <div class="header-actions">
+                <button class="menu-toggle" onclick="toggleMenu()" aria-label="菜单">
+                    <div class="menu-bar"></div>
+                    <div class="menu-bar"></div>
+                    <div class="menu-bar"></div>
+                </button>
+                <div class="menu-dropdown" id="menuDropdown">
+                    <a href="/notes" class="menu-item">
+                        <span class="menu-item-icon">📝</span>笔记列表
+                    </a>
+                    <a href="/admin" class="menu-item">
+                        <span class="menu-item-icon">⚙️</span>管理设置
+                    </a>
+                    <a href="/logout" class="menu-item">
+                        <span class="menu-item-icon">🚪</span>退出登录
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div style="background: rgba(255, 255, 255, 0.95); border-radius: var(--radius-xl); padding: var(--space-lg); margin-bottom: var(--space-lg); box-shadow: var(--shadow-md);">
+            <div class="header-nav">
                 <a href="/admin/calibration" class="btn btn-secondary">🔧 自动校准</a>
                 <a href="/admin/webdav" class="btn btn-secondary">☁️ WebDAV 存储</a>
                 <a href="/admin/viewer" class="btn btn-secondary">🎬 观看设置</a>
@@ -216,9 +107,11 @@
                     <input type="password" id="confirm_password" name="confirm_password" required minlength="6">
                 </div>
 
-                <button type="submit" class="btn btn-primary">更新密码</button>
+                <button type="submit" class="btn btn-primary btn-lg">更新密码</button>
             </form>
         </div>
     </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
