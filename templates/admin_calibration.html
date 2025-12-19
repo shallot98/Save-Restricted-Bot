@@ -2,403 +2,329 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>自动校准设置 - Telegram 笔记</title>
+
+    <!-- 预连接CDN加速 -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+    <!-- Tailwind CSS CDN (锁定版本) -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+
+    <!-- Alpine.js for interactivity (锁定版本) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        [x-cloak] { display: none !important; }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        /* 暗色模式滚动条 */
+        .dark ::-webkit-scrollbar-track {
+            background: #1f2937;
         }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
         }
-
-        .header {
-            background: white;
-            border-radius: 15px;
-            padding: 25px 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .header-title h1 {
-            color: #333;
-            font-size: 28px;
-        }
-
-        .header-icon {
-            font-size: 40px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #555;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        .card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .card h2 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 22px;
-        }
-
-        .card p {
-            color: #666;
-            margin-bottom: 25px;
-            font-size: 14px;
-        }
-
-        .form-group {
-            margin-bottom: 25px;
-        }
-
-        label {
-            display: block;
-            color: #555;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        input[type="number"],
-        select {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-
-        input[type="number"]:focus,
-        select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .switch-container {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 26px;
-            width: 26px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .slider {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 30px;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .success-message {
-            background: #d4edda;
-            color: #155724;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            border: 1px solid #c3e6cb;
-        }
-
-        .error-message {
-            background: #fee;
-            color: #c33;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            border: 1px solid #fcc;
-        }
-
-        .info-box {
-            background: #e7f3ff;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 25px;
-        }
-
-        .info-box p {
-            color: #333;
-            margin: 5px 0;
-            font-size: 14px;
-        }
-
-        .stats-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-        }
-
-        .stat-box {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 32px;
-            font-weight: 700;
-            color: #667eea;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            font-size: 14px;
-            color: #666;
-        }
-
-        .hint {
-            font-size: 12px;
-            color: #999;
-            margin-top: 5px;
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
     </style>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-title">
-                <span class="header-icon">🔧</span>
-                <h1>自动校准设置</h1>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <a href="/admin/calibration/queue" class="btn btn-secondary">📋 查看队列</a>
-                <a href="/admin" class="btn btn-secondary">← 返回管理</a>
-            </div>
-        </div>
+<body class="bg-gray-50 dark:bg-gray-900" x-data="adminApp()" x-init="init()">
 
-        {% if success %}
-        <div class="card">
-            <div class="success-message">
-                ✓ {{ success }}
-            </div>
-        </div>
-        {% endif %}
+    {# 顶部导航栏 #}
+    {% include "components/topbar.html" %}
 
-        {% if error %}
-        <div class="card">
-            <div class="error-message">
-                ✗ {{ error }}
-            </div>
-        </div>
-        {% endif %}
+    <!-- 主容器 -->
+    <div class="flex pt-16 pb-16 lg:pb-0">
+        {# 侧边栏 #}
+        {% include "components/sidebar.html" %}
 
-        <!-- 统计信息 -->
-        {% if stats %}
-        <div class="card">
-            <h2>📊 校准任务统计</h2>
-            <p>当前校准任务状态概览</p>
-            <div class="stats-container">
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.total }}</div>
-                    <div class="stat-label">总任务数</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.by_status.get('pending', 0) + stats.by_status.get('retrying', 0) }}</div>
-                    <div class="stat-label">待处理</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.by_status.get('success', 0) }}</div>
-                    <div class="stat-label">已成功</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.by_status.get('failed', 0) }}</div>
-                    <div class="stat-label">已失败</div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
+        <!-- 遮罩层 (移动端) -->
+        <div
+            x-show="sidebarOpen && window.innerWidth < 1024"
+            @click="sidebarOpen = false"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden mt-16"
+        ></div>
 
-        <!-- 配置表单 -->
-        <div class="card">
-            <h2>⚙️ 校准配置</h2>
-            <p>配置自动校准的行为和参数</p>
-
-            <form method="POST" action="/admin/calibration">
-                <!-- 启用开关 -->
-                <div class="form-group">
-                    <label>启用自动校准</label>
-                    <div class="switch-container">
-                        <label class="switch">
-                            <input type="checkbox" name="enabled" {% if config.enabled %}checked{% endif %}>
-                            <span class="slider"></span>
-                        </label>
-                        <span style="color: #666;">{{ '已启用' if config.enabled else '已禁用' }}</span>
+        <!-- 主内容区 -->
+        <main class="flex-1 overflow-y-auto h-[calc(100vh-4rem)]">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                
+                <!-- 头部区域 -->
+                <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path>
+                            </svg>
+                            自动校准设置
+                        </h1>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">配置自动校准的行为和参数</p>
                     </div>
-                    <div class="hint">开启后，新添加的笔记将自动加入校准队列</div>
+                    
+                    <div class="flex flex-wrap gap-2">
+                        <a href="/admin/calibration/queue" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                            </svg>
+                            查看队列
+                        </a>
+                        <a href="/admin" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                            </svg>
+                            返回管理
+                        </a>
+                    </div>
                 </div>
 
-                <!-- 过滤模式 -->
-                <div class="form-group">
-                    <label for="filter_mode">过滤模式</label>
-                    <select name="filter_mode" id="filter_mode">
-                        <option value="empty_only" {% if config.filter_mode == 'empty_only' %}selected{% endif %}>仅校准 dn 为空的笔记</option>
-                        <option value="all" {% if config.filter_mode == 'all' %}selected{% endif %}>校准所有笔记</option>
-                    </select>
-                    <div class="hint">选择哪些笔记需要进行自动校准</div>
+                <!-- 消息提示 -->
+                {% if success %}
+                <div class="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-3">
+                    <svg class="w-5 h-5 text-green-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span class="text-sm text-green-800 dark:text-green-200">{{ success }}</span>
                 </div>
+                {% endif %}
 
-                <!-- 首次延迟 -->
-                <div class="form-group">
-                    <label for="first_delay">首次校准延迟（秒）</label>
-                    <input type="number" name="first_delay" id="first_delay" value="{{ config.first_delay }}" min="60" max="3600" inputmode="numeric" required>
-                    <div class="hint">笔记添加后多久进行首次校准（默认600秒 = 10分钟）</div>
+                {% if error %}
+                <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+                    <svg class="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                    <span class="text-sm text-red-800 dark:text-red-200">{{ error }}</span>
                 </div>
+                {% endif %}
 
-                <!-- 重试延迟 -->
-                <div class="form-group">
-                    <label for="retry_delay_1">第1次重试延迟（秒）</label>
-                    <input type="number" name="retry_delay_1" id="retry_delay_1" value="{{ config.retry_delay_1 }}" min="60" max="86400" inputmode="numeric" required>
-                    <div class="hint">首次失败后的重试延迟（默认3600秒 = 1小时）</div>
+                <!-- 统计卡片 -->
+                {% if stats %}
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-3xl font-bold text-primary-600 dark:text-primary-400 mb-1">{{ stats.total }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">总任务数</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-3xl font-bold text-yellow-500 dark:text-yellow-400 mb-1">{{ stats.by_status.get('pending', 0) + stats.by_status.get('retrying', 0) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">待处理</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-3xl font-bold text-green-500 dark:text-green-400 mb-1">{{ stats.by_status.get('success', 0) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">已成功</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-3xl font-bold text-red-500 dark:text-red-400 mb-1">{{ stats.by_status.get('failed', 0) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">已失败</div>
+                    </div>
                 </div>
+                {% endif %}
 
-                <div class="form-group">
-                    <label for="retry_delay_2">第2次重试延迟（秒）</label>
-                    <input type="number" name="retry_delay_2" id="retry_delay_2" value="{{ config.retry_delay_2 }}" min="60" max="86400" inputmode="numeric" required>
-                    <div class="hint">第二次失败后的重试延迟（默认14400秒 = 4小时）</div>
+                <!-- 配置表单 -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">参数配置</h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">调整自动校准服务的运行参数</p>
+                    </div>
+
+                    <div class="p-6">
+                        <form method="POST" action="/admin/calibration" class="space-y-6">
+                            
+                            <!-- 启用开关 -->
+                            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-900 dark:text-white">启用自动校准</label>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">开启后，新添加的笔记将自动加入校准队列</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="enabled" class="sr-only peer" {% if config.enabled %}checked{% endif %}>
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"></div>
+                                </label>
+                            </div>
+
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <!-- 过滤模式 -->
+                                <div class="col-span-2">
+                                    <label for="filter_mode" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">过滤模式</label>
+                                    <select name="filter_mode" id="filter_mode" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                        <option value="empty_only" {% if config.filter_mode == 'empty_only' %}selected{% endif %}>仅校准 dn 为空的笔记</option>
+                                        <option value="all" {% if config.filter_mode == 'all' %}selected{% endif %}>校准所有笔记</option>
+                                    </select>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">选择哪些笔记需要进行自动校准</p>
+                                </div>
+
+                                <!-- 首次延迟 -->
+                                <div>
+                                    <label for="first_delay" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">首次校准延迟 (秒)</label>
+                                    <input type="number" name="first_delay" id="first_delay" value="{{ config.first_delay }}" min="60" max="3600" inputmode="numeric" required
+                                        class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">笔记添加后多久进行首次校准</p>
+                                </div>
+
+                                <!-- 并发限制 -->
+                                <div>
+                                    <label for="concurrent_limit" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">并发处理数量</label>
+                                    <input type="number" name="concurrent_limit" id="concurrent_limit" value="{{ config.concurrent_limit }}" min="1" max="20" inputmode="numeric" required
+                                        class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">每次批量处理的最大任务数</p>
+                                </div>
+
+                                <!-- 重试延迟 1 -->
+                                <div>
+                                    <label for="retry_delay_1" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">第1次重试延迟 (秒)</label>
+                                    <input type="number" name="retry_delay_1" id="retry_delay_1" value="{{ config.retry_delay_1 }}" min="60" max="86400" inputmode="numeric" required
+                                        class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                </div>
+
+                                <!-- 重试延迟 2 -->
+                                <div>
+                                    <label for="retry_delay_2" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">第2次重试延迟 (秒)</label>
+                                    <input type="number" name="retry_delay_2" id="retry_delay_2" value="{{ config.retry_delay_2 }}" min="60" max="86400" inputmode="numeric" required
+                                        class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                </div>
+
+                                <!-- 重试延迟 3 -->
+                                <div>
+                                    <label for="retry_delay_3" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">第3次重试延迟 (秒)</label>
+                                    <input type="number" name="retry_delay_3" id="retry_delay_3" value="{{ config.retry_delay_3 }}" min="60" max="86400" inputmode="numeric" required
+                                        class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                </div>
+
+                                <!-- 最大重试次数 -->
+                                <div>
+                                    <label for="max_retries" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">最大重试次数</label>
+                                    <input type="number" name="max_retries" id="max_retries" value="{{ config.max_retries }}" min="1" max="10" inputmode="numeric" required
+                                        class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">超过次数将标记 #*</p>
+                                </div>
+
+                                <!-- 单个超时 -->
+                                <div>
+                                    <label for="timeout_per_magnet" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">单个磁力超时 (秒)</label>
+                                    <input type="number" name="timeout_per_magnet" id="timeout_per_magnet" value="{{ config.timeout_per_magnet }}" min="10" max="120" inputmode="numeric" required
+                                        class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                </div>
+
+                                <!-- 批量超时 -->
+                                <div>
+                                    <label for="batch_timeout" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">批量处理总超时 (秒)</label>
+                                    <input type="number" name="batch_timeout" id="batch_timeout" value="{{ config.batch_timeout }}" min="60" max="1800" inputmode="numeric" required
+                                        class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                </div>
+                            </div>
+
+                            <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 p-4">
+                                <div class="flex items-start gap-3">
+                                    <svg class="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                    </svg>
+                                    <div class="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                                        <p class="font-medium">工作原理说明：</p>
+                                        <ul class="list-disc list-inside opacity-90 space-y-0.5">
+                                            <li>笔记添加后，经过"首次延迟"时间进入校准队列</li>
+                                            <li>系统每60秒检查一次待处理任务，按"并发限制"批量处理</li>
+                                            <li>失败的任务按渐进式延迟重试，直到达到"最大重试次数"</li>
+                                            <li>超过最大重试次数的笔记会在开头添加 #* 标记</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="pt-4">
+                                <button type="submit" class="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200">
+                                    💾 保存配置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-
-                <div class="form-group">
-                    <label for="retry_delay_3">第3次重试延迟（秒）</label>
-                    <input type="number" name="retry_delay_3" id="retry_delay_3" value="{{ config.retry_delay_3 }}" min="60" max="86400" inputmode="numeric" required>
-                    <div class="hint">第三次失败后的重试延迟（默认28800秒 = 8小时）</div>
-                </div>
-
-                <!-- 最大重试次数 -->
-                <div class="form-group">
-                    <label for="max_retries">最大重试次数</label>
-                    <input type="number" name="max_retries" id="max_retries" value="{{ config.max_retries }}" min="1" max="10" inputmode="numeric" required>
-                    <div class="hint">超过此次数仍失败的笔记将被标记 #*（默认3次）</div>
-                </div>
-
-                <!-- 并发限制 -->
-                <div class="form-group">
-                    <label for="concurrent_limit">并发处理数量</label>
-                    <input type="number" name="concurrent_limit" id="concurrent_limit" value="{{ config.concurrent_limit }}" min="1" max="20" inputmode="numeric" required>
-                    <div class="hint">每次批量处理的最大任务数（默认5个）</div>
-                </div>
-
-                <!-- 单个超时 -->
-                <div class="form-group">
-                    <label for="timeout_per_magnet">单个磁力超时（秒）</label>
-                    <input type="number" name="timeout_per_magnet" id="timeout_per_magnet" value="{{ config.timeout_per_magnet }}" min="10" max="120" inputmode="numeric" required>
-                    <div class="hint">单个磁力链接的校准超时时间（默认30秒）</div>
-                </div>
-
-                <!-- 批量超时 -->
-                <div class="form-group">
-                    <label for="batch_timeout">批量处理总超时（秒）</label>
-                    <input type="number" name="batch_timeout" id="batch_timeout" value="{{ config.batch_timeout }}" min="60" max="1800" inputmode="numeric" required>
-                    <div class="hint">批量处理的总超时时间（默认300秒 = 5分钟）</div>
-                </div>
-
-                <div class="info-box">
-                    <p>💡 <strong>工作原理说明：</strong></p>
-                    <p>1. 笔记添加后，经过"首次延迟"时间进入校准队列</p>
-                    <p>2. 系统每60秒检查一次待处理任务，按"并发限制"批量处理</p>
-                    <p>3. 失败的任务按渐进式延迟重试，直到达到"最大重试次数"</p>
-                    <p>4. 超过最大重试次数的笔记会在开头添加 #* 标记</p>
-                </div>
-
-                <button type="submit" class="btn btn-primary">💾 保存配置</button>
-            </form>
-        </div>
+            </div>
+        </main>
     </div>
+
+    {# 移动端底部导航栏 #}
+    {% include "components/mobile_nav.html" %}
+
+    <script>
+        function adminApp() {
+            return {
+                sidebarOpen: window.innerWidth >= 1024,
+                showMobileSearch: false,
+                darkMode: localStorage.getItem('darkMode') === 'true',
+                searchQuery: '',
+
+                init() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    }
+                    
+                    window.addEventListener('resize', () => {
+                        if (window.innerWidth >= 1024) {
+                            this.sidebarOpen = true;
+                        } else {
+                            this.sidebarOpen = false;
+                        }
+                    });
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+                
+                debounceSearch() {
+                    // 空函数
+                }
+            }
+        }
+    </script>
 </body>
 </html>

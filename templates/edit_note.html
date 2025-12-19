@@ -2,316 +2,361 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>编辑笔记 - Telegram 笔记</title>
+
+    <!-- 预连接CDN加速 -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+    <!-- Tailwind CSS CDN (锁定版本) -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+
+    <!-- Alpine.js for interactivity (锁定版本) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        [x-cloak] { display: none !important; }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        /* 暗色模式滚动条 */
+        .dark ::-webkit-scrollbar-track {
+            background: #1f2937;
         }
-
-        .container {
-            max-width: 800px;
-            width: 100%;
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
         }
-
-        .edit-card {
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-        }
-
-        .edit-header {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-
-        .edit-header h1 {
-            color: #333;
-            font-size: 28px;
-        }
-
-        .edit-icon {
-            font-size: 36px;
-        }
-
-        .form-group {
-            margin-bottom: 25px;
-        }
-
-        .form-group label {
-            display: block;
-            font-weight: 600;
-            color: #555;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-
-        .form-group textarea {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            font-size: 15px;
-            font-family: inherit;
-            resize: vertical;
-            min-height: 200px;
-            transition: border-color 0.3s;
-        }
-
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .note-info {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 25px;
-        }
-
-        .note-info-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #666;
-            font-size: 13px;
-            margin-bottom: 8px;
-        }
-
-        .note-info-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .note-info-label {
-            font-weight: 600;
-        }
-
-        .media-preview {
-            margin-bottom: 25px;
-            text-align: center;
-        }
-
-        .media-grid {
-            display: grid;
-            gap: 10px;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        }
-
-        .media-grid img,
-        .media-preview img {
-            width: 100%;
-            max-height: 300px;
-            border-radius: 10px;
-            object-fit: cover;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .media-badge {
-            display: inline-block;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            margin-top: 10px;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 15px;
-            margin-top: 30px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            min-height: 48px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #555;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        .flash-messages {
-            margin-bottom: 20px;
-        }
-
-        .flash-message {
-            padding: 15px 20px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-
-        .flash-success {
-            background: #d4edda;
-            color: #155724;
-            border-left: 4px solid #28a745;
-        }
-
-        .flash-error {
-            background: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid #dc3545;
-        }
-
-        @media (max-width: 600px) {
-            .edit-card {
-                padding: 25px;
-            }
-
-            .button-group {
-                flex-direction: column;
-            }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
     </style>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="container">
-        <div class="edit-card">
-            <div class="edit-header">
-                <span class="edit-icon">✏️</span>
-                <h1>编辑笔记</h1>
-            </div>
+<body class="bg-gray-50 dark:bg-gray-900" x-data="editApp()" x-init="init()">
 
-            {% with messages = get_flashed_messages() %}
-                {% if messages %}
-                    <div class="flash-messages">
-                        {% for message in messages %}
-                            <div class="flash-message flash-error">{{ message }}</div>
-                        {% endfor %}
+    {# 顶部导航栏 #}
+    {% include "components/topbar.html" %}
+
+    <!-- 主容器 -->
+    <div class="flex pt-16 pb-16 lg:pb-0">
+        {# 侧边栏 #}
+        {% include "components/sidebar.html" %}
+
+        <!-- 遮罩层 (移动端) -->
+        <div
+            x-show="sidebarOpen && window.innerWidth < 1024"
+            @click="sidebarOpen = false"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden mt-16"
+        ></div>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 overflow-y-auto h-[calc(100vh-4rem)]">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                
+                <!-- 头部区域 -->
+                <div class="mb-8 flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <svg class="w-8 h-8 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                            </svg>
+                            编辑笔记
+                        </h1>
                     </div>
-                {% endif %}
-            {% endwith %}
-
-            <div class="note-info">
-                <div class="note-info-item">
-                    <span>📡</span>
-                    <span class="note-info-label">来源：</span>
-                    <span>{{ note.source_name or note.source_chat_id }}</span>
-                </div>
-                <div class="note-info-item">
-                    <span>🕒</span>
-                    <span class="note-info-label">时间：</span>
-                    <span>{{ note.timestamp }}</span>
-                </div>
-                {% if note.media_type %}
-                <div class="note-info-item">
-                    <span>{% if note.media_type == 'photo' %}📷{% elif note.media_type == 'video' %}📹{% elif note.media_type == 'animation' %}🎞️{% else %}📄{% endif %}</span>
-                    <span class="note-info-label">媒体类型：</span>
-                    <span>{% if note.media_type == 'photo' %}图片{% elif note.media_type == 'video' %}视频{% elif note.media_type == 'animation' %}GIF动图{% else %}{{ note.media_type }}{% endif %}</span>
-                </div>
-                {% endif %}
-                {% if note.media_paths and note.media_paths|length > 1 %}
-                <div class="note-info-item">
-                    <span>🖼️</span>
-                    <span class="note-info-label">图片数量：</span>
-                    <span>{{ note.media_paths|length }} 张</span>
-                </div>
-                {% endif %}
-            </div>
-
-            {% if note.media_paths and note.media_paths|length > 0 %}
-            <div class="media-preview">
-                <div class="media-grid">
-                    {% for media_path in note.media_paths %}
-                    <img src="/media/{{ media_path | urlencode }}" alt="Media preview" loading="lazy" decoding="async">
-                    {% endfor %}
-                </div>
-                {% if note.media_type == 'video' %}
-                <div class="media-badge">📹 视频缩略图</div>
-                {% elif note.media_type == 'animation' %}
-                <div class="media-badge">🎬 GIF动图缩略图</div>
-                {% endif %}
-            </div>
-            {% elif note.media_path %}
-            <div class="media-preview">
-                <img src="/media/{{ note.media_path | urlencode }}" alt="Media preview" loading="lazy" decoding="async">
-                {% if note.media_type == 'video' %}
-                <div class="media-badge">📹 视频缩略图</div>
-                {% elif note.media_type == 'animation' %}
-                <div class="media-badge">🎬 GIF动图缩略图</div>
-                {% endif %}
-            </div>
-            {% elif note.media_type == 'video' %}
-            <div class="media-preview">
-                <div style="width: 200px; height: 200px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);">
-                    <span style="font-size: 80px;">🎬</span>
-                </div>
-                <div class="media-badge">📹 视频（无缩略图）</div>
-            </div>
-            {% elif note.media_type == 'animation' %}
-            <div class="media-preview">
-                <div style="width: 200px; height: 200px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);">
-                    <span style="font-size: 80px;">🎞️</span>
-                </div>
-                <div class="media-badge">🎬 GIF动图（无缩略图）</div>
-            </div>
-            {% endif %}
-
-            <form method="POST" action="/edit_note/{{ note.id }}">
-                <input type="hidden" name="return_url" value="{{ return_url }}">
-                <div class="form-group">
-                    <label for="message_text">📝 笔记内容</label>
-                    <textarea id="message_text" name="message_text" placeholder="输入笔记内容..." autocapitalize="sentences" inputmode="text">{{ note.message_text or '' }}</textarea>
-                </div>
-
-                <div class="button-group">
-                    <button type="submit" class="btn btn-primary">
-                        <span>💾</span>保存修改
-                    </button>
-                    <a href="{{ return_url }}" class="btn btn-secondary">
-                        <span>↩️</span>返回列表
+                    
+                    <a href="{{ return_url }}" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                        返回
                     </a>
                 </div>
-            </form>
-        </div>
+
+                <!-- 消息提示 -->
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        <div class="mb-6 space-y-3">
+                            {% for message in messages %}
+                                <div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+                                    <svg class="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span class="text-sm text-red-800 dark:text-red-200">{{ message }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                <div class="grid lg:grid-cols-3 gap-6">
+                    <!-- 左侧：主要编辑区 -->
+                    <div class="lg:col-span-2 space-y-6">
+                        <!-- 媒体预览 -->
+                        {% if note.media_paths and note.media_paths|length > 0 %}
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">媒体内容</h3>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {% for media_path in note.media_paths %}
+                                <div class="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                    <img src="/media/{{ media_path | urlencode }}" alt="Media preview" loading="lazy" class="w-full h-full object-cover">
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% if note.media_type == 'video' %}
+                            <div class="mt-2 inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 text-xs font-medium">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                包含视频
+                            </div>
+                            {% elif note.media_type == 'animation' %}
+                            <div class="mt-2 inline-flex items-center px-2 py-1 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 text-xs font-medium">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path>
+                                </svg>
+                                包含动图
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% elif note.media_path %}
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">媒体内容</h3>
+                            <div class="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                <img src="/media/{{ note.media_path | urlencode }}" alt="Media preview" loading="lazy" class="w-full h-full object-contain">
+                                {% if note.media_type == 'video' or note.media_type == 'animation' %}
+                                <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                                    <svg class="w-12 h-12 text-white opacity-80" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z"></path>
+                                    </svg>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% elif note.media_type == 'video' or note.media_type == 'animation' %}
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
+                            <div class="text-gray-300 dark:text-gray-600 mb-3 flex justify-center">
+                                {% if note.media_type == 'video' %}
+                                <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                {% else %}
+                                <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path>
+                                </svg>
+                                {% endif %}
+                            </div>
+                            <p class="text-gray-500 dark:text-gray-400">
+                                {% if note.media_type == 'video' %}视频文件（无预览）{% else %}GIF动图（无预览）{% endif %}
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        <!-- 编辑表单 -->
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                            <div class="p-6">
+                                <form method="POST" action="/edit_note/{{ note.id }}">
+                                    <input type="hidden" name="return_url" value="{{ return_url }}">
+                                    
+                                    <div class="form-group">
+                                        <label for="message_text" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">笔记内容</label>
+                                        <textarea 
+                                            id="message_text" 
+                                            name="message_text" 
+                                            rows="12"
+                                            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors font-sans leading-relaxed resize-y"
+                                            placeholder="输入笔记内容..."
+                                        >{{ note.message_text or '' }}</textarea>
+                                    </div>
+
+                                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                                        <button type="submit" class="flex-1 px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-medium rounded-xl shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                                            </svg>
+                                            保存修改
+                                        </button>
+                                        <a href="{{ return_url }}" class="flex-1 px-6 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                            取消
+                                        </a>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：信息栏 -->
+                    <div class="lg:col-span-1">
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden sticky top-24">
+                            <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                                <h2 class="font-semibold text-gray-900 dark:text-white">笔记信息</h2>
+                            </div>
+                            <div class="p-4 space-y-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 flex-shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">来源</div>
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[180px]" title="{{ note.source_name or note.source_chat_id }}">
+                                            {{ note.source_name or note.source_chat_id }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400 flex-shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">时间</div>
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                            {{ note.timestamp }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {% if note.media_type %}
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 flex-shrink-0">
+                                        {% if note.media_type == 'photo' %}
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                        </svg>
+                                        {% elif note.media_type == 'video' %}
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                        </svg>
+                                        {% elif note.media_type == 'animation' %}
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path>
+                                        </svg>
+                                        {% else %}
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">类型</div>
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                            {% if note.media_type == 'photo' %}图片{% elif note.media_type == 'video' %}视频{% elif note.media_type == 'animation' %}GIF动图{% else %}{{ note.media_type }}{% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if note.media_paths and note.media_paths|length > 1 %}
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 flex-shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">数量</div>
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                            {{ note.media_paths|length }} 张图片
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
+
+    {# 移动端底部导航栏 #}
+    {% include "components/mobile_nav.html" %}
+
     <script>
+        function editApp() {
+            return {
+                sidebarOpen: window.innerWidth >= 1024,
+                showMobileSearch: false,
+                darkMode: localStorage.getItem('darkMode') === 'true',
+                searchQuery: '',
+
+                init() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    }
+                    
+                    window.addEventListener('resize', () => {
+                        if (window.innerWidth >= 1024) {
+                            this.sidebarOpen = true;
+                        } else {
+                            this.sidebarOpen = false;
+                        }
+                    });
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+                
+                debounceSearch() {
+                    // 空函数
+                }
+            }
+        }
+
         // Virtual Viewport API for keyboard handling
         if (window.visualViewport) {
             const textarea = document.getElementById('message_text');

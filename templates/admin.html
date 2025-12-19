@@ -2,254 +2,362 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理员面板 - Telegram 笔记</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>系统仪表盘 - Telegram 笔记</title>
+
+    <!-- 预连接CDN加速 -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+    <!-- Tailwind CSS CDN (锁定版本) -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+
+    <!-- Alpine.js for interactivity (锁定版本) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        [x-cloak] { display: none !important; }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        /* 暗色模式滚动条 */
+        .dark ::-webkit-scrollbar-track {
+            background: #1f2937;
         }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
         }
-
-        .header {
-            background: white;
-            border-radius: 15px;
-            padding: 25px 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .header-title h1 {
-            color: #333;
-            font-size: 28px;
-        }
-
-        .header-icon {
-            font-size: 40px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #555;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        .card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .card h2 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 22px;
-        }
-
-        .card p {
-            color: #666;
-            margin-bottom: 25px;
-            font-size: 14px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            color: #555;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        input[type="password"] {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-
-        input[type="password"]:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 30px;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .success-message {
-            background: #d4edda;
-            color: #155724;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            border: 1px solid #c3e6cb;
-        }
-
-        .error-message {
-            background: #fee;
-            color: #c33;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            border: 1px solid #fcc;
-        }
-
-        .info-box {
-            background: #e7f3ff;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 25px;
-        }
-
-        .info-box p {
-            color: #333;
-            margin: 0;
-            font-size: 14px;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-
-            .card {
-                padding: 25px;
-            }
-
-            .btn-primary {
-                min-height: 48px;
-                padding: 14px 30px;
-            }
-
-            input[type="password"] {
-                min-height: 48px;
-            }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
     </style>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-title">
-                <span class="header-icon">⚙️</span>
-                <h1>管理员面板</h1>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <a href="/admin/calibration" class="btn btn-secondary">🔧 自动校准</a>
-                <a href="/admin/webdav" class="btn btn-secondary">☁️ WebDAV 存储</a>
-                <a href="/admin/viewer" class="btn btn-secondary">🎬 观看设置</a>
-                <a href="/notes" class="btn btn-secondary">← 返回笔记</a>
-            </div>
-        </div>
+<body class="bg-gray-50 dark:bg-gray-900" x-data="adminApp()" x-init="init()">
 
-        <div class="card">
-            <h2>修改密码</h2>
-            <p>建议定期更换密码以确保账户安全</p>
+    {# 顶部导航栏 #}
+    {% include "components/topbar.html" %}
 
-            {% if success %}
-            <div class="success-message">
-                ✓ {{ success }}
-            </div>
-            {% endif %}
+    <!-- 主容器 -->
+    <div class="flex pt-16 pb-16 lg:pb-0">
+        {# 侧边栏 #}
+        {% include "components/sidebar.html" %}
 
-            {% if error %}
-            <div class="error-message">
-                ✗ {{ error }}
-            </div>
-            {% endif %}
+        <!-- 遮罩层 (移动端) -->
+        <div
+            x-show="sidebarOpen && window.innerWidth < 1024"
+            @click="sidebarOpen = false"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden mt-16"
+        ></div>
 
-            <div class="info-box">
-                <p>💡 密码长度至少为 6 个字符</p>
-            </div>
-
-            <form method="POST" action="/admin" onsubmit="validatePasswordForm(event)">
-                <div class="form-group">
-                    <label for="current_password">当前密码</label>
-                    <input type="password" id="current_password" name="current_password" autocomplete="current-password" required>
+        <!-- 主内容区 -->
+        <main class="flex-1 overflow-y-auto h-[calc(100vh-4rem)]">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                
+                <!-- 头部区域 -->
+                <div class="mb-8">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <div class="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg text-primary-600 dark:text-primary-400">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                            </svg>
+                        </div>
+                        系统仪表盘
+                    </h1>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">系统状态概览与核心功能管理</p>
                 </div>
 
-                <div class="form-group">
-                    <label for="new_password">新密码</label>
-                    <input type="password" id="new_password" name="new_password" autocomplete="new-password" required minlength="6">
+                <!-- 概览卡片 -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- 笔记总数 -->
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg transform hover:scale-[1.02] transition-transform">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-blue-100 text-sm font-medium">笔记总数</p>
+                                <h3 class="text-3xl font-bold mt-1">{{ total_count }}</h3>
+                            </div>
+                            <div class="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-xs text-blue-100 flex items-center">
+                            <span class="bg-white/20 px-1.5 py-0.5 rounded mr-2">实时</span>
+                            <span>所有已保存内容</span>
+                        </div>
+                    </div>
+
+                    <!-- 来源统计 -->
+                    <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg transform hover:scale-[1.02] transition-transform">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-purple-100 text-sm font-medium">来源频道</p>
+                                <h3 class="text-3xl font-bold mt-1">{{ total_sources }}</h3>
+                            </div>
+                            <div class="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-xs text-purple-100 flex items-center">
+                            <span class="bg-white/20 px-1.5 py-0.5 rounded mr-2">活跃</span>
+                            <span>监控中的频道/群组</span>
+                        </div>
+                    </div>
+
+                    <!-- 校准状态 -->
+                    <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg transform hover:scale-[1.02] transition-transform">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-emerald-100 text-sm font-medium">待校准任务</p>
+                                <h3 class="text-3xl font-bold mt-1">{{ calib_stats.ready_to_process if calib_stats else 0 }}</h3>
+                            </div>
+                            <div class="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-xs text-emerald-100 flex items-center">
+                            <span class="bg-white/20 px-1.5 py-0.5 rounded mr-2">队列</span>
+                            <span>等待处理中</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 功能导航区 -->
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    快速访问
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- 自动校准 -->
+                    <a href="/admin/calibration" class="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-primary-500 dark:hover:border-primary-500 transition-all">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
+                                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">自动校准</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">配置磁力链接修复规则</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-500 mt-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                            <span>已完成: {{ calib_stats.by_status.success if calib_stats and calib_stats.by_status else 0 }}</span>
+                            <span class="text-primary-500 group-hover:translate-x-1 transition-transform">前往配置 →</span>
+                        </div>
+                    </a>
+
+                    <!-- WebDAV -->
+                    <a href="/admin/webdav" class="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-purple-500 dark:hover:border-purple-500 transition-all">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 bg-purple-50 dark:bg-purple-900/30 rounded-xl flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
+                                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">WebDAV 存储</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">连接外部云存储服务</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-500 mt-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                            <span>扩展存储空间</span>
+                            <span class="text-purple-500 group-hover:translate-x-1 transition-transform">前往配置 →</span>
+                        </div>
+                    </a>
+
+                    <!-- 观看设置 -->
+                    <a href="/admin/viewer" class="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-orange-500 dark:hover:border-orange-500 transition-all">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 bg-orange-50 dark:bg-orange-900/30 rounded-xl flex items-center justify-center text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform">
+                                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">观看设置</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">在线播放器链接生成</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-500 mt-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                            <span>一键跳转播放</span>
+                            <span class="text-orange-500 group-hover:translate-x-1 transition-transform">前往配置 →</span>
+                        </div>
+                    </a>
                 </div>
 
-                <div class="form-group">
-                    <label for="confirm_password">确认新密码</label>
-                    <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required minlength="6">
+                <!-- 账户安全 -->
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    账户安全
+                </h2>
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">修改管理员密码</h2>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">建议定期更换密码以确保账户安全</p>
+                            </div>
+                            <div class="hidden sm:block text-gray-200 dark:text-gray-700">
+                                <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-6">
+                        {% if success %}
+                        <div class="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-3">
+                            <svg class="w-5 h-5 text-green-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <span class="text-sm text-green-800 dark:text-green-200">{{ success }}</span>
+                        </div>
+                        {% endif %}
+
+                        {% if error %}
+                        <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+                            <svg class="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                            <span class="text-sm text-red-800 dark:text-red-200">{{ error }}</span>
+                        </div>
+                        {% endif %}
+
+                        <form method="POST" action="/admin" @submit="validateForm" class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                            <div class="md:col-span-4">
+                                <label for="current_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">当前密码</label>
+                                <input type="password" id="current_password" name="current_password" autocomplete="current-password" required
+                                    class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                            </div>
+
+                            <div class="md:col-span-4">
+                                <label for="new_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">新密码</label>
+                                <input type="password" id="new_password" name="new_password" autocomplete="new-password" required minlength="6" x-model="newPassword"
+                                    class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                <p class="mt-1 text-xs text-gray-500">至少 6 个字符</p>
+                            </div>
+
+                            <div class="md:col-span-4">
+                                <label for="confirm_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">确认新密码</label>
+                                <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required minlength="6" x-model="confirmPassword"
+                                    class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                <p x-show="newPassword !== confirmPassword && confirmPassword.length > 0" class="mt-1 text-xs text-red-500" x-transition>密码不一致</p>
+                            </div>
+
+                            <div class="md:col-span-12 flex justify-end mt-2">
+                                <button type="submit" class="w-full sm:w-auto px-6 py-2.5 bg-gray-900 dark:bg-gray-600 hover:bg-gray-800 dark:hover:bg-gray-500 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
+                                    更新密码
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
+            </div>
+        </main>
+    </div>
 
-                <button type="submit" class="btn btn-primary">更新密码</button>
-            </form>
-            <script>
-                function validatePasswordForm(e) {
-                    const newPassword = document.getElementById('new_password').value;
-                    const confirmPassword = document.getElementById('confirm_password').value;
+    {# 移动端底部导航栏 #}
+    {% include "components/mobile_nav.html" %}
 
-                    if (newPassword !== confirmPassword) {
+    <script>
+        function adminApp() {
+            return {
+                sidebarOpen: window.innerWidth >= 1024,
+                showMobileSearch: false,
+                darkMode: localStorage.getItem('darkMode') === 'true',
+                searchQuery: '',
+                newPassword: '',
+                confirmPassword: '',
+
+                init() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    }
+                    
+                    window.addEventListener('resize', () => {
+                        if (window.innerWidth >= 1024) {
+                            this.sidebarOpen = true;
+                        } else {
+                            this.sidebarOpen = false;
+                        }
+                    });
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+                
+                debounceSearch() {
+                    // console.log('Search:', this.searchQuery);
+                },
+
+                validateForm(e) {
+                    if (this.newPassword !== this.confirmPassword) {
                         e.preventDefault();
                         alert('新密码和确认密码不一致，请重新输入');
                         return false;
                     }
                 }
-            </script>
-        </div>
-    </div>
+            }
+        }
+    </script>
 </body>
 </html>

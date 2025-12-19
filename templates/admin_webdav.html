@@ -2,357 +2,313 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WebDAV 存储配置 - Telegram 笔记</title>
+
+    <!-- 预连接CDN加速 -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+    <!-- Tailwind CSS CDN (锁定版本) -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+
+    <!-- Alpine.js for interactivity (锁定版本) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        [x-cloak] { display: none !important; }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        /* 暗色模式滚动条 */
+        .dark ::-webkit-scrollbar-track {
+            background: #1f2937;
         }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
         }
-
-        .header {
-            background: white;
-            border-radius: 15px;
-            padding: 25px 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .header-title h1 {
-            color: #333;
-            font-size: 28px;
-        }
-
-        .header-icon {
-            font-size: 36px;
-        }
-
-        .nav-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            text-decoration: none;
-            display: inline-block;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-        }
-
-        .card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-        }
-
-        .card-title {
-            font-size: 22px;
-            color: #333;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-
-        .form-group {
-            margin-bottom: 25px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
-            font-size: 14px;
-        }
-
-        .form-group input[type="text"],
-        .form-group input[type="password"],
-        .form-group input[type="url"] {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s ease;
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .form-group small {
-            display: block;
-            margin-top: 5px;
-            color: #888;
-            font-size: 12px;
-        }
-
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .checkbox-group input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-        }
-
-        .checkbox-group label {
-            margin: 0;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        .alert {
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .info-box {
-            background: #e7f3ff;
-            border-left: 4px solid #2196F3;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-        }
-
-        .info-box h4 {
-            color: #1976D2;
-            margin-bottom: 10px;
-        }
-
-        .info-box ul {
-            margin-left: 20px;
-            color: #555;
-        }
-
-        .info-box li {
-            margin-bottom: 5px;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-left: 10px;
-        }
-
-        .status-enabled {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-disabled {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        @media (max-width: 768px) {
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .nav-buttons {
-                width: 100%;
-            }
-
-            .btn {
-                flex: 1;
-                text-align: center;
-            }
-
-            .form-group input[type="text"],
-            .form-group input[type="password"],
-            .form-group input[type="url"] {
-                min-height: 48px;
-            }
-
-            .btn-primary {
-                min-height: 48px;
-            }
-
-            .card {
-                padding: 20px;
-            }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
     </style>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-title">
-                <span class="header-icon">☁️</span>
-                <div>
-                    <h1>WebDAV 存储配置</h1>
-                    {% if config.enabled %}
-                    <span class="status-badge status-enabled">✓ 已启用</span>
-                    {% else %}
-                    <span class="status-badge status-disabled">✗ 未启用</span>
-                    {% endif %}
+<body class="bg-gray-50 dark:bg-gray-900" x-data="adminApp()" x-init="init()">
+
+    {# 顶部导航栏 #}
+    {% include "components/topbar.html" %}
+
+    <!-- 主容器 -->
+    <div class="flex pt-16 pb-16 lg:pb-0">
+        {# 侧边栏 #}
+        {% include "components/sidebar.html" %}
+
+        <!-- 遮罩层 (移动端) -->
+        <div
+            x-show="sidebarOpen && window.innerWidth < 1024"
+            @click="sidebarOpen = false"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden mt-16"
+        ></div>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 overflow-y-auto h-[calc(100vh-4rem)]">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                
+                <!-- 头部区域 -->
+                <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <svg class="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                            </svg>
+                            WebDAV 存储配置
+                        </h1>
+                        <div class="mt-1 flex items-center gap-2">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">配置外部云存储服务</p>
+                            {% if config.enabled %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                已启用
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                                未启用
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-2">
+                        <a href="/notes" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                            </svg>
+                            笔记列表
+                        </a>
+                        <a href="/admin" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                            </svg>
+                            返回管理
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 消息提示 -->
+                {% if success %}
+                <div class="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-3">
+                    <svg class="w-5 h-5 text-green-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span class="text-sm text-green-800 dark:text-green-200">{{ success }}</span>
+                </div>
+                {% endif %}
+
+                {% if error %}
+                <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+                    <svg class="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                    <span class="text-sm text-red-800 dark:text-red-200">{{ error }}</span>
+                </div>
+                {% endif %}
+
+                <!-- 说明信息 -->
+                <div class="mb-6 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 p-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                        </svg>
+                        <div class="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                            <p class="font-medium">关于 WebDAV 存储</p>
+                            <ul class="list-disc list-inside opacity-90 space-y-0.5">
+                                <li><strong>解决存储空间问题：</strong>将媒体文件上传到 WebDAV 服务器，释放本地存储空间</li>
+                                <li><strong>支持的服务：</strong>坚果云、Nextcloud、Synology NAS、ownCloud 等</li>
+                                <li><strong>自动降级：</strong>如果 WebDAV 不可用，自动降级到本地存储</li>
+                                <li><strong>可选本地备份：</strong>可以选择在上传到 WebDAV 后保留本地副本</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 配置表单 -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
+                    <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">WebDAV 服务器配置</h2>
+                    </div>
+
+                    <div class="p-6">
+                        <form method="POST" class="space-y-6">
+                            
+                            <!-- 启用开关 -->
+                            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700">
+                                <div>
+                                    <label for="enabled" class="block text-sm font-medium text-gray-900 dark:text-white">启用 WebDAV 存储</label>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="enabled" name="enabled" class="sr-only peer" {% if config.enabled %}checked{% endif %}>
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"></div>
+                                </label>
+                            </div>
+
+                            <div>
+                                <label for="url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">WebDAV 服务器地址 <span class="text-red-500">*</span></label>
+                                <input type="url" id="url" name="url" value="{{ config.url }}" placeholder="https://dav.jianguoyun.com/dav/" inputmode="url" autocomplete="url" autocapitalize="none" required
+                                    class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">例如：https://dav.jianguoyun.com/dav/ (坚果云)</p>
+                            </div>
+
+                            <div>
+                                <label for="webdav_username" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">用户名 <span class="text-red-500">*</span></label>
+                                <input type="text" id="webdav_username" name="webdav_username" value="{{ config.username }}" placeholder="your@email.com" inputmode="email" autocomplete="username" autocapitalize="none" required
+                                    class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                            </div>
+
+                            <div>
+                                <label for="webdav_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">密码 <span class="text-red-500">*</span></label>
+                                <input type="password" id="webdav_password" name="webdav_password" value="{{ config.password }}" placeholder="••••••••" autocomplete="current-password" required
+                                    class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">WebDAV 服务的密码或应用专用密码</p>
+                            </div>
+
+                            <div>
+                                <label for="base_path" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">基础路径</label>
+                                <input type="text" id="base_path" name="base_path" value="{{ config.base_path }}" placeholder="/telegram_media" autocapitalize="none"
+                                    class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">文件将存储在此路径下（默认：/telegram_media）</p>
+                            </div>
+
+                            <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
+                                <input type="checkbox" id="keep_local_copy" name="keep_local_copy" class="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" {% if config.keep_local_copy %}checked{% endif %}>
+                                <div>
+                                    <label for="keep_local_copy" class="text-sm font-medium text-gray-900 dark:text-white">上传后保留本地副本</label>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">启用后，文件会同时保存在本地和 WebDAV 服务器上</p>
+                                </div>
+                            </div>
+
+                            <div class="pt-2">
+                                <button type="submit" class="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200">
+                                    💾 保存配置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 示例信息 -->
+                <div class="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800 p-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="w-5 h-5 text-yellow-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="text-sm text-yellow-800 dark:text-yellow-200 space-y-2">
+                            <p class="font-medium">常见 WebDAV 服务配置示例</p>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div class="bg-white/50 dark:bg-black/20 p-3 rounded">
+                                    <p class="font-semibold mb-1">坚果云</p>
+                                    <p class="text-xs opacity-80">地址：https://dav.jianguoyun.com/dav/</p>
+                                    <p class="text-xs opacity-80">用户名：你的邮箱</p>
+                                    <p class="text-xs opacity-80">密码：应用密码（在坚果云账户安全中生成）</p>
+                                </div>
+                                <div class="bg-white/50 dark:bg-black/20 p-3 rounded">
+                                    <p class="font-semibold mb-1">Nextcloud</p>
+                                    <p class="text-xs opacity-80">地址：https://your-domain.com/remote.php/dav/files/username/</p>
+                                    <p class="text-xs opacity-80">用户名：你的用户名</p>
+                                    <p class="text-xs opacity-80">密码：你的密码或应用密码</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="nav-buttons">
-                <a href="{{ url_for('notes') }}" class="btn btn-primary">📝 笔记列表</a>
-                <a href="{{ url_for('admin') }}" class="btn btn-secondary">⚙️ 管理面板</a>
-                <a href="{{ url_for('logout') }}" class="btn btn-secondary">🚪 退出登录</a>
-            </div>
-        </div>
-
-        {% if success %}
-        <div class="alert alert-success">
-            ✓ {{ success }}
-        </div>
-        {% endif %}
-
-        {% if error %}
-        <div class="alert alert-error">
-            ✗ {{ error }}
-        </div>
-        {% endif %}
-
-        <div class="info-box">
-            <h4>💡 关于 WebDAV 存储</h4>
-            <ul>
-                <li><strong>解决存储空间问题：</strong>将媒体文件上传到 WebDAV 服务器，释放本地存储空间</li>
-                <li><strong>支持的服务：</strong>坚果云、Nextcloud、Synology NAS、ownCloud 等</li>
-                <li><strong>自动降级：</strong>如果 WebDAV 不可用，自动降级到本地存储</li>
-                <li><strong>可选本地备份：</strong>可以选择在上传到 WebDAV 后保留本地副本</li>
-            </ul>
-        </div>
-
-        <div class="card">
-            <h2 class="card-title">WebDAV 服务器配置</h2>
-
-            <form method="POST">
-                <div class="checkbox-group">
-                    <input type="checkbox" id="enabled" name="enabled" {% if config.enabled %}checked{% endif %}>
-                    <label for="enabled">启用 WebDAV 存储</label>
-                </div>
-
-                <div class="form-group">
-                    <label for="url">WebDAV 服务器地址 *</label>
-                    <input type="url" id="url" name="url" value="{{ config.url }}" placeholder="https://dav.jianguoyun.com/dav/" inputmode="url" autocomplete="url" autocapitalize="none" required>
-                    <small>例如：https://dav.jianguoyun.com/dav/ (坚果云)</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="webdav_username">用户名 *</label>
-                    <input type="text" id="webdav_username" name="webdav_username" value="{{ config.username }}" placeholder="your@email.com" inputmode="email" autocomplete="username" autocapitalize="none" required>
-                    <small>WebDAV 服务的登录用户名或邮箱</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="webdav_password">密码 *</label>
-                    <input type="password" id="webdav_password" name="webdav_password" value="{{ config.password }}" placeholder="••••••••" autocomplete="current-password" required>
-                    <small>WebDAV 服务的密码或应用专用密码</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="base_path">基础路径</label>
-                    <input type="text" id="base_path" name="base_path" value="{{ config.base_path }}" placeholder="/telegram_media" autocapitalize="none">
-                    <small>文件将存储在此路径下（默认：/telegram_media）</small>
-                </div>
-
-                <div class="checkbox-group">
-                    <input type="checkbox" id="keep_local_copy" name="keep_local_copy" {% if config.keep_local_copy %}checked{% endif %}>
-                    <label for="keep_local_copy">上传后保留本地副本</label>
-                </div>
-                <small style="margin-left: 30px; display: block; margin-bottom: 20px; color: #888;">
-                    启用后，文件会同时保存在本地和 WebDAV 服务器上
-                </small>
-
-                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 16px;">
-                    💾 保存配置
-                </button>
-            </form>
-        </div>
-
-        <div class="info-box" style="background: #fff3cd; border-left-color: #ffc107;">
-            <h4>⚠️ 常见 WebDAV 服务配置示例</h4>
-            <ul>
-                <li><strong>坚果云：</strong>
-                    <br>地址：https://dav.jianguoyun.com/dav/
-                    <br>用户名：你的邮箱
-                    <br>密码：应用密码（在坚果云账户安全中生成）
-                </li>
-                <li><strong>Nextcloud：</strong>
-                    <br>地址：https://your-domain.com/remote.php/dav/files/username/
-                    <br>用户名：你的用户名
-                    <br>密码：你的密码或应用密码
-                </li>
-            </ul>
-        </div>
+        </main>
     </div>
+
+    {# 移动端底部导航栏 #}
+    {% include "components/mobile_nav.html" %}
+
+    <script>
+        function adminApp() {
+            return {
+                sidebarOpen: window.innerWidth >= 1024,
+                showMobileSearch: false,
+                darkMode: localStorage.getItem('darkMode') === 'true',
+                searchQuery: '',
+
+                init() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    }
+                    
+                    window.addEventListener('resize', () => {
+                        if (window.innerWidth >= 1024) {
+                            this.sidebarOpen = true;
+                        } else {
+                            this.sidebarOpen = false;
+                        }
+                    });
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+                
+                debounceSearch() {
+                    // 空函数
+                }
+            }
+        }
+    </script>
 </body>
 </html>

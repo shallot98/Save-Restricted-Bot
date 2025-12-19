@@ -1,0 +1,88 @@
+{# 模态框组件集合 #}
+{# 包含: 图片预览、图片画廊、观看选项、编辑笔记 #}
+
+{# 图片预览模态框 #}
+<div id="imageModal" class="fixed inset-0 bg-black bg-opacity-90 z-50 hidden items-center justify-center p-4 transition-opacity duration-300" onclick="closeImageModal()">
+    <button class="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors focus:outline-none" onclick="closeImageModal()">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+    </button>
+    <img id="modalImage" class="max-w-full max-h-full object-contain transition-transform duration-300 cursor-zoom-in" onclick="toggleImageZoom('modalImage')">
+</div>
+
+{# 图片画廊模态框 #}
+<div id="galleryModal" class="fixed inset-0 bg-black bg-opacity-95 z-50 hidden items-center justify-center p-4 transition-opacity duration-300" onclick="closeGalleryModal()">
+    <button class="absolute top-4 right-4 text-white hover:text-gray-300 z-10 transition-colors focus:outline-none" onclick="closeGalleryModal()">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+    </button>
+
+    <!-- 主图片显示区 -->
+    <div class="relative w-full h-full flex items-center justify-center" onclick="event.stopPropagation()">
+        <img id="galleryImage" class="max-w-full max-h-full object-contain transition-all duration-300 cursor-zoom-in" onclick="toggleImageZoom('galleryImage')">
+
+        <!-- 左右切换按钮 -->
+        <button id="galleryPrev" onclick="changeGalleryImage(-1)" class="absolute left-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+        </button>
+        <button id="galleryNext" onclick="changeGalleryImage(1)" class="absolute right-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+        </button>
+
+        <!-- 图片计数器 -->
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black bg-opacity-60 text-white px-4 py-2 rounded-full text-sm">
+            <span id="galleryCounter">1 / 1</span>
+        </div>
+    </div>
+
+    <!-- 缩略图导航 -->
+    <div class="absolute bottom-20 left-0 right-0 flex justify-center gap-2 px-4 overflow-x-auto" onclick="event.stopPropagation()">
+        <div id="galleryThumbnails" class="flex gap-2">
+            <!-- 动态生成缩略图 -->
+        </div>
+    </div>
+</div>
+
+{# 观看选项模态框 #}
+<div id="watchModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4" onclick="closeWatchModal()">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">选择要观看的文件</h3>
+            <button onclick="closeWatchModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <div id="watchOptionsList" class="p-4 overflow-y-auto max-h-[60vh] space-y-2">
+            <!-- 动态生成的选项列表 -->
+        </div>
+    </div>
+</div>
+
+{# 编辑笔记模态框 #}
+<div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4" onclick="closeEditModal()">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">编辑笔记</h3>
+            <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <div class="p-4">
+            <textarea id="editTextarea" class="w-full h-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"></textarea>
+            <div class="flex justify-end gap-2 mt-4">
+                <button onclick="closeEditModal()" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition">取消</button>
+                <button onclick="saveNote()" class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition">保存</button>
+            </div>
+        </div>
+    </div>
+</div>

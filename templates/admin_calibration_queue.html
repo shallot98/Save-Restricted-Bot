@@ -2,424 +2,313 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>校准任务队列 - Telegram 笔记</title>
+
+    <!-- 预连接CDN加速 -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+    <!-- Tailwind CSS CDN (锁定版本) -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+
+    <!-- Alpine.js for interactivity (锁定版本) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        [x-cloak] { display: none !important; }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        /* 暗色模式滚动条 */
+        .dark ::-webkit-scrollbar-track {
+            background: #1f2937;
         }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
         }
-
-        .header {
-            background: white;
-            border-radius: 15px;
-            padding: 25px 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .header-title h1 {
-            color: #333;
-            font-size: 28px;
-        }
-
-        .header-icon {
-            font-size: 40px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #555;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        .btn-small {
-            padding: 5px 12px;
-            font-size: 12px;
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-        }
-
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #218838;
-        }
-
-        .card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .card h2 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 22px;
-        }
-
-        .stats-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-box {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 28px;
-            font-weight: 700;
-            color: #667eea;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            font-size: 13px;
-            color: #666;
-        }
-
-        .filter-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .filter-btn {
-            padding: 8px 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            background: white;
-            color: #666;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-        }
-
-        .filter-btn:hover {
-            border-color: #667eea;
-            color: #667eea;
-        }
-
-        .filter-btn.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-color: transparent;
-        }
-
-        .table-scroll-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            border-radius: 10px;
-            background: linear-gradient(to right, white 30%, rgba(255,255,255,0)),
-                        linear-gradient(to left, white 30%, rgba(255,255,255,0)) 100% 0,
-                        radial-gradient(farthest-side at 0% 50%, rgba(0,0,0,.2), rgba(0,0,0,0)),
-                        radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.2), rgba(0,0,0,0)) 100% 0;
-            background-repeat: no-repeat;
-            background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
-            background-attachment: local, local, scroll, scroll;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-            min-width: 800px;
-        }
-
-        thead {
-            background: #f8f9fa;
-        }
-
-        th {
-            padding: 12px 10px;
-            text-align: left;
-            color: #555;
-            font-weight: 600;
-            border-bottom: 2px solid #e0e0e0;
-        }
-
-        th:first-child {
-            position: sticky;
-            left: 0;
-            background: #f8f9fa;
-            z-index: 10;
-        }
-
-        td {
-            padding: 12px 10px;
-            border-bottom: 1px solid #f0f0f0;
-            color: #666;
-        }
-
-        td:first-child {
-            position: sticky;
-            left: 0;
-            background: white;
-            z-index: 5;
-        }
-
-        tbody tr:hover td:first-child {
-            background: #f8f9fa;
-        }
-
-        tbody tr:hover {
-            background: #f8f9fa;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .status-pending {
-            background: #ffc107;
-            color: #856404;
-        }
-
-        .status-retrying {
-            background: #17a2b8;
-            color: white;
-        }
-
-        .status-success {
-            background: #28a745;
-            color: white;
-        }
-
-        .status-failed {
-            background: #dc3545;
-            color: white;
-        }
-
-        .hash-short {
-            font-family: monospace;
-            background: #f0f0f0;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
-        }
-
-        .empty-state-icon {
-            font-size: 60px;
-            margin-bottom: 15px;
-        }
-
-        .actions {
-            display: flex;
-            gap: 5px;
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
     </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-title">
-                <span class="header-icon">📋</span>
-                <h1>校准任务队列</h1>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <a href="/admin/calibration" class="btn btn-secondary">⚙️ 配置设置</a>
-                <a href="/admin" class="btn btn-secondary">← 返回管理</a>
-            </div>
-        </div>
-
-        <!-- 统计信息 -->
-        <div class="card">
-            <h2>📊 任务统计</h2>
-            <div class="stats-container">
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.total }}</div>
-                    <div class="stat-label">总任务数</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.by_status.get('pending', 0) }}</div>
-                    <div class="stat-label">等待中</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.by_status.get('retrying', 0) }}</div>
-                    <div class="stat-label">重试中</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.by_status.get('success', 0) }}</div>
-                    <div class="stat-label">已成功</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.by_status.get('failed', 0) }}</div>
-                    <div class="stat-label">已失败</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-number">{{ stats.ready_to_process }}</div>
-                    <div class="stat-label">待处理</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 任务列表 -->
-        <div class="card">
-            <h2>🔍 任务列表</h2>
-
-            <!-- 过滤器 -->
-            <div class="filter-bar">
-                <a href="/admin/calibration/queue" class="filter-btn {% if not status_filter %}active{% endif %}">
-                    全部
-                </a>
-                <a href="/admin/calibration/queue?status=pending" class="filter-btn {% if status_filter == 'pending' %}active{% endif %}">
-                    等待中
-                </a>
-                <a href="/admin/calibration/queue?status=retrying" class="filter-btn {% if status_filter == 'retrying' %}active{% endif %}">
-                    重试中
-                </a>
-                <a href="/admin/calibration/queue?status=success" class="filter-btn {% if status_filter == 'success' %}active{% endif %}">
-                    已成功
-                </a>
-                <a href="/admin/calibration/queue?status=failed" class="filter-btn {% if status_filter == 'failed' %}active{% endif %}">
-                    已失败
-                </a>
-            </div>
-
-            {% if tasks %}
-            <div class="table-scroll-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>任务ID</th>
-                            <th>笔记ID</th>
-                            <th>磁力Hash</th>
-                            <th>状态</th>
-                            <th>重试次数</th>
-                            <th>下次尝试</th>
-                            <th>错误信息</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for task in tasks %}
-                        <tr>
-                            <td>{{ task.id }}</td>
-                            <td>
-                                <a href="/notes?search={{ task.note_id }}" style="color: #667eea; text-decoration: none;">
-                                    #{{ task.note_id }}
-                                </a>
-                            </td>
-                            <td>
-                                <span class="hash-short" title="{{ task.magnet_hash }}">
-                                    {{ task.magnet_hash[:12] }}...
-                                </span>
-                            </td>
-                            <td>
-                                {% if task.status == 'pending' %}
-                                <span class="status-badge status-pending">等待中</span>
-                                {% elif task.status == 'retrying' %}
-                                <span class="status-badge status-retrying">重试中</span>
-                                {% elif task.status == 'success' %}
-                                <span class="status-badge status-success">已成功</span>
-                                {% elif task.status == 'failed' %}
-                                <span class="status-badge status-failed">已失败</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ task.retry_count }}</td>
-                            <td style="font-size: 12px;">
-                                {{ task.next_attempt if task.next_attempt else '-' }}
-                            </td>
-                            <td style="font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ task.error_message }}">
-                                {{ task.error_message if task.error_message else '-' }}
-                            </td>
-                            <td>
-                                <div class="actions">
-                                    {% if task.status in ['pending', 'retrying', 'failed'] %}
-                                    <button class="btn btn-small btn-success" onclick="retryTask({{ task.id }})">
-                                        🔄 重试
-                                    </button>
-                                    {% endif %}
-                                    <button class="btn btn-small btn-danger" onclick="deleteTask({{ task.id }})">
-                                        🗑️ 删除
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <div class="empty-state-icon">📭</div>
-                <p>暂无任务</p>
-            </div>
-            {% endif %}
-        </div>
-    </div>
 
     <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900" x-data="adminApp()" x-init="init()">
+
+    {# 顶部导航栏 #}
+    {% include "components/topbar.html" %}
+
+    <!-- 主容器 -->
+    <div class="flex pt-16 pb-16 lg:pb-0">
+        {# 侧边栏 #}
+        {% include "components/sidebar.html" %}
+
+        <!-- 遮罩层 (移动端) -->
+        <div
+            x-show="sidebarOpen && window.innerWidth < 1024"
+            @click="sidebarOpen = false"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden mt-16"
+        ></div>
+
+        <!-- 主内容区 -->
+        <main class="flex-1 overflow-y-auto h-[calc(100vh-4rem)]">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                
+                <!-- 头部区域 -->
+                <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <svg class="w-8 h-8 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                            </svg>
+                            校准任务队列
+                        </h1>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">查看和管理自动校准任务</p>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-2">
+                        <a href="/admin/calibration" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                            配置设置
+                        </a>
+                        <a href="/admin" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                            </svg>
+                            返回管理
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-primary-600 dark:text-primary-400 mb-1">{{ stats.total }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">总任务数</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-yellow-500 dark:text-yellow-400 mb-1">{{ stats.by_status.get('pending', 0) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">等待中</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-blue-500 dark:text-blue-400 mb-1">{{ stats.by_status.get('retrying', 0) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">重试中</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-green-500 dark:text-green-400 mb-1">{{ stats.by_status.get('success', 0) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">已成功</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-red-500 dark:text-red-400 mb-1">{{ stats.by_status.get('failed', 0) }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">已失败</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-purple-500 dark:text-purple-400 mb-1">{{ stats.ready_to_process }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">待处理</div>
+                    </div>
+                </div>
+
+                <!-- 任务列表容器 -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">任务列表</h2>
+                        
+                        <!-- 过滤器 -->
+                        <div class="flex flex-wrap gap-2">
+                            <a href="/admin/calibration/queue" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {{ 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300' if not status_filter else 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600' }}">
+                                全部
+                            </a>
+                            <a href="/admin/calibration/queue?status=pending" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {{ 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' if status_filter == 'pending' else 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600' }}">
+                                等待中
+                            </a>
+                            <a href="/admin/calibration/queue?status=retrying" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {{ 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' if status_filter == 'retrying' else 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600' }}">
+                                重试中
+                            </a>
+                            <a href="/admin/calibration/queue?status=success" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {{ 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' if status_filter == 'success' else 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600' }}">
+                                已成功
+                            </a>
+                            <a href="/admin/calibration/queue?status=failed" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {{ 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' if status_filter == 'failed' else 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600' }}">
+                                已失败
+                            </a>
+                        </div>
+                    </div>
+
+                    {% if tasks %}
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-6 py-4 whitespace-nowrap">任务ID</th>
+                                    <th class="px-6 py-4 whitespace-nowrap">笔记ID</th>
+                                    <th class="px-6 py-4 whitespace-nowrap">磁力Hash</th>
+                                    <th class="px-6 py-4 whitespace-nowrap">状态</th>
+                                    <th class="px-6 py-4 whitespace-nowrap">重试</th>
+                                    <th class="px-6 py-4 whitespace-nowrap">下次尝试</th>
+                                    <th class="px-6 py-4 whitespace-nowrap">错误信息</th>
+                                    <th class="px-6 py-4 whitespace-nowrap text-right">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for task in tasks %}
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-gray-300">{{ task.id }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <a href="/notes?search={{ task.note_id }}" class="text-primary-600 dark:text-primary-400 hover:underline">
+                                            #{{ task.note_id }}
+                                        </a>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-block px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 font-mono text-xs" title="{{ task.magnet_hash }}">
+                                            {{ task.magnet_hash[:12] }}...
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        {% if task.status == 'pending' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                                            等待中
+                                        </span>
+                                        {% elif task.status == 'retrying' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                            重试中
+                                        </span>
+                                        {% elif task.status == 'success' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                            已成功
+                                        </span>
+                                        {% elif task.status == 'failed' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+                                            已失败
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">{{ task.retry_count }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400 text-xs">
+                                        {{ task.next_attempt if task.next_attempt else '-' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400 text-xs max-w-[200px] overflow-hidden text-ellipsis" title="{{ task.error_message }}">
+                                        {{ task.error_message if task.error_message else '-' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <div class="flex items-center justify-end gap-2">
+                                            {% if task.status in ['pending', 'retrying', 'failed'] %}
+                                            <button onclick="retryTask({{ task.id }})" class="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 transition-colors" title="重试">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                                </svg>
+                                            </button>
+                                            {% endif %}
+                                            <button onclick="deleteTask({{ task.id }})" class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors" title="删除">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-12">
+                        <div class="text-gray-200 dark:text-gray-700 mb-4 flex justify-center">
+                            <svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">暂无任务</h3>
+                        <p class="mt-1 text-gray-500 dark:text-gray-400">当前队列为空，没有校准任务。</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </main>
+    </div>
+
+    {# 移动端底部导航栏 #}
+    {% include "components/mobile_nav.html" %}
+
+    <script>
+        function adminApp() {
+            return {
+                sidebarOpen: window.innerWidth >= 1024,
+                showMobileSearch: false,
+                darkMode: localStorage.getItem('darkMode') === 'true',
+                searchQuery: '',
+
+                init() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    }
+                    
+                    window.addEventListener('resize', () => {
+                        if (window.innerWidth >= 1024) {
+                            this.sidebarOpen = true;
+                        } else {
+                            this.sidebarOpen = false;
+                        }
+                    });
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+                
+                debounceSearch() {
+                    // 空函数
+                }
+            }
+        }
+
         function retryTask(taskId) {
             if (!confirm('确定要立即重试此任务吗？')) {
                 return;

@@ -1,0 +1,33 @@
+{# 分页组件 - Jinja2 宏 #}
+{# 使用方式: {% from "components/pagination.html" import render_pagination %} #}
+{# 调用: {{ render_pagination(current_page, total_pages, selected_source) }} #}
+
+{% macro render_pagination(current_page, total_pages, selected_source='') %}
+{% if total_pages > 1 %}
+<div class="flex justify-center items-center space-x-2">
+    {% if current_page > 1 %}
+    <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}"
+       class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-gray-700 dark:text-gray-300">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        上一页
+    </a>
+    {% endif %}
+
+    <span class="px-4 py-2 text-gray-700 dark:text-gray-300 font-medium">
+        {{ current_page }} / {{ total_pages }}
+    </span>
+
+    {% if current_page < total_pages %}
+    <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}"
+       class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-gray-700 dark:text-gray-300">
+        下一页
+        <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+{% endmacro %}

@@ -2,421 +2,672 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>笔记管理 - Telegram 笔记</title>
-    <!-- 全局样式 -->
-    <link rel="stylesheet" href="/static/css/main.min.css?v=2.1">
-    <!-- 笔记页面专用样式 -->
-    <link rel="stylesheet" href="/static/css/pages/notes.min.css?v=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>我的笔记 - Telegram 笔记</title>
+
+    <!-- 预连接CDN加速 -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+    <!-- Tailwind CSS CDN (锁定版本) -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+
+    <!-- Alpine.js for interactivity (锁定版本) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* 暗色模式滚动条 */
+        .dark ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* 平滑滚动 */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* 卡片悬停效果 */
+        .note-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .note-card:hover {
+            transform: translateY(-2px);
+        }
+
+        /* 自定义 line-clamp-3 实现 */
+        .line-clamp-3 {
+            display: -webkit-box !important;
+            -webkit-box-orient: vertical !important;
+            -webkit-line-clamp: 3 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            word-wrap: break-word !important;
+            white-space: normal !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            line-height: 1.6 !important;
+        }
+
+        /* 确保笔记卡片内容不溢出 */
+        .note-card {
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .note-card p {
+            max-width: 100%;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .note-card * {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* 搜索高亮样式 */
+        .highlight {
+            background-color: #fef08a;
+            color: #854d0e;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-weight: 500;
+        }
+
+        .dark .highlight {
+            background-color: #ca8a04;
+            color: #fef3c7;
+        }
+
+        /* 笔记文本样式 */
+        .note-text {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #374151; /* gray-700 */
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .dark .note-text {
+            color: #d1d5db; /* gray-300 */
+        }
+
+        .note-text-fade {
+            display: none; /* 默认不显示，仅在折叠时可能需要（如果使用 max-height 方案） */
+        }
+
+        .note-expand-btn {
+            display: none; /* 默认隐藏，JS检测后显示 */
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #3b82f6; /* primary-500 */
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .note-expand-btn:hover {
+            color: #2563eb; /* primary-600 */
+        }
+
+        /* 图片放大功能样式 */
+        .zoom-view-container {
+            display: block !important;
+            overflow: auto !important;
+            text-align: center;
+        }
+        
+        .zoom-view-image {
+            max-width: none !important;
+            max-height: none !important;
+            cursor: zoom-out !important;
+            display: inline-block;
+            margin: auto;
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 图片画廊功能 - 提前定义确保全局可用 -->
+    <script>
+        // 图片画廊相关变量(绑定到window确保全局可访问)
+        window.galleryImages = [];
+        window.currentGalleryIndex = 0;
+
+        // 图片放大功能
+        window.toggleImageZoom = function(imgId) {
+            const img = document.getElementById(imgId);
+            if (!img) return;
+            
+            // 获取滚动容器 (对于gallery是父div, 对于modal是modal本身)
+            const container = img.parentElement;
+            
+            if (container.classList.contains('zoom-view-container')) {
+                // 缩小 (还原)
+                container.classList.remove('zoom-view-container');
+                img.classList.remove('zoom-view-image');
+                img.style.cursor = 'zoom-in';
+            } else {
+                // 放大
+                container.classList.add('zoom-view-container');
+                img.classList.add('zoom-view-image');
+                img.style.cursor = 'zoom-out';
+            }
+            // 阻止事件冒泡,防止触发关闭模态框
+            if (event) event.stopPropagation();
+        };
+
+        window.openImageGallery = function(noteId, mediaPaths) {
+            console.log('Opening gallery for note:', noteId, mediaPaths);
+            window.galleryImages = mediaPaths.map(path => '/media/' + encodeURIComponent(path));
+            window.currentGalleryIndex = 0;
+            window.showGalleryImage(0);
+
+            const modal = document.getElementById('galleryModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            // 防止背景滚动
+            document.body.style.overflow = 'hidden';
+
+            // 生成缩略图
+            const thumbnailsContainer = document.getElementById('galleryThumbnails');
+            thumbnailsContainer.innerHTML = '';
+
+            window.galleryImages.forEach((src, index) => {
+                const thumb = document.createElement('div');
+                thumb.className = 'w-16 h-16 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ' +
+                    (index === 0 ? 'border-white' : 'border-transparent opacity-60 hover:opacity-100');
+                thumb.onclick = () => window.showGalleryImage(index);
+
+                const img = document.createElement('img');
+                img.src = src;
+                img.className = 'w-full h-full object-cover';
+                img.loading = 'lazy';
+
+                thumb.appendChild(img);
+                thumbnailsContainer.appendChild(thumb);
+            });
+
+            // 键盘导航
+            document.addEventListener('keydown', window.handleGalleryKeyboard);
+        };
+
+        window.closeGalleryModal = function() {
+            const modal = document.getElementById('galleryModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.removeEventListener('keydown', window.handleGalleryKeyboard);
+
+            // 恢复背景滚动
+            document.body.style.overflow = '';
+        };
+
+        window.showGalleryImage = function(index) {
+            if (index < 0 || index >= window.galleryImages.length) return;
+
+            window.currentGalleryIndex = index;
+            const img = document.getElementById('galleryImage');
+            img.src = window.galleryImages[index];
+
+            // 更新计数器
+            document.getElementById('galleryCounter').textContent = `${index + 1} / ${window.galleryImages.length}`;
+
+            // 更新缩略图高亮
+            const thumbnails = document.getElementById('galleryThumbnails').children;
+            Array.from(thumbnails).forEach((thumb, i) => {
+                if (i === index) {
+                    thumb.className = thumb.className.replace('border-transparent opacity-60', 'border-white');
+                } else {
+                    thumb.className = thumb.className.replace('border-white', 'border-transparent opacity-60');
+                }
+            });
+
+            // 显示/隐藏导航按钮
+            document.getElementById('galleryPrev').style.display = index === 0 ? 'none' : 'block';
+            document.getElementById('galleryNext').style.display = index === window.galleryImages.length - 1 ? 'none' : 'block';
+        };
+
+        window.changeGalleryImage = function(direction) {
+            const newIndex = window.currentGalleryIndex + direction;
+            if (newIndex >= 0 && newIndex < window.galleryImages.length) {
+                window.showGalleryImage(newIndex);
+            }
+        };
+
+        window.handleGalleryKeyboard = function(e) {
+            if (e.key === 'ArrowLeft') {
+                window.changeGalleryImage(-1);
+            } else if (e.key === 'ArrowRight') {
+                window.changeGalleryImage(1);
+            } else if (e.key === 'Escape') {
+                window.closeGalleryModal();
+            }
+        };
+    </script>
 </head>
-<body>
-    <div class="app-container">
-        <!-- 侧边栏导航 -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div class="sidebar-logo">📝</div>
-                <div class="sidebar-title">Telegram 笔记</div>
-            </div>
+<body class="bg-gray-50 dark:bg-gray-900" x-data="notesApp()" x-init="init()">
 
-            <nav class="sidebar-nav">
-                <div class="nav-section">
-                    <div class="nav-section-title">主要功能</div>
-                    <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
-                        <span class="nav-icon">🏠</span>
-                        <span class="nav-text">首页</span>
-                    </a>
-                    <a href="/notes?page=1" class="nav-item {% if request.path == '/notes' %}active{% endif %}">
-                        <span class="nav-icon">📋</span>
-                        <span class="nav-text">我的笔记</span>
-                        <span class="nav-badge">{{ total_count }}</span>
-                    </a>
-                    <a href="/notes?favorite=1" class="nav-item">
-                        <span class="nav-icon">⭐</span>
-                        <span class="nav-text">收藏笔记</span>
-                    </a>
-                    <a href="/admin/calibration/queue" class="nav-item">
-                        <span class="nav-icon">📊</span>
-                        <span class="nav-text">数据统计</span>
-                    </a>
-                </div>
+    {# 顶部导航栏 #}
+    {% include "components/topbar.html" %}
 
-                <div class="nav-section">
-                    <div class="nav-section-title">系统设置</div>
-                    <a href="/admin" class="nav-item">
-                        <span class="nav-icon">⚙️</span>
-                        <span class="nav-text">基础设置</span>
-                    </a>
-                    <a href="/admin/calibration" class="nav-item">
-                        <span class="nav-icon">🔧</span>
-                        <span class="nav-text">自动校准</span>
-                    </a>
-                    <a href="/admin/webdav" class="nav-item">
-                        <span class="nav-icon">☁️</span>
-                        <span class="nav-text">云端存储</span>
-                    </a>
-                    <a href="/admin/viewer" class="nav-item">
-                        <span class="nav-icon">🎬</span>
-                        <span class="nav-text">观看设置</span>
-                    </a>
-                </div>
+    <!-- 主容器 -->
+    <div class="flex pt-16 pb-16 lg:pb-0">
+        {# 侧边栏 #}
+        {% include "components/sidebar.html" %}
 
-                <div class="nav-section">
-                    <div class="nav-section-title">账户</div>
-                    <a href="/logout" class="nav-item">
-                        <span class="nav-icon">🚪</span>
-                        <span class="nav-text">退出登录</span>
-                    </a>
-                </div>
-            </nav>
-
-            <div class="sidebar-footer">
-                <button class="sidebar-toggle" id="sidebarToggleBtn" onclick="toggleSidebar()">
-                    <span id="sidebarToggleText">收起侧边栏</span>
-                </button>
-            </div>
-        </aside>
+        <!-- 遮罩层 (移动端) -->
+        <div
+            x-show="sidebarOpen && window.innerWidth < 1024"
+            @click="sidebarOpen = false"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden mt-16"
+        ></div>
 
         <!-- 主内容区 -->
-        <main class="main-content">
-            <!-- 顶部工具栏 -->
-            <header class="topbar">
-                <!-- 移动端菜单按钮 -->
-                <button class="topbar-action" onclick="toggleMobileSidebar()">
-                    <span>☰</span>
-                </button>
+        <main class="flex-1 overflow-y-auto">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-                <!-- 搜索栏容器 -->
-                <div class="topbar-search-container">
-                    <button class="topbar-action search-toggle-btn" onclick="toggleSearch()">
-                        <span>🔍</span>
+                <!-- 搜索结果提示 -->
+                {% if search_query %}
+                <div class="mb-4 flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <span class="text-sm text-yellow-800 dark:text-yellow-200">
+                        搜索 "<span class="font-semibold">{{ search_query }}</span>" 找到 <span class="font-semibold">{{ total_count }}</span> 条结果
+                    </span>
+                    <a href="/notes" class="ml-auto text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200 text-sm font-medium">
+                        清除搜索
+                    </a>
+                </div>
+                {% endif %}
+
+                <!-- 筛选栏 -->
+                <div class="mb-6 flex flex-wrap gap-2">
+                    <button @click="filterFavorite = !filterFavorite"
+                            :class="filterFavorite ? 'bg-primary-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'"
+                            class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:shadow-md transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                        </svg>
+                        收藏
                     </button>
-                    <div class="topbar-search" id="topbarSearch">
-                        <span class="topbar-search-icon">🔍</span>
-                        <input type="text" placeholder="搜索笔记内容或来源..." id="topSearchInput" inputmode="search" autocomplete="off" autocapitalize="none">
-                    </div>
-                </div>
-
-                <!-- 顶部操作按钮组 -->
-                <div class="topbar-actions">
-                    <button class="topbar-action" onclick="toggleFilter()">
-                        <span>🎯</span>
+                    <button class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:shadow-md transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        日期筛选
                     </button>
-                    <button class="topbar-action" onclick="toggleTheme()">
-                        <span>🌙</span>
+                    <button class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:shadow-md transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                        </svg>
+                        标签
                     </button>
-                    <button class="topbar-action">
-                        <span>🔔</span>
-                        <span class="topbar-action-badge"></span>
-                    </button>
-                    <!-- 用户菜单 -->
-                    <div class="user-menu" onclick="toggleUserMenu()">
-                        <div class="user-avatar">A</div>
-                        <div class="user-info">
-                            <div class="user-name">{{ session.username or 'Admin' }}</div>
-                            <div class="user-role">管理员</div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <!-- 页面内容 -->
-            <div class="page-container">
-                {% if request.args.get('page') or request.args.get('search') or request.args.get('source') or request.args.get('favorite') %}
-                <!-- 笔记浏览模式 -->
-                <!-- 页面标题 -->
-                <div class="page-header">
-                    <h1 class="page-title">📋 我的笔记</h1>
-                    <p class="page-subtitle">管理和查看您保存的所有 Telegram 笔记</p>
                 </div>
 
-                <!-- 统计卡片 -->
-                <div class="stats-bar">
-                    <div class="stat-card">
-                        <div class="stat-icon primary">📊</div>
-                        <div class="stat-content">
-                            <div class="stat-label">总笔记数</div>
-                            <div class="stat-value">{{ total_count }}</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon success">📂</div>
-                        <div class="stat-content">
-                            <div class="stat-label">来源数量</div>
-                            <div class="stat-value">{{ sources|length }}</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon info">📄</div>
-                        <div class="stat-content">
-                            <div class="stat-label">当前页码</div>
-                            <div class="stat-value">{{ current_page }}/{{ total_pages }}</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon warning">⭐</div>
-                        <div class="stat-content">
-                            <div class="stat-label">收藏笔记</div>
-                            <div class="stat-value">{{ notes|selectattr('is_favorite')|list|length }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 筛选面板 -->
-                <div class="filter-panel {% if search_query or selected_source or date_from or date_to or favorite_only %}active{% endif %}" id="filterPanel">
-                    <div class="filter-header">
-                        <div class="filter-title">
-                            <span>🔍</span>
-                            <span>高级筛选</span>
-                        </div>
-                        {% if search_query or selected_source or date_from or date_to or favorite_only %}
-                        <a href="/notes" class="btn btn-sm btn-secondary">清除筛选</a>
-                        {% endif %}
-                    </div>
-
-                    <!-- 筛选表单 -->
-                    <form method="GET" action="/notes">
-                        <div class="filter-grid">
-                            <div class="form-group">
-                                <label class="form-label">关键词搜索</label>
-                                <input type="text" name="search" class="form-input" placeholder="搜索笔记内容..." value="{{ search_query or '' }}" inputmode="search" autocomplete="off" autocapitalize="none">
-                            </div>
-
-                            {% if sources|length > 0 %}
-                            <div class="form-group">
-                                <label class="form-label">筛选来源</label>
-                                <select name="source" class="form-select">
-                                    <option value="">全部来源</option>
-                                    {% for source in sources %}
-                                    <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
-                                        {{ source.source_name or source.source_chat_id }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            {% endif %}
-
-                            <div class="form-group">
-                                <label class="form-label">开始日期</label>
-                                <input type="date" name="date_from" class="form-input" value="{{ date_from or '' }}" inputmode="none">
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">结束日期</label>
-                                <input type="date" name="date_to" class="form-input" value="{{ date_to or '' }}" inputmode="none">
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">收藏筛选</label>
-                                <select name="favorite" class="form-select">
-                                    <option value="">全部笔记</option>
-                                    <option value="1" {% if favorite_only %}selected{% endif %}>仅收藏</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="filter-actions">
-                            <button type="submit" class="btn btn-primary">
-                                <span>应用筛选</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- 笔记卡片网格 -->
+                <!-- 笔记网格 -->
                 {% if notes|length > 0 %}
-                <div class="notes-grid">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                    {% from "components/note_card.html" import render_note_card %}
                     {% for note in notes %}
-                    <div class="note-card">
-                        <!-- 收藏按钮 -->
-                        <button class="note-favorite {{ 'active' if note.is_favorite }}" onclick="toggleFavorite({{ note.id }}, this)">
-                            {{ '★' if note.is_favorite else '☆' }}
-                        </button>
-
-                        <!-- 媒体内容展示 -->
-                        {% if note.media_paths and note.media_paths|length > 0 %}
-                        <div class="note-media">
-                            <div class="media-grid count-{{ note.media_paths|length }}">
-                                {% for media_path in note.media_paths %}
-                                <div class="media-grid-item">
-                                    <img src="/media/{{ media_path | urlencode }}" alt="Note image" loading="lazy" decoding="async" onclick="openImageModal(this.src)">
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% elif note.media_type == 'photo' %}
-                        <div class="note-media">
-                            <img src="/media/{{ note.media_path | urlencode }}" alt="Note image" loading="lazy" decoding="async" onclick="openImageModal(this.src)">
-                        </div>
-                        {% elif note.media_type == 'video' %}
-                        <div class="note-media">
-                            <img src="/media/{{ note.media_path | urlencode }}" alt="Video thumbnail" loading="lazy" decoding="async">
-                            <span class="media-badge">📹 视频</span>
-                        </div>
-                        {% elif note.media_type == 'animation' %}
-                        <div class="note-media">
-                            <img src="/media/{{ note.media_path | urlencode }}" alt="GIF thumbnail" loading="lazy" decoding="async">
-                            <span class="media-badge">🎬 GIF动图</span>
-                        </div>
-                        {% endif %}
-
-                        <!-- 笔记内容 -->
-                        <div class="note-content">
-                            <!-- 来源信息 -->
-                            <div class="note-source">
-                                <span class="note-source-badge">{{ note.source_name or note.source_chat_id }}</span>
-                                <span class="note-id">#{{ note.id }}</span>
-                            </div>
-
-                            <!-- 笔记文本 -->
-                            {% if note.message_text %}
-                            <div class="note-text" id="text-{{ note.id }}">
-                                {{ note.message_text | highlight(search_query) | safe }}
-                                <div class="note-text-fade"></div>
-                            </div>
-                            <span class="note-expand-btn" id="expand-{{ note.id }}" onclick="toggleText({{ note.id }})">展开全文 ▼</span>
-                            {% endif %}
-
-                            <!-- 笔记底部操作栏 -->
-                            <div class="note-footer">
-                                <div class="note-time">
-                                    <span>🕒</span>
-                                    <span>{{ note.timestamp }}</span>
-                                </div>
-
-                                <!-- 操作按钮组 -->
-                                <div class="note-actions">
-                                    {% if note.all_dns and note.all_dns|length > 0 %}
-                                    <button class="note-action-btn calibrate" onclick="calibrateNote({{ note.id }}, {{ note.all_dns|length }}, this)">
-                                        校准{% if note.all_dns|length > 1 %}({{ note.all_dns|length }}){% endif %}
-                                    </button>
-                                    {% endif %}
-
-                                    {% if note.all_dns and note.all_dns|length > 0 %}
-                                    {% set valid_dns = note.all_dns|selectattr('dn')|list %}
-                                    {% if valid_dns|length > 0 %}
-                                    <a href="{{ viewer_url }}{{ valid_dns[0].dn }}" class="note-action-btn watch" target="_blank">
-                                        观看
-                                    </a>
-                                    {% endif %}
-                                    {% endif %}
-
-                                    <a href="/edit_note/{{ note.id }}" class="note-action-btn edit">编辑</a>
-                                    <button class="note-action-btn delete" onclick="deleteNote({{ note.id }})">删除</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                        {{ render_note_card(note, viewer_url, search_query) }}
                     {% endfor %}
                 </div>
 
                 <!-- 分页 -->
-                {% if total_pages > 1 %}
-                <div class="pagination">
-                    {% if current_page > 1 %}
-                    <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">
-                        ← 上一页
-                    </a>
-                    {% endif %}
-
-                    {% for page_num in range(1, total_pages + 1) %}
-                    {% if page_num == current_page %}
-                    <span class="page-btn active">{{ page_num }}</span>
-                    {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
-                    <a href="?page={{ page_num }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">
-                        {{ page_num }}
-                    </a>
-                    {% elif page_num == 4 or page_num == total_pages - 3 %}
-                    <span class="page-btn ellipsis">...</span>
-                    {% endif %}
-                    {% endfor %}
-
-                    {% if current_page < total_pages %}
-                    <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">
-                        下一页 →
-                    </a>
-                    {% endif %}
-                </div>
-                {% endif %}
-                {% endif %}
+                {% from "components/pagination.html" import render_pagination %}
+                {{ render_pagination(current_page, total_pages, selected_source) }}
                 {% else %}
-                <!-- 欢迎页面 -->
-                <div class="welcome-section">
-                    <div class="welcome-icon">📝</div>
-                    <h1 class="welcome-title">欢迎使用 Telegram 笔记系统</h1>
-                    <p class="welcome-text">一个现代化的 Telegram 内容管理平台，帮助您高效管理和查看保存的笔记</p>
-
-                    <!-- 快速操作按钮 -->
-                    <div class="welcome-actions">
-                        <a href="/notes?page=1" class="btn btn-primary btn-lg">
-                            <span>📋</span>
-                            <span>查看所有笔记</span>
-                        </a>
-                        <a href="/notes?favorite=1" class="btn btn-secondary btn-lg">
-                            <span>⭐</span>
-                            <span>我的收藏</span>
-                        </a>
+                <!-- 空状态 -->
+                <div class="text-center py-12">
+                    <div class="text-gray-200 dark:text-gray-700 mb-4 flex justify-center">
+                        <svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                        </svg>
                     </div>
-                </div>
-
-                <!-- 功能介绍卡片 -->
-                <div class="welcome-features-grid">
-                    <div class="card">
-                        <div class="card-body welcome-feature-card">
-                            <div class="welcome-feature-icon">📊</div>
-                            <h3 class="welcome-feature-title">数据统计</h3>
-                            <p class="welcome-feature-text">
-                                总计 <strong>{{ total_count }}</strong> 条笔记<br>
-                                来自 <strong>{{ sources|length }}</strong> 个来源
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-body welcome-feature-card">
-                            <div class="welcome-feature-icon">🔍</div>
-                            <h3 class="welcome-feature-title">智能搜索</h3>
-                            <p class="welcome-feature-text">
-                                支持关键词搜索、来源筛选<br>
-                                日期范围和收藏筛选
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-body welcome-feature-card">
-                            <div class="welcome-feature-icon">🌙</div>
-                            <h3 class="welcome-feature-title">暗色模式</h3>
-                            <p class="welcome-feature-text">
-                                护眼的暗色主题<br>
-                                一键切换，自动保存
-                            </p>
-                        </div>
-                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">还没有笔记</h3>
+                    <p class="text-gray-500 dark:text-gray-400">开始使用 Telegram 机器人保存你的第一条笔记吧</p>
                 </div>
                 {% endif %}
             </div>
         </main>
     </div>
 
-    <!-- 图片预览模态框 -->
-    <div class="modal" id="imageModal" onclick="closeImageModal()">
-        <button class="modal-close" onclick="closeImageModal()">×</button>
-        <img class="modal-image" id="modalImage" onclick="event.stopPropagation()">
-    </div>
+    {# 移动端底部导航栏 #}
+    {% include "components/mobile_nav.html" %}
 
-    <!-- JavaScript Modules (Load in dependency order) -->
-    <!-- 1. Utilities (no dependencies) -->
-    <script src="/static/js/utils/storage.min.js?v=1.0"></script>
-    <script src="/static/js/utils/debounce.min.js?v=1.0"></script>
-    <script src="/static/js/utils/network.min.js?v=1.0"></script>
+    {# 模态框组件 #}
+    {% include "components/modals.html" %}
 
-    <!-- 2. Components (depend on utilities) -->
-    <script src="/static/js/components/sidebar.min.js?v=1.0"></script>
-    <script src="/static/js/components/search.min.js?v=1.0"></script>
-    <script src="/static/js/components/modal.min.js?v=1.0"></script>
-    <script src="/static/js/components/lazyload.min.js?v=1.0"></script>
+    <script>
+        function notesApp() {
+            return {
+                sidebarOpen: window.innerWidth >= 1024,
+                showMobileSearch: false,
+                darkMode: localStorage.getItem('darkMode') === 'true',
+                searchQuery: '',
+                filterFavorite: false,
+                searchTimeout: null,
 
-    <!-- 3. Page Logic (depends on all above) -->
-    <script src="/static/js/pages/notes.min.js?v=1.0"></script>
+                init() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    }
+
+                    // 监听窗口大小变化
+                    window.addEventListener('resize', () => {
+                        if (window.innerWidth >= 1024) {
+                            this.sidebarOpen = true;
+                        } else {
+                            this.sidebarOpen = false;
+                        }
+                    });
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+
+                debounceSearch() {
+                    clearTimeout(this.searchTimeout);
+                    this.searchTimeout = setTimeout(() => {
+                        if (this.searchQuery.length > 0) {
+                            window.location.href = '/notes?search=' + encodeURIComponent(this.searchQuery);
+                        }
+                    }, 800);
+                }
+            }
+        }
+
+        // ========================================
+        // 图片模态框和画廊功能
+        // 绑定到window对象以确保全局可访问(避免Alpine.js冲突)
+        // ========================================
+
+        window.openImageModal = function(src) {
+            const modal = document.getElementById('imageModal');
+            const img = document.getElementById('modalImage');
+            img.src = src;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            // 添加ESC键关闭功能
+            document.addEventListener('keydown', window.handleImageModalKeyboard);
+
+            // 防止背景滚动
+            document.body.style.overflow = 'hidden';
+        };
+
+        window.closeImageModal = function() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            // 移除ESC键监听
+            document.removeEventListener('keydown', window.handleImageModalKeyboard);
+
+            // 恢复背景滚动
+            document.body.style.overflow = '';
+        };
+
+        window.handleImageModalKeyboard = function(e) {
+            if (e.key === 'Escape') {
+                window.closeImageModal();
+            }
+        };
+
+        // 注意: 图片画廊函数已移至 <head> 中,确保全局早期可用
+
+        function toggleFavorite(noteId, btn) {
+            fetch('/toggle_favorite/' + noteId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 重新构建SVG
+                    const isFavorite = btn.querySelector('svg').classList.contains('text-yellow-500');
+                    if (isFavorite) {
+                        // 变为未收藏 (空心)
+                        btn.innerHTML = `
+                        <svg class="w-6 h-6 text-gray-400 group-hover:text-yellow-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                        </svg>`;
+                    } else {
+                        // 变为已收藏 (实心)
+                        btn.innerHTML = `
+                        <svg class="w-6 h-6 text-yellow-500 fill-current" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                        </svg>`;
+                    }
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function toggleText(noteId) {
+            const textEl = document.getElementById('text-' + noteId);
+            const btnEl = document.getElementById('expand-btn-' + noteId);
+
+            if (textEl.classList.contains('line-clamp-3')) {
+                textEl.classList.remove('line-clamp-3');
+                btnEl.textContent = '收起 ▲';
+            } else {
+                textEl.classList.add('line-clamp-3');
+                btnEl.textContent = '展开全文 ▼';
+            }
+        }
+
+        function showWatchOptions(btn) {
+            const modal = document.getElementById('watchModal');
+            const optionsList = document.getElementById('watchOptionsList');
+            const viewerUrl = '{{ viewer_url }}';
+            const validDns = JSON.parse(btn.getAttribute('data-dns'));
+
+            optionsList.innerHTML = '';
+
+            validDns.forEach((dns, index) => {
+                const option = document.createElement('a');
+                option.href = viewerUrl + encodeURIComponent(dns.dn);
+                option.target = '_blank';
+                option.className = 'block p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition';
+
+                const fileName = dns.dn || dns.info_hash || '未知文件';
+                const displayName = fileName.length > 80 ? fileName.substring(0, 77) + '...' : fileName;
+
+                option.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                ${index + 1}. ${displayName}
+                            </div>
+                            ${dns.info_hash ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Hash: ${dns.info_hash.substring(0, 16)}...</div>` : ''}
+                        </div>
+                        <svg class="w-5 h-5 text-blue-500 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                    </div>
+                `;
+
+                optionsList.appendChild(option);
+            });
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeWatchModal() {
+            const modal = document.getElementById('watchModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function calibrateNote(noteId, count, btn) {
+            if (!confirm('校准将向机器人发送 ' + count + ' 个磁力链接。确定继续?')) return;
+
+            btn.disabled = true;
+            btn.textContent = '校准中...';
+
+            fetch('/api/calibrate/' + noteId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    btn.textContent = '✓ 已校准';
+                    btn.classList.remove('bg-green-500', 'hover:bg-green-600');
+                    btn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                } else {
+                    throw new Error(data.error || '未知错误');
+                }
+            })
+            .catch(error => {
+                alert('校准失败: ' + error.message);
+                btn.disabled = false;
+                btn.textContent = '校准' + (count > 1 ? '(' + count + ')' : '');
+            });
+        }
+
+        function deleteNote(noteId, btn) {
+            if (!confirm('确定要删除这条笔记吗？此操作无法撤销。')) return;
+
+            btn.disabled = true;
+            btn.textContent = '删除中...';
+
+            fetch('/delete_note/' + noteId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    btn.closest('.note-card').remove();
+                } else {
+                    throw new Error(data.error || '删除失败');
+                }
+            })
+            .catch(error => {
+                alert('删除失败: ' + error.message);
+                btn.disabled = false;
+                btn.textContent = '删除';
+            });
+        }
+
+        let currentEditNoteId = null;
+
+        function editNote(noteId) {
+            currentEditNoteId = noteId;
+            const textEl = document.getElementById('text-' + noteId);
+            const textarea = document.getElementById('editTextarea');
+            textarea.value = textEl.textContent.trim();
+            document.getElementById('editModal').classList.remove('hidden');
+            document.getElementById('editModal').classList.add('flex');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+            document.getElementById('editModal').classList.remove('flex');
+            currentEditNoteId = null;
+        }
+
+        function saveNote() {
+            if (!currentEditNoteId) return;
+
+            const textarea = document.getElementById('editTextarea');
+            const newText = textarea.value.trim();
+
+            fetch('/api/edit_note/' + currentEditNoteId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_text: newText })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    throw new Error(data.error || '保存失败');
+                }
+            })
+            .catch(error => {
+                alert('保存失败: ' + error.message);
+            });
+        }
+
+        // 页面加载完成后检查哪些文本需要展开按钮
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                document.querySelectorAll('[id^="text-"]').forEach(function(el) {
+                    if (el.scrollHeight > el.clientHeight + 5) {
+                        const noteId = el.id.replace('text-', '');
+                        const btnEl = document.getElementById('expand-btn-' + noteId);
+                        if (btnEl) {
+                            btnEl.classList.remove('hidden');
+                        }
+                    }
+                });
+            }, 100);
+        });
+    </script>
 </body>
 </html>
