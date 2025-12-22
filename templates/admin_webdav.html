@@ -12,10 +12,10 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 
     <!-- Tailwind CSS CDN (锁定版本) -->
-    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+    <script src="{{ url_for('static', filename='js/tailwindcss-3.4.1.js') }}"></script>
 
     <!-- Alpine.js for interactivity (锁定版本) -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <script defer src="{{ url_for('static', filename='js/alpinejs-3.14.3.min.js') }}"></script>
 
     <style>
         [x-cloak] { display: none !important; }

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片点击测试</title>
+    <!-- Tailwind CSS (Local) -->
+    <script src="static/js/tailwindcss-3.4.1.js"></script>
+
+    <!-- Alpine.js (Local) -->
+    <script defer src="static/js/alpinejs-3.14.3.min.js"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <h1 class="text-2xl font-bold mb-6">图片点击功能测试</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- 测试1: 单图片 -->
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-3">测试1: 单图片点击</h2>
+            <div class="relative aspect-video bg-gray-200 rounded">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%234f46e5' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='white' font-size='24'%3E点击我%3C/text%3E%3C/svg%3E"
+                     alt="Test image"
+                     class="w-full h-full object-cover cursor-pointer"
+                     onclick="openImageModal(this.src)">
+            </div>
+            <p class="mt-2 text-sm text-gray-600">点击图片应该打开放大视图</p>
+        </div>
+
+        <!-- 测试2: 多图片 -->
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-3">测试2: 多图片点击</h2>
+            <div class="relative aspect-video bg-gray-200 rounded">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%2310b981' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='white' font-size='24'%3E图片1/2%3C/text%3E%3C/svg%3E"
+                     alt="Gallery image"
+                     class="w-full h-full object-cover cursor-pointer"
+                     onclick="openImageGallery(1, ['data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\'%3E%3Crect fill=\'%2310b981\' width=\'400\' height=\'300\'/%3E%3Ctext x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' fill=\'white\' font-size=\'24\'%3E图片1%3C/text%3E%3C/svg%3E', 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\'%3E%3Crect fill=\'%23f59e0b\' width=\'400\' height=\'300\'/%3E%3Ctext x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' fill=\'white\' font-size=\'24\'%3E图片2%3C/text%3E%3C/svg%3E'])">
+                <div class="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded cursor-pointer"
+                     onclick="openImageGallery(1, ['data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\'%3E%3Crect fill=\'%2310b981\' width=\'400\' height=\'300\'/%3E%3Ctext x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' fill=\'white\' font-size=\'24\'%3E图片1%3C/text%3E%3C/svg%3E', 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\'%3E%3Crect fill=\'%23f59e0b\' width=\'400\' height=\'300\'/%3E%3Ctext x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' fill=\'white\' font-size=\'24\'%3E图片2%3C/text%3E%3C/svg%3E'])">
+                    📷 2
+                </div>
+            </div>
+            <p class="mt-2 text-sm text-gray-600">点击图片或相机图标应该打开画廊</p>
+        </div>
+
+        <!-- 测试3: 直接按钮 -->
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-3">测试3: 直接调用</h2>
+            <button onclick="testFunction()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                测试基础点击事件
+            </button>
+            <p class="mt-2 text-sm text-gray-600" id="testResult">等待点击...</p>
+        </div>
+
+        <!-- 控制台日志 -->
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-3">控制台日志</h2>
+            <div id="console" class="bg-gray-100 p-3 rounded text-xs font-mono h-40 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- 单图片模态框 -->
+    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-90 z-50 hidden items-center justify-center p-4" onclick="closeImageModal()">
+        <button class="absolute top-4 right-4 text-white text-4xl hover:text-gray-300" onclick="closeImageModal()">×</button>
+        <img id="modalImage" class="max-w-full max-h-full object-contain" onclick="event.stopPropagation()">
+    </div>
+
+    <!-- 多图片画廊 -->
+    <div id="galleryModal" class="fixed inset-0 bg-black bg-opacity-95 z-50 hidden items-center justify-center p-4" onclick="closeGalleryModal()">
+        <button class="absolute top-4 right-4 text-white text-4xl hover:text-gray-300 z-10" onclick="closeGalleryModal()">×</button>
+        <div class="relative w-full h-full flex items-center justify-center" onclick="event.stopPropagation()">
+            <img id="galleryImage" class="max-w-full max-h-full object-contain">
+
+            <button id="galleryPrev" onclick="changeGalleryImage(-1)" class="absolute left-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full">←</button>
+            <button id="galleryNext" onclick="changeGalleryImage(1)" class="absolute right-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full">→</button>
+
+            <div class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black bg-opacity-60 text-white px-4 py-2 rounded-full text-sm">
+                <span id="galleryCounter">1 / 1</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 日志输出函数
+        function log(message) {
+            const consoleDiv = document.getElementById('console');
+            const time = new Date().toLocaleTimeString();
+            consoleDiv.innerHTML += `[${time}] ${message}<br>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // 测试函数
+        function testFunction() {
+            log('✅ 基础点击事件工作正常');
+            document.getElementById('testResult').textContent = '✅ 点击成功!';
+            document.getElementById('testResult').className = 'mt-2 text-sm text-green-600 font-semibold';
+        }
+
+        // 单图片模态框
+        function openImageModal(src) {
+            log('调用 openImageModal: ' + src.substring(0, 50) + '...');
+            const modal = document.getElementById('imageModal');
+            const img = document.getElementById('modalImage');
+
+            if (!modal) {
+                log('❌ 错误: imageModal 元素不存在');
+                return;
+            }
+            if (!img) {
+                log('❌ 错误: modalImage 元素不存在');
+                return;
+            }
+
+            img.src = src;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+
+            log('✅ 单图片模态框已打开');
+        }
+
+        function closeImageModal() {
+            log('调用 closeImageModal');
+            const modal = document.getElementById('imageModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.style.overflow = '';
+            log('✅ 单图片模态框已关闭');
+        }
+
+        // 多图片画廊
+        let galleryImages = [];
+        let currentGalleryIndex = 0;
+
+        function openImageGallery(noteId, mediaPaths) {
+            log('调用 openImageGallery: noteId=' + noteId + ', 图片数=' + mediaPaths.length);
+
+            const modal = document.getElementById('galleryModal');
+            if (!modal) {
+                log('❌ 错误: galleryModal 元素不存在');
+                return;
+            }
+
+            galleryImages = mediaPaths;
+            currentGalleryIndex = 0;
+            showGalleryImage(0);
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+
+            log('✅ 画廊已打开');
+        }
+
+        function closeGalleryModal() {
+            log('调用 closeGalleryModal');
+            const modal = document.getElementById('galleryModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.style.overflow = '';
+            log('✅ 画廊已关闭');
+        }
+
+        function showGalleryImage(index) {
+            if (index < 0 || index >= galleryImages.length) return;
+
+            currentGalleryIndex = index;
+            const img = document.getElementById('galleryImage');
+            img.src = galleryImages[index];
+
+            document.getElementById('galleryCounter').textContent = `${index + 1} / ${galleryImages.length}`;
+
+            document.getElementById('galleryPrev').style.display = index === 0 ? 'none' : 'block';
+            document.getElementById('galleryNext').style.display = index === galleryImages.length - 1 ? 'none' : 'block';
+
+            log('显示图片 ' + (index + 1) + ' / ' + galleryImages.length);
+        }
+
+        function changeGalleryImage(direction) {
+            const newIndex = currentGalleryIndex + direction;
+            if (newIndex >= 0 && newIndex < galleryImages.length) {
+                showGalleryImage(newIndex);
+            }
+        }
+
+        log('页面加载完成，所有函数已定义');
+    </script>
+</body>
+</html>

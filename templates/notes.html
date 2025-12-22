@@ -5,17 +5,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>我的笔记 - Telegram 笔记</title>
 
+	    <!-- 首屏状态预初始化：在任何样式/框架执行前同步应用主题与侧边栏默认状态，避免闪烁 -->
+	    <script>
+	        (function() {
+	            var initialState = { sidebarOpen: false, darkMode: false };
+
+                window.ThemeManager = window.ThemeManager || (function() {
+                    function readPreference() {
+                        try {
+                            var savedTheme = localStorage.getItem('theme');
+                            if (savedTheme === 'dark') return true;
+                            if (savedTheme === 'light') return false;
+
+                            var legacyDarkMode = localStorage.getItem('darkMode');
+                            if (legacyDarkMode === 'true') return true;
+                            if (legacyDarkMode === 'false') return false;
+                        } catch (e) {
+                            // ignore
+                        }
+
+                        return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                    }
+
+                    function apply(isDark, persist) {
+                        var dark = !!isDark;
+                        document.documentElement.classList.toggle('dark', dark);
+                        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+                        else document.documentElement.removeAttribute('data-theme');
+
+                        if (!persist) return;
+                        try {
+                            localStorage.setItem('theme', dark ? 'dark' : 'light');
+                            localStorage.setItem('darkMode', dark ? 'true' : 'false');
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+
+                    function toggle() {
+                        var current = document.documentElement.classList.contains('dark');
+                        var next = !current;
+                        apply(next, true);
+                        return next;
+                    }
+
+                    return { readPreference, apply, toggle };
+                })();
+
+                window.NotesSidebarStorage = window.NotesSidebarStorage || (function() {
+                    function isDesktop() {
+                        return window.matchMedia ? window.matchMedia('(min-width: 1024px)').matches : (window.innerWidth >= 1024);
+                    }
+
+                    function readOpen() {
+                        if (!isDesktop()) return false;
+                        try {
+                            var raw = localStorage.getItem('mobileUIState');
+                            if (!raw) return false;
+                            var parsed = JSON.parse(raw);
+                            if (!parsed || typeof parsed !== 'object') return false;
+                            return parsed.sidebarOpen === true;
+                        } catch (e) {
+                            return false;
+                        }
+                    }
+
+                    function writeOpen(open) {
+                        if (!isDesktop()) return;
+                        try {
+                            var stateToSave = { sidebarOpen: !!open, timestamp: Date.now() };
+                            localStorage.setItem('mobileUIState', JSON.stringify(stateToSave));
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+
+                    return { isDesktop, readOpen, writeOpen };
+                })();
+
+                initialState.darkMode = window.ThemeManager.readPreference();
+                window.ThemeManager.apply(initialState.darkMode, false);
+                initialState.sidebarOpen = window.NotesSidebarStorage.readOpen();
+
+	            window.__NOTES_INITIAL_STATE__ = initialState;
+	        })();
+	    </script>
+
     <!-- 预连接CDN加速 -->
     <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 
-    <!-- Tailwind CSS CDN (锁定版本) -->
-    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 
-    <!-- Alpine.js for interactivity (锁定版本) -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <!-- Tailwind CSS (Local) -->
+    <script src="{{ url_for('static', filename='js/tailwindcss-3.4.1.js') }}"></script>
+
+    <!-- Alpine.js (Local) -->
+    <script defer src="{{ url_for('static', filename='js/alpinejs-3.14.3.min.js') }}"></script>
 
     <style>
         [x-cloak] { display: none !important; }
@@ -60,33 +170,56 @@
             transform: translateY(-2px);
         }
 
-        /* 自定义 line-clamp-3 实现 */
-        .line-clamp-3 {
-            display: -webkit-box !important;
-            -webkit-box-orient: vertical !important;
-            -webkit-line-clamp: 3 !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            word-break: break-word !important;
-            overflow-wrap: break-word !important;
-            word-wrap: break-word !important;
-            white-space: normal !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            line-height: 1.6 !important;
-        }
+	        /* 自定义 line-clamp-3 实现 */
+	        .line-clamp-3 {
+	            display: -webkit-box !important;
+	            -webkit-box-orient: vertical !important;
+	            -webkit-line-clamp: 3 !important;
+	            overflow: hidden !important;
+	            text-overflow: ellipsis !important;
+	            width: 100% !important;
+	            word-break: break-all !important;
+	            overflow-wrap: anywhere !important;
+	            word-wrap: break-word !important;
+	            white-space: normal !important;
+	            max-width: 100% !important;
+	            min-width: 0 !important;
+	            line-height: 1.6 !important;
+	        }
 
-        /* 确保笔记卡片内容不溢出 */
-        .note-card {
-            min-width: 0;
-            overflow: hidden;
-        }
+	        /* 笔记卡片媒体区：固定宽高比，避免“超长图”拉伸布局 */
+	        .note-card [data-note-media-container] {
+	            aspect-ratio: 16 / 10;
+	            max-height: 300px;
+	            overflow: hidden;
+	        }
 
-        .note-card p {
-            max-width: 100%;
-            min-width: 0;
-            overflow: hidden;
-        }
+	        .note-card [data-note-media-container] img {
+	            width: 100%;
+	            height: 100%;
+	            object-fit: cover;
+	        }
+
+	        @media (max-width: 640px) {
+	            .note-card [data-note-media-container] {
+	                aspect-ratio: 4 / 3;
+	                max-height: 250px;
+	            }
+	        }
+
+	        /* 确保笔记卡片内容不溢出 */
+	        .note-card {
+	            min-width: 0;
+	            overflow: hidden;
+	        }
+
+	        .note-card p {
+	            max-width: 100%;
+	            min-width: 0;
+	            overflow: visible;
+	            word-break: break-all;
+	            overflow-wrap: anywhere;
+	        }
 
         .note-card * {
             max-width: 100%;
@@ -154,30 +287,6 @@
         }
     </style>
 
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        primary: {
-                            50: '#eff6ff',
-                            100: '#dbeafe',
-                            200: '#bfdbfe',
-                            300: '#93c5fd',
-                            400: '#60a5fa',
-                            500: '#3b82f6',
-                            600: '#2563eb',
-                            700: '#1d4ed8',
-                            800: '#1e40af',
-                            900: '#1e3a8a',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
     <!-- 图片画廊功能 - 提前定义确保全局可用 -->
     <script>
         // 图片画廊相关变量(绑定到window确保全局可访问)
@@ -207,11 +316,15 @@
             if (event) event.stopPropagation();
         };
 
-        window.openImageGallery = function(noteId, mediaPaths) {
+        window.openImageGallery = function(noteId, mediaPaths, startIndex = 0) {
             console.log('Opening gallery for note:', noteId, mediaPaths);
             window.galleryImages = mediaPaths.map(path => '/media/' + encodeURIComponent(path));
-            window.currentGalleryIndex = 0;
-            window.showGalleryImage(0);
+            const requestedIndex = Number.parseInt(startIndex, 10);
+            const initialIndex = Number.isFinite(requestedIndex) ? requestedIndex : 0;
+            window.currentGalleryIndex = Math.min(
+                Math.max(initialIndex, 0),
+                Math.max(window.galleryImages.length - 1, 0)
+            );
 
             const modal = document.getElementById('galleryModal');
             modal.classList.remove('hidden');
@@ -227,7 +340,7 @@
             window.galleryImages.forEach((src, index) => {
                 const thumb = document.createElement('div');
                 thumb.className = 'w-16 h-16 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ' +
-                    (index === 0 ? 'border-white' : 'border-transparent opacity-60 hover:opacity-100');
+                    (index === window.currentGalleryIndex ? 'border-white' : 'border-transparent opacity-60 hover:opacity-100');
                 thumb.onclick = () => window.showGalleryImage(index);
 
                 const img = document.createElement('img');
@@ -238,6 +351,8 @@
                 thumb.appendChild(img);
                 thumbnailsContainer.appendChild(thumb);
             });
+
+            window.showGalleryImage(window.currentGalleryIndex);
 
             // 键盘导航
             document.addEventListener('keydown', window.handleGalleryKeyboard);
@@ -295,8 +410,8 @@
             }
         };
     </script>
-</head>
-<body class="bg-gray-50 dark:bg-gray-900" x-data="notesApp()" x-init="init()">
+	</head>
+	<body class="bg-gray-50 dark:bg-gray-900" x-data="notesApp(window.__NOTES_INITIAL_STATE__)" x-init="init()">
 
     {# 顶部导航栏 #}
     {% include "components/topbar.html" %}
@@ -307,12 +422,12 @@
         {% include "components/sidebar.html" %}
 
         <!-- 遮罩层 (移动端) -->
-        <div
-            x-show="sidebarOpen && window.innerWidth < 1024"
-            @click="sidebarOpen = false"
-            x-cloak
-            class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden mt-16"
-        ></div>
+	        <div
+	            x-show="sidebarOpen && window.innerWidth < 1024"
+	            @click="sidebarOpen = false"
+	            x-cloak
+	            class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden mt-16"
+	        ></div>
 
         <!-- 主内容区 -->
         <main class="flex-1 overflow-y-auto">
@@ -391,40 +506,58 @@
     {# 模态框组件 #}
     {% include "components/modals.html" %}
 
-    <script>
-        function notesApp() {
-            return {
-                sidebarOpen: window.innerWidth >= 1024,
-                showMobileSearch: false,
-                darkMode: localStorage.getItem('darkMode') === 'true',
-                searchQuery: '',
-                filterFavorite: false,
-                searchTimeout: null,
+	    <!-- Scripts -->
+	    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+	    <script src="{{ url_for('static', filename='js/components/note-card.js') }}"></script>
+	    <script src="{{ url_for('static', filename='js/notes.js') }}"></script>
 
-                init() {
-                    if (this.darkMode) {
-                        document.documentElement.classList.add('dark');
-                    }
+		    <script>
+			        function notesApp(initialState) {
+	                    const resolvedInitial = (initialState && typeof initialState === 'object') ? initialState : {};
+                        
+                        // 防御性编程：防止 head 脚本执行失败导致对象未定义
+                        const theme = window.ThemeManager || {
+                            readPreference: function() { 
+                                return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                            },
+                            apply: function(isDark) {
+                                document.documentElement.classList.toggle('dark', isDark);
+                            },
+                            toggle: function() { return false; }
+                        };
 
-                    // 监听窗口大小变化
-                    window.addEventListener('resize', () => {
-                        if (window.innerWidth >= 1024) {
-                            this.sidebarOpen = true;
-                        } else {
-                            this.sidebarOpen = false;
-                        }
-                    });
-                },
+                        const sidebarStorage = window.NotesSidebarStorage || {
+                            isDesktop: function() { return window.innerWidth >= 1024; },
+                            readOpen: function() { return false; },
+                            writeOpen: function() { }
+                        };
+	
+			            return {
+			                sidebarOpen: (resolvedInitial.sidebarOpen === true),
+			                showMobileSearch: false,
+			                darkMode: (typeof resolvedInitial.darkMode === 'boolean') ? resolvedInitial.darkMode : theme.readPreference(),
+			                searchQuery: '',
+			                filterFavorite: false,
+			                searchTimeout: null,
+	
+		                init() {
+                            try {
+	                            theme.apply(this.darkMode, false);
+	                            if (!sidebarStorage.isDesktop()) this.sidebarOpen = false;
 
-                toggleDarkMode() {
-                    this.darkMode = !this.darkMode;
-                    localStorage.setItem('darkMode', this.darkMode);
-                    if (this.darkMode) {
-                        document.documentElement.classList.add('dark');
-                    } else {
-                        document.documentElement.classList.remove('dark');
-                    }
-                },
+                                this.$watch('sidebarOpen', (value) => {
+                                    if (!sidebarStorage.isDesktop()) return;
+                                    sidebarStorage.writeOpen(value);
+                                });
+                            } catch (e) {
+                                console.error('notesApp init error:', e);
+                            }
+		                },
+
+		                toggleDarkMode() {
+		                    this.darkMode = !this.darkMode;
+	                        theme.apply(this.darkMode, true);
+		                },
 
                 debounceSearch() {
                     clearTimeout(this.searchTimeout);
@@ -561,58 +694,6 @@
             modal.classList.remove('flex');
         }
 
-        function calibrateNote(noteId, count, btn) {
-            if (!confirm('校准将向机器人发送 ' + count + ' 个磁力链接。确定继续?')) return;
-
-            btn.disabled = true;
-            btn.textContent = '校准中...';
-
-            fetch('/api/calibrate/' + noteId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    btn.textContent = '✓ 已校准';
-                    btn.classList.remove('bg-green-500', 'hover:bg-green-600');
-                    btn.classList.add('bg-gray-400', 'cursor-not-allowed');
-                } else {
-                    throw new Error(data.error || '未知错误');
-                }
-            })
-            .catch(error => {
-                alert('校准失败: ' + error.message);
-                btn.disabled = false;
-                btn.textContent = '校准' + (count > 1 ? '(' + count + ')' : '');
-            });
-        }
-
-        function deleteNote(noteId, btn) {
-            if (!confirm('确定要删除这条笔记吗？此操作无法撤销。')) return;
-
-            btn.disabled = true;
-            btn.textContent = '删除中...';
-
-            fetch('/delete_note/' + noteId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    btn.closest('.note-card').remove();
-                } else {
-                    throw new Error(data.error || '删除失败');
-                }
-            })
-            .catch(error => {
-                alert('删除失败: ' + error.message);
-                btn.disabled = false;
-                btn.textContent = '删除';
-            });
-        }
-
         let currentEditNoteId = null;
 
         function editNote(noteId) {
@@ -624,50 +705,62 @@
             document.getElementById('editModal').classList.add('flex');
         }
 
-        function closeEditModal() {
+        window.closeEditModal = function() {
             document.getElementById('editModal').classList.add('hidden');
             document.getElementById('editModal').classList.remove('flex');
             currentEditNoteId = null;
-        }
+        };
 
-        function saveNote() {
-            if (!currentEditNoteId) return;
+	        window.saveNote = function() {
+	            if (!currentEditNoteId) return;
 
-            const textarea = document.getElementById('editTextarea');
-            const newText = textarea.value.trim();
+	            const textarea = document.getElementById('editTextarea');
+	            const newText = textarea.value.trim();
 
-            fetch('/api/edit_note/' + currentEditNoteId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message_text: newText })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    throw new Error(data.error || '保存失败');
-                }
-            })
-            .catch(error => {
-                alert('保存失败: ' + error.message);
-            });
-        }
-
-        // 页面加载完成后检查哪些文本需要展开按钮
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                document.querySelectorAll('[id^="text-"]').forEach(function(el) {
-                    if (el.scrollHeight > el.clientHeight + 5) {
-                        const noteId = el.id.replace('text-', '');
-                        const btnEl = document.getElementById('expand-btn-' + noteId);
-                        if (btnEl) {
-                            btnEl.classList.remove('hidden');
-                        }
-                    }
-                });
-            }, 100);
-        });
-    </script>
+	            NetworkManager.fetchWithRetry('/api/edit_note/' + currentEditNoteId, {
+	                method: 'POST',
+	                headers: { 'Content-Type': 'application/json' },
+	                body: JSON.stringify({ message_text: newText })
+	            })
+	            .then(response => response.json())
+	            .then(data => {
+	                if (data.success) {
+	                    const textEl = document.getElementById('text-' + currentEditNoteId);
+	                    if (textEl) {
+	                        textEl.textContent = newText;
+	                        const cardEl = textEl.closest('[x-data]');
+	                        if (cardEl && window.Alpine && typeof window.Alpine.$data === 'function') {
+	                            const state = window.Alpine.$data(cardEl);
+	                            if (state && typeof state === 'object') {
+	                                state.isExpanded = false;
+	                            }
+	                        }
+	                        const btn = document.getElementById('expand-btn-' + currentEditNoteId);
+	                        if (btn) {
+	                            btn.classList.add('hidden');
+	                            btn.textContent = '展开全文 ▼';
+	                        }
+	                        textEl.classList.add('line-clamp-3');
+	                        setTimeout(() => {
+	                            if (!btn) return;
+	                            const collapsedHeight = textEl.clientHeight;
+	                            textEl.classList.remove('line-clamp-3');
+	                            const expandedHeight = textEl.clientHeight;
+	                            textEl.classList.add('line-clamp-3');
+	                            if (expandedHeight > collapsedHeight + 1) {
+	                                btn.classList.remove('hidden');
+	                            }
+	                        }, 0);
+	                    }
+	                    window.closeEditModal();
+	                } else {
+	                    throw new Error(data.error || '保存失败');
+	                }
+	            })
+	            .catch(error => {
+	                alert('保存失败: ' + error.message);
+	            });
+	        };
+	    </script>
 </body>
 </html>

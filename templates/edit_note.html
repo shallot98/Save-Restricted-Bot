@@ -12,10 +12,10 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 
     <!-- Tailwind CSS CDN (锁定版本) -->
-    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+    <script src="{{ url_for('static', filename='js/tailwindcss-3.4.1.js') }}"></script>
 
     <!-- Alpine.js for interactivity (锁定版本) -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <script defer src="{{ url_for('static', filename='js/alpinejs-3.14.3.min.js') }}"></script>
 
     <style>
         [x-cloak] { display: none !important; }
@@ -162,8 +162,8 @@
                         {% elif note.media_path %}
                         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                             <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">媒体内容</h3>
-                            <div class="relative aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                                <img src="/media/{{ note.media_path | urlencode }}" alt="Media preview" loading="lazy" class="w-full h-full object-contain">
+                            <div class="relative w-full rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                <img src="/media/{{ note.media_path | urlencode }}" alt="Media preview" loading="lazy" class="block max-w-full max-h-[70vh] w-auto h-auto object-contain">
                                 {% if note.media_type == 'video' or note.media_type == 'animation' %}
                                 <div class="absolute inset-0 flex items-center justify-center bg-black/30">
                                     <svg class="w-12 h-12 text-white opacity-80" fill="currentColor" viewBox="0 0 24 24">

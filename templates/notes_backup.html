@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>笔记管理 - Telegram 笔记</title>
+    <!-- 全局样式 -->
+    <link rel="stylesheet" href="/static/css/main.min.css?v=2.2">
+    <!-- 笔记页面专用样式 -->
+    <link rel="stylesheet" href="/static/css/pages/notes.min.css?v=2.0">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 移动端遮罩层 -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- 侧边栏导航 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">📝</div>
+                <div class="sidebar-title">Telegram 笔记</div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">主要功能</div>
+                    <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
+                        <span class="nav-icon">🏠</span>
+                        <span class="nav-text">首页</span>
+                    </a>
+                    <a href="/notes?page=1" class="nav-item {% if request.path == '/notes' %}active{% endif %}">
+                        <span class="nav-icon">📋</span>
+                        <span class="nav-text">我的笔记</span>
+                        <span class="nav-badge">{{ total_count }}</span>
+                    </a>
+                    <a href="/notes?favorite=1" class="nav-item">
+                        <span class="nav-icon">⭐</span>
+                        <span class="nav-text">收藏笔记</span>
+                    </a>
+                    <a href="/admin/calibration/queue" class="nav-item">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">数据统计</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">系统设置</div>
+                    <a href="/admin" class="nav-item">
+                        <span class="nav-icon">⚙️</span>
+                        <span class="nav-text">基础设置</span>
+                    </a>
+                    <a href="/admin/calibration" class="nav-item">
+                        <span class="nav-icon">🔧</span>
+                        <span class="nav-text">自动校准</span>
+                    </a>
+                    <a href="/admin/webdav" class="nav-item">
+                        <span class="nav-icon">☁️</span>
+                        <span class="nav-text">云端存储</span>
+                    </a>
+                    <a href="/admin/viewer" class="nav-item">
+                        <span class="nav-icon">🎬</span>
+                        <span class="nav-text">观看设置</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">账户</div>
+                    <a href="/logout" class="nav-item">
+                        <span class="nav-icon">🚪</span>
+                        <span class="nav-text">退出登录</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="sidebar-toggle" id="sidebarToggleBtn" onclick="toggleSidebar()">
+                    <span id="sidebarToggleText">收起侧边栏</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部工具栏 -->
+            <header class="topbar">
+                <!-- 移动端菜单按钮 -->
+                <button class="topbar-action" onclick="toggleMobileSidebar()">
+                    <span>☰</span>
+                </button>
+
+                <!-- 搜索栏容器 -->
+                <div class="topbar-search-container">
+                    <button class="topbar-action search-toggle-btn" onclick="toggleSearch()">
+                        <span>🔍</span>
+                    </button>
+                    <div class="topbar-search" id="topbarSearch">
+                        <span class="topbar-search-icon">🔍</span>
+                        <input type="text" placeholder="搜索笔记内容或来源..." id="topSearchInput" inputmode="search" autocomplete="off" autocapitalize="none">
+                    </div>
+                </div>
+
+                <!-- 顶部操作按钮组 -->
+                <div class="topbar-actions">
+                    <button class="topbar-action" onclick="toggleFilter()">
+                        <span>🎯</span>
+                    </button>
+                    <button class="topbar-action" onclick="toggleTheme()">
+                        <span>🌙</span>
+                    </button>
+                    <button class="topbar-action">
+                        <span>🔔</span>
+                        <span class="topbar-action-badge"></span>
+                    </button>
+                    <!-- 用户菜单 -->
+                    <div class="user-menu" onclick="toggleUserMenu()">
+                        <div class="user-avatar">A</div>
+                        <div class="user-info">
+                            <div class="user-name">{{ session.username or 'Admin' }}</div>
+                            <div class="user-role">管理员</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 页面内容 -->
+            <div class="page-container">
+                {% if request.args.get('page') or request.args.get('search') or request.args.get('source') or request.args.get('favorite') %}
+                <!-- 笔记浏览模式 -->
+                <!-- 页面标题 -->
+                <div class="page-header">
+                    <h1 class="page-title">📋 我的笔记</h1>
+                    <p class="page-subtitle">管理和查看您保存的所有 Telegram 笔记</p>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="stats-bar">
+                    <div class="stat-card">
+                        <div class="stat-icon primary">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-label">总笔记数</div>
+                            <div class="stat-value">{{ total_count }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon success">📂</div>
+                        <div class="stat-content">
+                            <div class="stat-label">来源数量</div>
+                            <div class="stat-value">{{ sources|length }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon info">📄</div>
+                        <div class="stat-content">
+                            <div class="stat-label">当前页码</div>
+                            <div class="stat-value">{{ current_page }}/{{ total_pages }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon warning">⭐</div>
+                        <div class="stat-content">
+                            <div class="stat-label">收藏笔记</div>
+                            <div class="stat-value">{{ notes|selectattr('is_favorite')|list|length }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 筛选面板 -->
+                <div class="filter-panel {% if search_query or selected_source or date_from or date_to or favorite_only %}active{% endif %}" id="filterPanel">
+                    <div class="filter-header">
+                        <div class="filter-title">
+                            <span>🔍</span>
+                            <span>高级筛选</span>
+                        </div>
+                        {% if search_query or selected_source or date_from or date_to or favorite_only %}
+                        <a href="/notes" class="btn btn-sm btn-secondary">清除筛选</a>
+                        {% endif %}
+                    </div>
+
+                    <!-- 筛选表单 -->
+                    <form method="GET" action="/notes">
+                        <div class="filter-grid">
+                            <div class="form-group">
+                                <label class="form-label">关键词搜索</label>
+                                <input type="text" name="search" class="form-input" placeholder="搜索笔记内容..." value="{{ search_query or '' }}" inputmode="search" autocomplete="off" autocapitalize="none">
+                            </div>
+
+                            {% if sources|length > 0 %}
+                            <div class="form-group">
+                                <label class="form-label">筛选来源</label>
+                                <select name="source" class="form-select">
+                                    <option value="">全部来源</option>
+                                    {% for source in sources %}
+                                    <option value="{{ source.source_chat_id }}" {% if selected_source == source.source_chat_id %}selected{% endif %}>
+                                        {{ source.source_name or source.source_chat_id }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+
+                            <div class="form-group">
+                                <label class="form-label">开始日期</label>
+                                <input type="date" name="date_from" class="form-input" value="{{ date_from or '' }}" inputmode="none">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">结束日期</label>
+                                <input type="date" name="date_to" class="form-input" value="{{ date_to or '' }}" inputmode="none">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">收藏筛选</label>
+                                <select name="favorite" class="form-select">
+                                    <option value="">全部笔记</option>
+                                    <option value="1" {% if favorite_only %}selected{% endif %}>仅收藏</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="filter-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <span>应用筛选</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 笔记卡片网格 -->
+                {% if notes|length > 0 %}
+                <div class="notes-grid">
+                    {% for note in notes %}
+                    <div class="note-card">
+                        <!-- 收藏按钮 -->
+                        <button class="note-favorite {{ 'active' if note.is_favorite }}" onclick="toggleFavorite({{ note.id }}, this)">
+                            {{ '★' if note.is_favorite else '☆' }}
+                        </button>
+
+                        <!-- 媒体内容展示 -->
+                        {% if note.media_paths and note.media_paths|length > 0 %}
+                        <div class="note-media">
+                            <div class="media-grid count-{{ note.media_paths|length }}">
+                                {% for media_path in note.media_paths %}
+                                <div class="media-grid-item">
+                                    <img src="/media/{{ media_path | urlencode }}" alt="Note image" loading="lazy" decoding="async" onclick="openImageModal(this.src)">
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% elif note.media_type == 'photo' %}
+                        <div class="note-media">
+                            <img src="/media/{{ note.media_path | urlencode }}" alt="Note image" loading="lazy" decoding="async" onclick="openImageModal(this.src)">
+                        </div>
+                        {% elif note.media_type == 'video' %}
+                        <div class="note-media">
+                            <img src="/media/{{ note.media_path | urlencode }}" alt="Video thumbnail" loading="lazy" decoding="async">
+                            <span class="media-badge">📹 视频</span>
+                        </div>
+                        {% elif note.media_type == 'animation' %}
+                        <div class="note-media">
+                            <img src="/media/{{ note.media_path | urlencode }}" alt="GIF thumbnail" loading="lazy" decoding="async">
+                            <span class="media-badge">🎬 GIF动图</span>
+                        </div>
+                        {% endif %}
+
+                        <!-- 笔记内容 -->
+                        <div class="note-content">
+                            <!-- 来源信息 -->
+                            <div class="note-source">
+                                <span class="note-source-badge">{{ note.source_name or note.source_chat_id }}</span>
+                                <span class="note-id">#{{ note.id }}</span>
+                            </div>
+
+                            <!-- 笔记文本 -->
+                            {% if note.message_text %}
+                            <div class="note-text" id="text-{{ note.id }}">
+                                {{ note.message_text | highlight(search_query) | safe }}
+                                <div class="note-text-fade"></div>
+                            </div>
+                            <span class="note-expand-btn" id="expand-{{ note.id }}" onclick="toggleText({{ note.id }})">展开全文 ▼</span>
+                            {% endif %}
+
+                            <!-- 笔记底部操作栏 -->
+                            <div class="note-footer">
+                                <div class="note-time">
+                                    <span>🕒</span>
+                                    <span>{{ note.timestamp }}</span>
+                                </div>
+
+                                <!-- 操作按钮组 -->
+                                <div class="note-actions">
+                                    {% if note.all_dns and note.all_dns|length > 0 %}
+                                    <button class="note-action-btn calibrate" onclick="calibrateNote({{ note.id }}, {{ note.all_dns|length }}, this)">
+                                        校准{% if note.all_dns|length > 1 %}({{ note.all_dns|length }}){% endif %}
+                                    </button>
+                                    {% endif %}
+
+                                    {% if note.all_dns and note.all_dns|length > 0 %}
+                                    {% set valid_dns = note.all_dns|selectattr('dn')|list %}
+                                    {% if valid_dns|length > 0 %}
+                                    <a href="{{ viewer_url }}{{ valid_dns[0].dn }}" class="note-action-btn watch" target="_blank">
+                                        观看
+                                    </a>
+                                    {% endif %}
+                                    {% endif %}
+
+                                    <a href="/edit_note/{{ note.id }}" class="note-action-btn edit">编辑</a>
+                                    <button class="note-action-btn delete" onclick="deleteNote({{ note.id }})">删除</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- 分页 -->
+                {% if total_pages > 1 %}
+                <div class="pagination">
+                    {% if current_page > 1 %}
+                    <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">
+                        ← 上一页
+                    </a>
+                    {% endif %}
+
+                    {% for page_num in range(1, total_pages + 1) %}
+                    {% if page_num == current_page %}
+                    <span class="page-btn active">{{ page_num }}</span>
+                    {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
+                    <a href="?page={{ page_num }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">
+                        {{ page_num }}
+                    </a>
+                    {% elif page_num == 4 or page_num == total_pages - 3 %}
+                    <span class="page-btn ellipsis">...</span>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if current_page < total_pages %}
+                    <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}" class="page-btn">
+                        下一页 →
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endif %}
+                {% else %}
+                <!-- 欢迎页面 -->
+                <div class="welcome-section">
+                    <div class="welcome-icon">📝</div>
+                    <h1 class="welcome-title">欢迎使用 Telegram 笔记系统</h1>
+                    <p class="welcome-text">一个现代化的 Telegram 内容管理平台，帮助您高效管理和查看保存的笔记</p>
+
+                    <!-- 快速操作按钮 -->
+                    <div class="welcome-actions">
+                        <a href="/notes?page=1" class="btn btn-primary btn-lg">
+                            <span>📋</span>
+                            <span>查看所有笔记</span>
+                        </a>
+                        <a href="/notes?favorite=1" class="btn btn-secondary btn-lg">
+                            <span>⭐</span>
+                            <span>我的收藏</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 功能介绍卡片 -->
+                <div class="welcome-features-grid">
+                    <div class="card">
+                        <div class="card-body welcome-feature-card">
+                            <div class="welcome-feature-icon">📊</div>
+                            <h3 class="welcome-feature-title">数据统计</h3>
+                            <p class="welcome-feature-text">
+                                总计 <strong>{{ total_count }}</strong> 条笔记<br>
+                                来自 <strong>{{ sources|length }}</strong> 个来源
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body welcome-feature-card">
+                            <div class="welcome-feature-icon">🔍</div>
+                            <h3 class="welcome-feature-title">智能搜索</h3>
+                            <p class="welcome-feature-text">
+                                支持关键词搜索、来源筛选<br>
+                                日期范围和收藏筛选
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body welcome-feature-card">
+                            <div class="welcome-feature-icon">🌙</div>
+                            <h3 class="welcome-feature-title">暗色模式</h3>
+                            <p class="welcome-feature-text">
+                                护眼的暗色主题<br>
+                                一键切换，自动保存
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <!-- 图片预览模态框 -->
+    <div class="modal" id="imageModal" onclick="closeImageModal()">
+        <button class="modal-close" onclick="closeImageModal()">×</button>
+        <img class="modal-image" id="modalImage" onclick="event.stopPropagation()">
+    </div>
+
+    <!-- JavaScript Modules (Load in dependency order) -->
+    <!-- 1. Utilities (no dependencies) -->
+    <script src="/static/js/utils/storage.min.js?v=2.0"></script>
+    <script src="/static/js/utils/debounce.min.js?v=2.0"></script>
+    <script src="/static/js/utils/network.min.js?v=2.0"></script>
+
+    <!-- 2. Components (depend on utilities) -->
+    <script src="/static/js/components/sidebar.min.js?v=2.0"></script>
+    <script src="/static/js/components/search.min.js?v=2.0"></script>
+    <script src="/static/js/components/modal.min.js?v=2.0"></script>
+    <script src="/static/js/components/lazyload.min.js?v=2.0"></script>
+
+    <!-- 3. Page Logic (depends on all above) -->
+    <script src="/static/js/pages/notes.min.js?v=2.0"></script>
+
+    <!-- Debug: Verify functions are loaded -->
+    <script>
+        console.log('toggleMobileSidebar available:', typeof window.toggleMobileSidebar);
+        console.log('MobileUIState available:', typeof window.MobileUIState);
+    </script>
+</body>
+</html>

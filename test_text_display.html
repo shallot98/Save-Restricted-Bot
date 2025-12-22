@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本显示测试</title>
+    <script src="static/js/tailwindcss-3.4.1.js"></script>
+    <style>
+        /* 自定义 line-clamp-3 实现 (修复 Tailwind CDN 缺少插件问题) */
+        .line-clamp-3 {
+            display: -webkit-box !important;
+            -webkit-box-orient: vertical !important;
+            -webkit-line-clamp: 3 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            /* 强制断行，即使是超长 URL */
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            word-wrap: break-word !important;
+            white-space: normal !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            line-height: 1.6 !important;
+        }
+
+        .note-card {
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .note-card p {
+            max-width: 100%;
+            min-width: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <h1 class="text-2xl font-bold mb-6">文本显示修复测试</h1>
+
+        <!-- 测试1: 长文本截断 -->
+        <div class="bg-white rounded-lg shadow p-4 note-card">
+            <h2 class="text-lg font-semibold mb-2">测试1: 长文本截断（应该显示3行）</h2>
+            <p id="text-1" class="text-gray-700 text-sm line-clamp-3 transition-all duration-200">
+                极品名媛外围女神『嫖妓达人』 全是楼凤小姐 看着还是很不错的 不过这个系列太乱了 你们自己喜欢的 下载了整理下。这是一段很长的文本，用来测试文本截断功能是否正常工作。如果CSS正确应用，这段文本应该只显示3行，超出的部分会被隐藏并显示省略号。让我们继续添加更多的文本来确保它确实会被截断。这是第四行的内容，应该被隐藏。这是第五行的内容，也应该被隐藏。
+            </p>
+            <button id="expand-btn-1" onclick="toggleText(1)" class="text-blue-600 text-xs mt-1 hover:underline hidden">
+                展开全文 ▼
+            </button>
+        </div>
+
+        <!-- 测试2: 长磁力链接换行 -->
+        <div class="bg-white rounded-lg shadow p-4 note-card">
+            <h2 class="text-lg font-semibold mb-2">测试2: 长磁力链接换行（应该自动换行不溢出）</h2>
+            <p id="text-2" class="text-gray-700 text-sm line-clamp-3 transition-all duration-200">
+                #日期20251112 #22716083 #酒店偷拍 11-9流出酒店偷拍 牛仔裤大波妹和男友深夜幽会操逼的时候妹子不知为何哭了
+
+#磁力链接
+magnet:?xt=urn:btih:DADA33AD593BDB64867164C8D0CC28BFE4C3CD40&dn=11-9流出酒店偷拍牛仔裤大波妹和男友深夜幽会操逼的时候妹子不知为何哭了
+            </p>
+            <button id="expand-btn-2" onclick="toggleText(2)" class="text-blue-600 text-xs mt-1 hover:underline hidden">
+                展开全文 ▼
+            </button>
+        </div>
+
+        <!-- 测试3: 短文本（不应该显示展开按钮） -->
+        <div class="bg-white rounded-lg shadow p-4 note-card">
+            <h2 class="text-lg font-semibold mb-2">测试3: 短文本（不应该显示展开按钮）</h2>
+            <p id="text-3" class="text-gray-700 text-sm line-clamp-3 transition-all duration-200">
+                这是一段短文本，只有两行。
+            </p>
+            <button id="expand-btn-3" onclick="toggleText(3)" class="text-blue-600 text-xs mt-1 hover:underline hidden">
+                展开全文 ▼
+            </button>
+        </div>
+
+        <!-- 测试4: 超长URL -->
+        <div class="bg-white rounded-lg shadow p-4 note-card">
+            <h2 class="text-lg font-semibold mb-2">测试4: 超长URL（应该自动换行）</h2>
+            <p id="text-4" class="text-gray-700 text-sm line-clamp-3 transition-all duration-200">
+                这是一个包含超长URL的测试：https://www.example.com/very/long/path/that/should/wrap/properly/without/overflowing/the/container/boundary/test/test/test/test/test/test/test/test/test
+            </p>
+            <button id="expand-btn-4" onclick="toggleText(4)" class="text-blue-600 text-xs mt-1 hover:underline hidden">
+                展开全文 ▼
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function toggleText(noteId) {
+            const textEl = document.getElementById('text-' + noteId);
+            const btnEl = document.getElementById('expand-btn-' + noteId);
+
+            if (textEl.classList.contains('line-clamp-3')) {
+                textEl.classList.remove('line-clamp-3');
+                btnEl.textContent = '收起 ▲';
+            } else {
+                textEl.classList.add('line-clamp-3');
+                btnEl.textContent = '展开全文 ▼';
+            }
+        }
+
+        // 页面加载完成后检查哪些文本需要展开按钮
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                document.querySelectorAll('[id^="text-"]').forEach(function(el) {
+                    // 检查文本是否超过3行
+                    console.log(`Element ${el.id}: scrollHeight=${el.scrollHeight}, clientHeight=${el.clientHeight}`);
+                    if (el.scrollHeight > el.clientHeight + 5) {
+                        const noteId = el.id.replace('text-', '');
+                        const btnEl = document.getElementById('expand-btn-' + noteId);
+                        if (btnEl) {
+                            btnEl.classList.remove('hidden');
+                            console.log(`显示展开按钮: ${noteId}`);
+                        }
+                    }
+                });
+            }, 100);
+        });
+    </script>
+</body>
+</html>

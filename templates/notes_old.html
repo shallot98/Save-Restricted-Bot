@@ -1343,8 +1343,8 @@
                     <span class="selection-option-text">${dnInfo.dn}</span>
                 `;
                 option.onclick = function() {
-                    // 构建完整的观看URL
-                    const watchUrl = viewerUrl + dnInfo.dn;
+                    // 构建完整的观看URL，URL编码文件名避免空格等特殊字符导致链接截断
+                    const watchUrl = viewerUrl + encodeURIComponent(dnInfo.dn);
                     console.log('Opening watch URL:', watchUrl);
 
                     // 打开新窗口观看
