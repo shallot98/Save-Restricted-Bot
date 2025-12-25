@@ -3,6 +3,7 @@ WebDAV client for remote media storage
 Supports uploading, downloading, and managing files on WebDAV servers
 """
 import os
+import re
 import logging
 from typing import Optional, BinaryIO
 from webdav3.client import Client
@@ -193,6 +194,8 @@ class WebDAVClient:
 class StorageManager:
     """存储管理器，统一管理本地和 WebDAV 存储"""
 
+    _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$")
+
     def __init__(self, local_dir: str, webdav_client: Optional[WebDAVClient] = None):
         """
         初始化存储管理器
@@ -213,6 +216,82 @@ class StorageManager:
         else:
             logger.info("📦 存储管理器：仅使用本地存储")
 
+    @classmethod
+    def _sanitize_filename(cls, filename: str) -> Optional[str]:
+        """校验文件名，拒绝路径穿越与非法字符。
+
+        仅允许扁平文件名（不含任何路径分隔符），并限制字符集，避免被用于
+        读取/删除本地任意文件或构造 WebDAV 路径。
+        """
+        if not filename:
+            return None
+
+        if filename != filename.strip():
+            return None
+
+        if "/" in filename or "\\" in filename:
+            return None
+
+        if ".." in filename:
+            return None
+
+        if not cls._SAFE_FILENAME_RE.fullmatch(filename):
+            return None
+
+        return filename
+
+    def _parse_storage_location(self, storage_location: str) -> Optional[tuple[str, str]]:
+        """解析并规范化存储位置标识。
+
+        支持：
+        - "local:<filename>"
+        - "webdav:<filename>"
+        - "<filename>"（旧格式，视为本地文件名）
+        """
+        if not storage_location:
+            return None
+
+        storage_location = storage_location.strip()
+        if not storage_location:
+            return None
+
+        if ":" in storage_location:
+            storage_type, filename = storage_location.split(":", 1)
+            storage_type = storage_type.strip().lower()
+        else:
+            storage_type, filename = "local", storage_location
+
+        filename = filename.strip()
+        safe_filename = self._sanitize_filename(filename)
+        if safe_filename is None:
+            logger.warning(f"⚠️ 非法文件名，已拒绝: {filename}")
+            return None
+
+        if storage_type not in {"local", "webdav"}:
+            logger.warning(f"⚠️ 未知的存储类型: {storage_type}")
+            return None
+
+        return storage_type, safe_filename
+
+    def _get_local_path(self, filename: str) -> Optional[str]:
+        """获取本地文件绝对路径，并确保落在 local_dir 内。"""
+        safe_filename = self._sanitize_filename(filename)
+        if safe_filename is None:
+            return None
+
+        local_root = os.path.abspath(self.local_dir)
+        full_path = os.path.abspath(os.path.join(self.local_dir, safe_filename))
+
+        try:
+            if os.path.commonpath([local_root, full_path]) != local_root:
+                logger.warning(f"⚠️ 非法路径访问已拒绝: {filename}")
+                return None
+        except ValueError:
+            logger.warning(f"⚠️ 非法路径访问已拒绝: {filename}")
+            return None
+
+        return full_path
+
     def save_file(self, local_path: str, filename: str, keep_local: bool = False) -> tuple[bool, str]:
         """
         保存文件（根据配置选择本地或 WebDAV）
@@ -227,10 +306,15 @@ class StorageManager:
                 存储位置标识: "local:filename" 或 "webdav:filename"
         """
         try:
+            safe_filename = self._sanitize_filename(filename)
+            if safe_filename is None:
+                logger.error(f"❌ 非法文件名，拒绝保存: {filename}")
+                return False, ""
+
             # WebDAV 模式
             if self.use_webdav:
                 # 上传到 WebDAV
-                success = self.webdav_client.upload_file(local_path, filename)
+                success = self.webdav_client.upload_file(local_path, safe_filename)
 
                 if success:
                     # 如果不保留本地副本，删除临时文件
@@ -241,15 +325,15 @@ class StorageManager:
                         except Exception as e:
                             logger.warning(f"⚠️ 删除临时文件失败: {e}")
 
-                    return True, f"webdav:{filename}"
+                    return True, f"webdav:{safe_filename}"
                 else:
                     # WebDAV 上传失败，降级到本地存储
-                    logger.warning(f"⚠️ WebDAV 上传失败，降级到本地存储: {filename}")
-                    return self._save_local(local_path, filename)
+                    logger.warning(f"⚠️ WebDAV 上传失败，降级到本地存储: {safe_filename}")
+                    return self._save_local(local_path, safe_filename)
 
             # 本地存储模式
             else:
-                return self._save_local(local_path, filename)
+                return self._save_local(local_path, safe_filename)
 
         except Exception as e:
             logger.error(f"❌ 保存文件失败: {e}", exc_info=True)
@@ -258,7 +342,10 @@ class StorageManager:
     def _save_local(self, local_path: str, filename: str) -> tuple[bool, str]:
         """保存到本地存储"""
         try:
-            target_path = os.path.join(self.local_dir, filename)
+            target_path = self._get_local_path(filename)
+            if not target_path:
+                logger.error(f"❌ 非法文件名，无法保存到本地: {filename}")
+                return False, ""
 
             # 如果源文件和目标文件不同，则复制
             if os.path.abspath(local_path) != os.path.abspath(target_path):
@@ -283,26 +370,22 @@ class StorageManager:
             str: 本地路径或 WebDAV URL
         """
         try:
-            if not storage_location:
+            parsed = self._parse_storage_location(storage_location)
+            if not parsed:
                 return None
 
-            # 兼容旧格式（没有前缀的视为本地文件）
-            if ':' not in storage_location:
-                return os.path.join(self.local_dir, storage_location)
+            storage_type, filename = parsed
 
-            storage_type, filename = storage_location.split(':', 1)
+            if storage_type == "local":
+                return self._get_local_path(filename)
 
-            if storage_type == 'local':
-                return os.path.join(self.local_dir, filename)
-            elif storage_type == 'webdav':
-                if self.webdav_client:
-                    return self.webdav_client.get_file_url(filename)
-                else:
+            if storage_type == "webdav":
+                if not self.webdav_client:
                     logger.warning(f"⚠️ WebDAV 客户端未配置，无法获取 URL: {filename}")
                     return None
-            else:
-                logger.warning(f"⚠️ 未知的存储类型: {storage_type}")
-                return None
+                return self.webdav_client.get_file_url(filename)
+
+            return None
 
         except Exception as e:
             logger.error(f"❌ 获取文件路径失败: {e}")
@@ -319,32 +402,27 @@ class StorageManager:
             bool: 是否成功
         """
         try:
-            if not storage_location:
+            parsed = self._parse_storage_location(storage_location)
+            if not parsed:
                 return False
 
-            # 兼容旧格式
-            if ':' not in storage_location:
-                local_path = os.path.join(self.local_dir, storage_location)
-                if os.path.exists(local_path):
-                    os.remove(local_path)
-                    return True
-                return False
+            storage_type, filename = parsed
 
-            storage_type, filename = storage_location.split(':', 1)
+            if storage_type == "local":
+                local_path = self._get_local_path(filename)
+                if not local_path:
+                    return False
 
-            if storage_type == 'local':
-                local_path = os.path.join(self.local_dir, filename)
                 if os.path.exists(local_path):
                     os.remove(local_path)
                     logger.info(f"✅ 本地文件已删除: {filename}")
                 return True
 
-            elif storage_type == 'webdav':
-                if self.webdav_client:
-                    return self.webdav_client.delete_file(filename)
-                else:
+            if storage_type == "webdav":
+                if not self.webdav_client:
                     logger.warning(f"⚠️ WebDAV 客户端未配置: {filename}")
                     return False
+                return self.webdav_client.delete_file(filename)
 
             return False
 

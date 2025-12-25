@@ -1,0 +1,8 @@
+{
+  "_comment": "配置示例文件 - 复制此文件为 data/config/config.json 并填入实际值",
+  "TOKEN": "your_telegram_bot_token_here",
+  "HASH": "your_telegram_api_hash_here",
+  "ID": "your_telegram_api_id_here",
+  "STRING": "your_telegram_session_string_here",
+  "OWNER_ID": "your_telegram_user_id_here"
+}

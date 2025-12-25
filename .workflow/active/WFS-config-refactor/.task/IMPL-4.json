@@ -1,0 +1,313 @@
+{
+  "id": "IMPL-4",
+  "title": "迁移现有配置到新管理器",
+  "status": "pending",
+  "context_package_path": ".workflow/active/WFS-config-refactor/.process/context-package.json",
+  "meta": {
+    "type": "refactor",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "迁移4个核心模块到新配置管理器: [database.py, web/routes/main.py, bot/workers/message_worker.py, bot/utils/sources_manager.py]",
+      "更新兼容层函数，委托给增强的Settings类",
+      "创建1个配置迁移脚本: migrate_config.py",
+      "编写12个兼容性测试用例验证迁移后功能正常",
+      "更新2个文档: [迁移指南, API变更说明]"
+    ],
+    "focus_paths": [
+      "database.py",
+      "web/routes/main.py",
+      "bot/workers/message_worker.py",
+      "bot/utils/sources_manager.py",
+      "src/compat/config_compat.py",
+      "scripts/migrate_config.py",
+      "tests/integration/test_config_migration.py",
+      "docs/config/MIGRATION_GUIDE.md"
+    ],
+    "acceptance": [
+      "4个模块已迁移: 验证 grep 'from src.core.config import settings' database.py web/routes/main.py bot/workers/message_worker.py bot/utils/sources_manager.py | wc -l = 4",
+      "兼容层正常工作: 验证 pytest tests/integration/test_config_migration.py::test_compat_layer 通过",
+      "迁移脚本可用: 验证 python scripts/migrate_config.py --dry-run 成功执行",
+      "兼容性测试通过: 验证 pytest tests/integration/test_config_migration.py -v 全部通过",
+      "迁移文档完整: 验证 test -f docs/config/MIGRATION_GUIDE.md && grep '迁移步骤' docs/config/MIGRATION_GUIDE.md"
+    ],
+    "depends_on": ["IMPL-3"],
+    "inherited": {
+      "from": "IMPL-3",
+      "context": [
+        "Settings类已增强，支持Pydantic模型",
+        "配置加载和持久化机制已实现",
+        "配置优先级处理已完成"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "Pydantic", "pytest"],
+      "migration_strategy": [
+        "保持向后兼容性，兼容层继续工作",
+        "分模块迁移，每个模块独立测试",
+        "提供迁移脚本自动化迁移",
+        "新代码使用新接口，旧代码通过兼容层"
+      ],
+      "conventions": [
+        "新代码: from src.core.config import settings",
+        "旧代码: from config import load_config (通过兼容层)",
+        "迁移后保持功能一致性"
+      ]
+    },
+    "artifacts": [
+      {
+        "type": "implementation",
+        "source": "IMPL-3",
+        "path": "src/core/config/settings.py",
+        "priority": "highest",
+        "usage": "增强的Settings类，用于迁移",
+        "contains": "支持Pydantic模型的配置管理器"
+      },
+      {
+        "type": "context_analysis",
+        "source": "context-package.json",
+        "path": ".workflow/active/WFS-config-refactor/.process/context-package.json",
+        "priority": "high",
+        "usage": "集成点分析，指导迁移",
+        "contains": "4个集成点的使用模式"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "加载上下文包",
+        "commands": ["Read(.workflow/active/WFS-config-refactor/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_integration_points",
+        "action": "分析4个集成点的配置使用",
+        "commands": [
+          "Read(database.py)",
+          "Read(web/routes/main.py)",
+          "bash(rg 'load_config|getenv|settings' bot/workers/message_worker.py -n --max-count 10)",
+          "bash(rg 'load_config|getenv|settings' bot/utils/sources_manager.py -n --max-count 10)"
+        ],
+        "output_to": "integration_usage",
+        "on_error": "fail"
+      },
+      {
+        "step": "review_compat_layer",
+        "action": "查看兼容层实现",
+        "commands": ["Read(src/compat/config_compat.py)"],
+        "output_to": "compat_layer",
+        "on_error": "fail"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "更新兼容层函数",
+        "description": "修改兼容层函数，委托给增强的Settings类",
+        "modification_points": [
+          "修改文件: src/compat/config_compat.py",
+          "更新load_config函数: 返回settings.main_config.dict()",
+          "更新save_watch_config函数: 使用settings.save_watch_config",
+          "确保所有函数委托给settings实例"
+        ],
+        "logic_flow": [
+          "导入增强的settings: from src.core.config import settings",
+          "修改load_config: return settings.main_config",
+          "修改getenv: 保持现有逻辑，但使用settings.get",
+          "修改load_watch_config: return settings.watch_config",
+          "修改save_watch_config: settings.save_watch_config(config, auto_reload)",
+          "修改load_webdav_config: return settings.webdav_config",
+          "修改save_webdav_config: settings.save_webdav_config(config)",
+          "修改load_viewer_config: return settings.viewer_config",
+          "修改save_viewer_config: settings.save_viewer_config(config)",
+          "添加类型注解和文档字符串"
+        ],
+        "depends_on": [],
+        "output": "src/compat/config_compat.py"
+      },
+      {
+        "step": 2,
+        "title": "迁移database.py",
+        "description": "更新database.py使用新配置接口",
+        "modification_points": [
+          "修改文件: database.py",
+          "已使用settings: 验证现有导入",
+          "确认路径访问: settings.paths.data_dir",
+          "无需修改，已使用新接口"
+        ],
+        "logic_flow": [
+          "检查现有导入: from src.core.config import settings",
+          "验证路径访问: DATA_DIR = str(settings.paths.data_dir)",
+          "验证数据库路径: DATABASE_FILE = str(settings.paths.data_dir / 'notes.db')",
+          "运行测试确认功能正常"
+        ],
+        "depends_on": [1],
+        "output": "database.py (验证)"
+      },
+      {
+        "step": 3,
+        "title": "迁移web/routes/main.py",
+        "description": "更新web路由使用新配置接口",
+        "modification_points": [
+          "修改文件: web/routes/main.py",
+          "替换导入: from config import CONFIG_FILE, WATCH_FILE → from src.core.config import settings",
+          "更新路径访问: settings.paths.config_file, settings.paths.watch_file"
+        ],
+        "logic_flow": [
+          "查找配置导入: grep 'from config import' web/routes/main.py",
+          "替换为新导入: from src.core.config import settings",
+          "更新CONFIG_FILE引用: settings.paths.config_file",
+          "更新WATCH_FILE引用: settings.paths.watch_file",
+          "运行web路由测试确认功能正常"
+        ],
+        "depends_on": [1],
+        "output": "web/routes/main.py"
+      },
+      {
+        "step": 4,
+        "title": "迁移bot/workers/message_worker.py",
+        "description": "更新消息工作器使用新配置接口",
+        "modification_points": [
+          "修改文件: bot/workers/message_worker.py",
+          "查找配置使用: load_webdav_config等",
+          "替换为settings.webdav_config",
+          "更新配置访问方式"
+        ],
+        "logic_flow": [
+          "查找配置导入和使用",
+          "如果使用load_webdav_config，替换为settings.webdav_config",
+          "如果使用save_webdav_config，替换为settings.save_webdav_config",
+          "更新配置字段访问方式",
+          "运行消息工作器测试确认功能正常"
+        ],
+        "depends_on": [1],
+        "output": "bot/workers/message_worker.py"
+      },
+      {
+        "step": 5,
+        "title": "迁移bot/utils/sources_manager.py",
+        "description": "更新监控源管理器使用新配置接口",
+        "modification_points": [
+          "修改文件: bot/utils/sources_manager.py",
+          "查找配置使用: load_watch_config, save_watch_config等",
+          "替换为settings.watch_config, settings.save_watch_config",
+          "更新监控源访问方式"
+        ],
+        "logic_flow": [
+          "查找配置导入和使用",
+          "如果使用load_watch_config，替换为settings.watch_config",
+          "如果使用save_watch_config，替换为settings.save_watch_config",
+          "如果使用get_monitored_sources，替换为settings.monitored_sources",
+          "更新配置字段访问方式",
+          "运行监控源管理器测试确认功能正常"
+        ],
+        "depends_on": [1],
+        "output": "bot/utils/sources_manager.py"
+      },
+      {
+        "step": 6,
+        "title": "创建配置迁移脚本",
+        "description": "编写自动化迁移脚本",
+        "modification_points": [
+          "创建目录: scripts/",
+          "创建文件: scripts/migrate_config.py",
+          "实现3个功能: [检查配置、备份配置、迁移配置]",
+          "支持--dry-run模式"
+        ],
+        "logic_flow": [
+          "导入依赖: argparse, json, shutil, pathlib",
+          "定义check_config函数: 检查配置文件格式",
+          "定义backup_config函数: 备份现有配置",
+          "定义migrate_config函数: 迁移配置到新格式",
+          "实现命令行参数解析: --dry-run, --backup-dir",
+          "主流程: 检查 → 备份 → 迁移",
+          "添加详细的日志输出",
+          "添加错误处理和回滚机制"
+        ],
+        "depends_on": [1, 2, 3, 4, 5],
+        "output": "scripts/migrate_config.py"
+      },
+      {
+        "step": 7,
+        "title": "编写兼容性测试",
+        "description": "创建测试验证迁移后功能正常",
+        "modification_points": [
+          "创建文件: tests/integration/test_config_migration.py",
+          "编写12个测试用例: 兼容层、database模块、web路由、消息工作器、监控源管理器、配置加载、配置保存、路径访问、配置优先级、错误处理、并发访问、迁移脚本"
+        ],
+        "logic_flow": [
+          "导入pytest和相关模块",
+          "测试兼容层: 验证load_config等函数正常工作",
+          "测试database模块: 验证数据库路径正确",
+          "测试web路由: 验证配置文件路径正确",
+          "测试消息工作器: 验证WebDAV配置加载正常",
+          "测试监控源管理器: 验证监控配置加载正常",
+          "测试配置加载: 验证新旧接口加载一致",
+          "测试配置保存: 验证新旧接口保存一致",
+          "测试路径访问: 验证路径配置正确",
+          "测试配置优先级: 验证优先级处理正确",
+          "测试错误处理: 验证错误情况处理正确",
+          "测试并发访问: 验证线程安全",
+          "测试迁移脚本: 验证迁移脚本正常工作"
+        ],
+        "depends_on": [1, 2, 3, 4, 5, 6],
+        "output": "tests/integration/test_config_migration.py"
+      },
+      {
+        "step": 8,
+        "title": "编写迁移文档",
+        "description": "创建迁移指南和API变更说明",
+        "modification_points": [
+          "创建文件: docs/config/MIGRATION_GUIDE.md",
+          "包含6个章节: 概述、迁移步骤、API变更、兼容性说明、常见问题、回滚方案"
+        ],
+        "logic_flow": [
+          "编写概述: 说明迁移的目的和范围",
+          "编写迁移步骤: 详细的迁移操作步骤",
+          "编写API变更: 列出新旧API对比",
+          "编写兼容性说明: 说明兼容层的作用",
+          "编写常见问题: 列出迁移中可能遇到的问题和解决方案",
+          "编写回滚方案: 说明如何回滚到旧版本",
+          "添加代码示例和最佳实践"
+        ],
+        "depends_on": [1, 2, 3, 4, 5, 6, 7],
+        "output": "docs/config/MIGRATION_GUIDE.md"
+      },
+      {
+        "step": 9,
+        "title": "运行兼容性测试并验证",
+        "description": "执行所有测试确保迁移成功",
+        "modification_points": [
+          "运行pytest: pytest tests/integration/test_config_migration.py -v",
+          "运行回归测试: pytest tests/ -v",
+          "验证迁移脚本: python scripts/migrate_config.py --dry-run"
+        ],
+        "logic_flow": [
+          "执行兼容性测试",
+          "查看测试结果，确保所有测试通过",
+          "执行完整的回归测试套件",
+          "验证迁移脚本可以正常运行",
+          "如果有失败，分析原因并修复",
+          "重新运行测试直到全部通过"
+        ],
+        "depends_on": [7, 8],
+        "output": "测试报告"
+      }
+    ],
+    "target_files": [
+      "src/compat/config_compat.py",
+      "database.py",
+      "web/routes/main.py",
+      "bot/workers/message_worker.py",
+      "bot/utils/sources_manager.py",
+      "scripts/migrate_config.py",
+      "tests/integration/test_config_migration.py",
+      "docs/config/MIGRATION_GUIDE.md"
+    ]
+  }
+}

@@ -12,9 +12,7 @@
 	     alt="{{ alt_text }}"
 	     loading="lazy"
 	     class="note-media-img absolute inset-0 w-full h-full object-cover opacity-0 image-loading"
-	     data-note-media-img
-	     onload="this.classList.remove('opacity-0','image-loading'); this.classList.add('image-loaded'); if (this.previousElementSibling) this.previousElementSibling.remove();"
-	     onerror="this.classList.remove('opacity-0','image-loading'); this.classList.add('image-error'); if (this.previousElementSibling) this.previousElementSibling.remove();">
+	     data-note-media-img>
 {% endmacro %}
 
 {% macro render_note_card(note, viewer_url='', search_query='') %}

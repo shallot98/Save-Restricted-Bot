@@ -1,0 +1,184 @@
+{
+  "id": "IMPL-1",
+  "title": "统一缓存接口设计与实现",
+  "status": "pending",
+  "context_package_path": null,
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "设计统一的缓存接口 CacheInterface，包含 5 个核心方法: [get, set, delete, clear, get_or_set]",
+      "实现 UnifiedCache 类，基于现有 TTLCache（src/infrastructure/cache/__init__.py）",
+      "增强 @cached 装饰器，支持 4 个配置选项: [ttl, key_prefix, invalidation_strategy, cache_instance]",
+      "创建 3 个专用缓存管理器: [NoteCacheManager, ConfigCacheManager, PeerCacheManager]",
+      "实现 2 个缓存失效策略: [time_based（基于TTL）, event_based（基于事件）]"
+    ],
+    "focus_paths": [
+      "src/infrastructure/cache/__init__.py",
+      "src/infrastructure/cache/interface.py",
+      "src/infrastructure/cache/unified.py",
+      "src/infrastructure/cache/decorators.py",
+      "src/infrastructure/cache/managers.py"
+    ],
+    "acceptance": [
+      "5 个核心方法实现完成: 验证 grep -E '(def get|def set|def delete|def clear|def get_or_set)' src/infrastructure/cache/interface.py | wc -l = 5",
+      "3 个专用缓存管理器创建: 验证 grep -E 'class.*CacheManager' src/infrastructure/cache/managers.py | wc -l = 3",
+      "装饰器支持 4 个配置选项: 验证 grep -E '(ttl|key_prefix|invalidation_strategy|cache_instance)' src/infrastructure/cache/decorators.py | wc -l >= 4",
+      "单元测试覆盖率 >=85%: 验证 pytest tests/unit/test_cache_interface.py --cov=src/infrastructure/cache --cov-report=term | grep 'TOTAL.*8[5-9]%'",
+      "线程安全验证: 验证 pytest tests/unit/test_cache_concurrency.py -v 通过"
+    ],
+    "depends_on": [],
+    "inherited": {},
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "threading", "typing"],
+      "existing_cache_systems": [
+        "TTLCache (src/infrastructure/cache/__init__.py)",
+        "CacheManager (bot/utils/cache.py)",
+        "MessageDedup (bot/utils/dedup.py)",
+        "PeerCache (bot/services/peer_cache.py)"
+      ],
+      "design_principles": [
+        "单一职责原则（SRP）",
+        "接口隔离原则（ISP）",
+        "依赖倒置原则（DIP）"
+      ]
+    },
+    "artifacts": []
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "analyze_existing_cache_systems",
+        "action": "分析现有 4 个缓存系统的接口和实现",
+        "commands": [
+          "Read(src/infrastructure/cache/__init__.py)",
+          "Read(bot/utils/cache.py)",
+          "Read(bot/utils/dedup.py)",
+          "Read(bot/services/peer_cache.py)"
+        ],
+        "output_to": "existing_cache_analysis",
+        "on_error": "fail"
+      },
+      {
+        "step": "identify_common_patterns",
+        "action": "识别缓存系统的共同模式和差异",
+        "commands": [
+          "bash(grep -E '(def get|def set|def delete|def clear)' src/infrastructure/cache/__init__.py bot/utils/cache.py bot/utils/dedup.py bot/services/peer_cache.py)"
+        ],
+        "output_to": "common_patterns",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "设计统一缓存接口",
+        "description": "创建 CacheInterface 抽象基类，定义 5 个核心方法",
+        "modification_points": [
+          "创建 1 个新文件: src/infrastructure/cache/interface.py",
+          "定义 5 个抽象方法: [get, set, delete, clear, get_or_set]",
+          "添加类型注解和文档字符串"
+        ],
+        "logic_flow": [
+          "导入 ABC 和 abstractmethod",
+          "定义 CacheInterface(ABC) 类",
+          "声明 5 个抽象方法，包含完整类型注解",
+          "添加详细的文档字符串说明每个方法的用途"
+        ],
+        "depends_on": [],
+        "output": "cache_interface"
+      },
+      {
+        "step": 2,
+        "title": "实现 UnifiedCache 类",
+        "description": "基于 TTLCache 实现统一缓存类",
+        "modification_points": [
+          "创建 1 个新文件: src/infrastructure/cache/unified.py",
+          "实现 UnifiedCache 类，继承 CacheInterface",
+          "集成现有 TTLCache 作为底层存储",
+          "添加 2 个失效策略: [time_based, event_based]"
+        ],
+        "logic_flow": [
+          "导入 CacheInterface 和 TTLCache",
+          "定义 UnifiedCache(CacheInterface) 类",
+          "实现 5 个接口方法，委托给 TTLCache",
+          "添加失效策略支持（策略模式）",
+          "实现线程安全（使用 RLock）"
+        ],
+        "depends_on": [1],
+        "output": "unified_cache"
+      },
+      {
+        "step": 3,
+        "title": "增强缓存装饰器",
+        "description": "扩展 @cached 装饰器，支持更多配置选项",
+        "modification_points": [
+          "创建 1 个新文件: src/infrastructure/cache/decorators.py",
+          "实现增强版 @cached 装饰器",
+          "支持 4 个配置选项: [ttl, key_prefix, invalidation_strategy, cache_instance]",
+          "添加缓存键生成逻辑（支持复杂参数）"
+        ],
+        "logic_flow": [
+          "导入 functools.wraps 和 UnifiedCache",
+          "定义 cached() 装饰器工厂函数",
+          "实现缓存键生成（处理 args, kwargs, 对象参数）",
+          "添加缓存命中/未命中日志",
+          "支持自定义缓存实例（默认使用全局实例）"
+        ],
+        "depends_on": [2],
+        "output": "enhanced_decorator"
+      },
+      {
+        "step": 4,
+        "title": "创建专用缓存管理器",
+        "description": "为不同业务场景创建 3 个专用缓存管理器",
+        "modification_points": [
+          "创建 1 个新文件: src/infrastructure/cache/managers.py",
+          "实现 3 个管理器类: [NoteCacheManager, ConfigCacheManager, PeerCacheManager]",
+          "每个管理器封装特定业务逻辑（键命名、TTL、失效策略）"
+        ],
+        "logic_flow": [
+          "导入 UnifiedCache",
+          "定义 NoteCacheManager（笔记缓存，TTL=300s）",
+          "定义 ConfigCacheManager（配置缓存，TTL=600s）",
+          "定义 PeerCacheManager（Peer缓存，TTL=3600s）",
+          "每个管理器提供业务友好的方法（如 cache_note_list, invalidate_note）"
+        ],
+        "depends_on": [2],
+        "output": "cache_managers"
+      },
+      {
+        "step": 5,
+        "title": "编写单元测试",
+        "description": "为缓存接口和实现编写完整的单元测试",
+        "modification_points": [
+          "创建 2 个测试文件: [tests/unit/test_cache_interface.py, tests/unit/test_cache_concurrency.py]",
+          "测试 5 个核心方法的功能",
+          "测试线程安全性（并发读写）",
+          "测试失效策略（TTL过期、手动失效）"
+        ],
+        "logic_flow": [
+          "使用 pytest 框架",
+          "测试 UnifiedCache 的所有方法",
+          "测试装饰器的缓存行为",
+          "测试并发场景（多线程读写）",
+          "测试缓存管理器的业务逻辑",
+          "验证覆盖率 >=85%"
+        ],
+        "depends_on": [3, 4],
+        "output": "unit_tests"
+      }
+    ],
+    "target_files": [
+      "src/infrastructure/cache/interface.py",
+      "src/infrastructure/cache/unified.py",
+      "src/infrastructure/cache/decorators.py",
+      "src/infrastructure/cache/managers.py",
+      "tests/unit/test_cache_interface.py",
+      "tests/unit/test_cache_concurrency.py"
+    ]
+  }
+}

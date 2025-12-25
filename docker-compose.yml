@@ -1,25 +1,34 @@
 version: '3.8'
 
 services:
-  telegram-bot:
+  web:
     build: .
     image: save-restricted-bot:latest
-    container_name: save-restricted-bot
+    container_name: save-restricted-bot-web
     restart: unless-stopped
     ports:
       - "10000:10000"
     environment:
+      - RUN_MODE=web
+      - PORT=10000
       - TOKEN=${TOKEN}
       - ID=${ID}
       - HASH=${HASH}
       - STRING=${STRING}
       - OWNER_ID=${OWNER_ID:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - DATA_DIR=/app/data
       - TZ=Asia/Shanghai
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-this-secret-key-in-production}
+      - QBT_URL=http://qbittorrent:8080
+      - QBT_USERNAME=admin
+      - QBT_PASSWORD=admin123
     volumes:
       - ./downloads:/app/downloads
       - ./data:/app/data
+    networks:
+      - default
+      - qbt_network
     logging:
       driver: json-file
       options:
@@ -27,7 +36,7 @@ services:
         max-file: "5"
         compress: "true"
     healthcheck:
-      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:10000/login', timeout=5)"]
+      test: ["CMD", "python3", "-c", "import os,requests; port=os.getenv('PORT','10000'); r=requests.get(f'http://localhost:{port}/health', timeout=5); r.raise_for_status()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -40,3 +49,54 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+
+  bot:
+    build: .
+    image: save-restricted-bot:latest
+    container_name: save-restricted-bot-bot
+    restart: unless-stopped
+    environment:
+      - RUN_MODE=bot
+      - TOKEN=${TOKEN}
+      - ID=${ID}
+      - HASH=${HASH}
+      - STRING=${STRING}
+      - OWNER_ID=${OWNER_ID:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - DATA_DIR=/app/data
+      - TZ=Asia/Shanghai
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-this-secret-key-in-production}
+      - QBT_URL=http://qbittorrent:8080
+      - QBT_USERNAME=admin
+      - QBT_PASSWORD=admin123
+    volumes:
+      - ./downloads:/app/downloads
+      - ./data:/app/data
+    networks:
+      - default
+      - qbt_network
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+        compress: "true"
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  qbt_network:
+    external: true
+    name: qbt_default

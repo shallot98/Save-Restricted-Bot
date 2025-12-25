@@ -66,270 +66,9 @@
         });
     }
 
-    // Unified Mobile UI State Management
-    const MobileUIState = {
-        // State properties
-        sidebarOpen: false,
-        viewportWidth: window.innerWidth,
-        isMobile: window.innerWidth < 768,
+    // Use the global MobileUIState from sidebar.js
+    // This ensures a single source of truth for UI state management
 
-        // Touch state for gesture detection
-        touchState: {
-            startX: 0,
-            startY: 0,
-            currentX: 0,
-            currentY: 0,
-            startTime: 0,
-            endTime: 0,
-            isSwiping: false
-        },
-
-        // Click suppression flag to prevent double-firing
-        clickSuppressed: false,
-
-        // localStorage key
-        STORAGE_KEY: 'mobileUIState',
-
-        // Initialize state from localStorage or defaults
-        init: function() {
-            this.viewportWidth = window.innerWidth;
-            this.isMobile = this.viewportWidth < 768;
-
-            try {
-                const saved = localStorage.getItem(this.STORAGE_KEY);
-                if (saved) {
-                    // 已有保存状态,加载并应用
-                    const state = JSON.parse(saved);
-                    this.sidebarOpen = state.sidebarOpen || false;
-                } else {
-                    // 首次访问且移动端,默认打开侧边栏
-                    if (this.isMobile) {
-                        this.sidebarOpen = true;
-                        console.log('First visit on mobile: opening sidebar by default');
-
-                        // 应用初始状态到DOM
-                        this.syncDOM();
-
-                        // 3秒后自动关闭侧边栏并显示提示
-                        setTimeout(() => {
-                            this.sidebarOpen = false;
-                            this.syncDOM();
-                            this.persist();
-                            this.showMobileHint();
-                        }, 3000);
-                    } else {
-                        // 桌面端首次访问,默认关闭
-                        this.sidebarOpen = false;
-                    }
-                }
-            } catch (e) {
-                console.warn('Failed to load saved UI state:', e);
-                this.sidebarOpen = false;
-            }
-
-            // Apply initial state to DOM
-            this.syncDOM();
-
-            // Initialize touch event listeners
-            this.initTouchEvents();
-
-            // Initialize Virtual Viewport API for keyboard handling
-            this.initVirtualViewport();
-
-            console.log('MobileUIState initialized:', this.getState());
-        },
-
-        // Get current state snapshot
-        getState: function() {
-            return {
-                sidebarOpen: this.sidebarOpen,
-                viewportWidth: this.viewportWidth,
-                isMobile: this.isMobile
-            };
-        },
-
-        // Toggle sidebar state
-        toggleSidebar: function() {
-            this.sidebarOpen = !this.sidebarOpen;
-            this.syncDOM();
-            this.persist();
-            console.log('Sidebar toggled:', this.sidebarOpen);
-        },
-
-        // Update viewport dimensions
-        updateViewport: function() {
-            const oldIsMobile = this.isMobile;
-            this.viewportWidth = window.innerWidth;
-            this.isMobile = this.viewportWidth < 768;
-
-            // Handle mobile <-> desktop transitions
-            if (oldIsMobile && !this.isMobile) {
-                // Transitioning from mobile to desktop: auto-open if closed
-                if (!this.sidebarOpen) {
-                    this.sidebarOpen = true;
-                    console.log('Desktop mode: auto-opening sidebar');
-                }
-            } else if (!oldIsMobile && this.isMobile) {
-                // Transitioning from desktop to mobile: close sidebar
-                this.sidebarOpen = false;
-                console.log('Mobile mode: closing sidebar');
-            }
-
-            this.syncDOM();
-            this.persist();
-        },
-
-        // Sync state to DOM classes
-        syncDOM: function() {
-            const sidebar = document.getElementById('sidebar');
-            if (!sidebar) return;
-
-            if (this.isMobile) {
-                // Mobile mode: use mobile-open class
-                sidebar.classList.remove('collapsed');
-                if (this.sidebarOpen) {
-                    sidebar.classList.add('mobile-open');
-                } else {
-                    sidebar.classList.remove('mobile-open');
-                }
-            } else {
-                // Desktop mode: use collapsed class
-                sidebar.classList.remove('mobile-open');
-                if (this.sidebarOpen) {
-                    sidebar.classList.remove('collapsed');
-                } else {
-                    sidebar.classList.add('collapsed');
-                }
-            }
-
-            // Update toggle button text if exists
-            const toggleText = document.getElementById('sidebarToggleText');
-            if (toggleText) {
-                toggleText.textContent = this.sidebarOpen ? '收起侧边栏' : '展开侧边栏';
-            }
-        },
-
-        // Persist state to localStorage
-        persist: function() {
-            try {
-                localStorage.setItem(this.STORAGE_KEY, JSON.stringify({
-                    sidebarOpen: this.sidebarOpen
-                }));
-            } catch (e) {
-                console.warn('Failed to persist UI state:', e);
-            }
-        },
-
-        // Initialize touch event listeners for swipe gestures
-        initTouchEvents: function() {
-            const sidebar = document.getElementById('sidebar');
-            if (!sidebar) return;
-
-            // touchstart: Record initial touch position and timestamp
-            sidebar.addEventListener('touchstart', (e) => {
-                const touch = e.touches[0];
-                this.touchState.startX = touch.clientX;
-                this.touchState.startY = touch.clientY;
-                this.touchState.currentX = touch.clientX;
-                this.touchState.currentY = touch.clientY;
-                this.touchState.startTime = Date.now();
-                this.touchState.isSwiping = false;
-            }, { passive: true });
-
-            // touchmove: Update current touch position with passive listener
-            sidebar.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 0) return;
-                const touch = e.touches[0];
-                this.touchState.currentX = touch.clientX;
-                this.touchState.currentY = touch.clientY;
-                this.touchState.isSwiping = true;
-            }, { passive: true });
-
-            // touchend: Calculate swipe and trigger action if threshold met
-            sidebar.addEventListener('touchend', (e) => {
-                this.touchState.endTime = Date.now();
-                this.handleSwipeGesture();
-            }, { passive: true });
-
-            console.log('Touch event listeners initialized for sidebar');
-        },
-
-        // Handle swipe gesture detection and action
-        handleSwipeGesture: function() {
-            // Only process if sidebar is open and in mobile mode
-            if (!this.isMobile || !this.sidebarOpen || !this.touchState.isSwiping) {
-                this.touchState.isSwiping = false;
-                return;
-            }
-
-            const deltaX = this.touchState.currentX - this.touchState.startX;
-            const deltaY = this.touchState.currentY - this.touchState.startY;
-            const duration = this.touchState.endTime - this.touchState.startTime;
-
-            // Calculate velocity (px/ms)
-            const velocity = Math.abs(deltaX) / duration;
-
-            // Check if horizontal swipe (|deltaX| > |deltaY|)
-            const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
-
-            // Swipe threshold: 50px or velocity > 0.3px/ms
-            const swipeThreshold = 50;
-            const velocityThreshold = 0.3;
-
-            const isSwipeLeft = deltaX < -swipeThreshold;
-            const isFastSwipe = velocity > velocityThreshold && deltaX < 0;
-
-            if (isHorizontalSwipe && (isSwipeLeft || isFastSwipe)) {
-                console.log(`Swipe detected: deltaX=${deltaX.toFixed(1)}px, velocity=${velocity.toFixed(3)}px/ms`);
-
-                // Close sidebar
-                this.toggleSidebar();
-
-                // Suppress click events temporarily to prevent double-firing
-                this.clickSuppressed = true;
-                setTimeout(() => {
-                    this.clickSuppressed = false;
-                }, 300);
-            }
-
-            // Reset swipe state
-            this.touchState.isSwiping = false;
-        },
-
-        // Initialize Virtual Viewport API for keyboard handling
-        initVirtualViewport: function() {
-            if (!window.visualViewport) {
-                console.log('Visual Viewport API not supported, using fallback');
-                return;
-            }
-
-            visualViewport.addEventListener('resize', () => {
-                // Detect if keyboard is open
-                const viewportHeight = visualViewport.height;
-                const windowHeight = window.innerHeight;
-                const keyboardHeight = windowHeight - viewportHeight;
-
-                if (keyboardHeight > 150) {
-                    // Keyboard is open
-                    const activeElement = document.activeElement;
-                    if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
-                        // Scroll active input into view
-                        setTimeout(() => {
-                            activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 100);
-                    }
-                }
-            });
-
-            console.log('Virtual Viewport API initialized for keyboard handling');
-        },
-
-        // Show mobile hint (placeholder for future implementation)
-        showMobileHint: function() {
-            // Future: Show a hint to users about sidebar functionality
-            console.log('Mobile hint: Sidebar can be toggled using the menu button');
-        }
-    };
 
     // Performance Optimization: Throttle and Debounce Utilities
     // Throttle: Limit function execution to once per interval
@@ -456,28 +195,49 @@
         },
 
         // Fetch with retry and exponential backoff
-        fetchWithRetry: async function(url, options = {}, maxRetries = null) {
+        fetchWithRetry: async function(url, options = {}, maxRetries = null, customTimeout = null) {
             if (!this.isOnline()) {
                 throw new Error('网络连接不可用,请检查您的网络设置');
             }
 
-            const timeout = this.getApiTimeout();
+            const timeout = customTimeout !== null ? customTimeout : this.getApiTimeout();
             const retries = maxRetries !== null ? maxRetries : this.getRetryCount();
 
             for (let attempt = 0; attempt <= retries; attempt++) {
+                let timeoutId = null;
                 try {
                     // Create AbortController for timeout
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), timeout);
+                    timeoutId = setTimeout(() => controller.abort(), timeout);
 
-                    // Add signal to fetch options
-                    const fetchOptions = {
-                        ...options,
-                        signal: controller.signal
-                    };
+	                    // Add signal to fetch options
+	                    const fetchOptions = {
+	                        ...options,
+	                        signal: controller.signal
+	                    };
 
-                    const response = await fetch(url, fetchOptions);
-                    clearTimeout(timeoutId);
+	                    // 自动注入 CSRF（仅对非安全方法）
+	                    const method = (fetchOptions.method || 'GET').toUpperCase();
+	                    if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)) {
+	                        const metaTokenEl = document.querySelector('meta[name="csrf-token"]');
+	                        const csrfToken = window.CSRF_TOKEN || (metaTokenEl ? metaTokenEl.getAttribute('content') : null);
+	                        if (csrfToken) {
+	                            if (fetchOptions.headers instanceof Headers) {
+	                                if (!fetchOptions.headers.has('X-CSRFToken') && !fetchOptions.headers.has('X-CSRF-Token')) {
+	                                    fetchOptions.headers.set('X-CSRFToken', csrfToken);
+	                                }
+	                            } else {
+	                                const existingHeaders = fetchOptions.headers || {};
+	                                const headers = { ...existingHeaders };
+	                                if (!headers['X-CSRFToken'] && !headers['X-CSRF-Token']) {
+	                                    headers['X-CSRFToken'] = csrfToken;
+	                                }
+	                                fetchOptions.headers = headers;
+	                            }
+	                        }
+	                    }
+
+	                    const response = await fetch(url, fetchOptions);
 
                     // Don't retry on client errors (4xx)
                     if (response.status >= 400 && response.status < 500) {
@@ -516,6 +276,8 @@
                     } else {
                         throw error;
                     }
+                } finally {
+                    if (timeoutId) clearTimeout(timeoutId);
                 }
             }
         },
@@ -599,10 +361,23 @@
     };
 
     window.toggleTheme = function() {
+        if (window.ThemeManager && typeof window.ThemeManager.toggle === 'function') {
+            window.ThemeManager.toggle();
+            return;
+        }
+
         const html = document.documentElement;
-        const currentTheme = html.getAttribute('data-theme');
-        html.setAttribute('data-theme', currentTheme === 'dark' ? '' : 'dark');
-        localStorage.setItem('theme', currentTheme === 'dark' ? 'light' : 'dark');
+        const isDark = !html.classList.contains('dark');
+        html.classList.toggle('dark', isDark);
+        if (isDark) html.setAttribute('data-theme', 'dark');
+        else html.removeAttribute('data-theme');
+
+        try {
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            localStorage.setItem('darkMode', isDark ? 'true' : 'false');
+        } catch (e) {
+            // ignore
+        }
     };
 
     window.toggleSearch = function() {
@@ -687,7 +462,24 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // 无刷新更新: 直接移除DOM元素
+                const noteCard = document.querySelector(`[data-note-id="${noteId}"]`);
+                if (noteCard) {
+                    noteCard.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    noteCard.style.opacity = '0';
+                    noteCard.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        noteCard.remove();
+                        // 如果页面没有笔记了，显示提示
+                        const remainingNotes = document.querySelectorAll('[data-note-id]');
+                        if (remainingNotes.length === 0) {
+                            const container = document.querySelector('.notes-container');
+                            if (container) {
+                                container.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">没有笔记</div>';
+                            }
+                        }
+                    }, 300);
+                }
             } else {
                 throw new Error(data.error || '删除失败');
             }
@@ -702,25 +494,155 @@
         deleteNoteThrottled(noteId);
     };
 
-    const calibrateNoteThrottled = throttle(function(noteId, count, btn) {
-        // 根据连接类型估算时间
-        const connType = NetworkManager.detectConnectionType();
-        const estimatedTime = Math.ceil(count * (connType === 'slow-2g' || connType === '2g' ? 15 : 10));
+		    const calibrateNoteThrottled = throttle(async function(noteId, count, btn) {
+		        // 根据连接类型估算时间
+		        const connType = NetworkManager.detectConnectionType();
+		        const estimatedTime = Math.ceil(count * (connType === 'slow-2g' || connType === '2g' ? 15 : 10));
+		        const calibrateTimeout = Math.min(90000 * Math.max(1, count), 10 * 60 * 1000);
 
-        if (!confirm(`校准将向机器人发送 ${count} 个磁力链接,预计需要约 ${estimatedTime} 秒 (${connType} 连接)。确定继续?`)) return;
+		        if (!confirm(`校准将向机器人发送 ${count} 个磁力链接,预计需要约 ${estimatedTime} 秒 (${connType} 连接,最长可能 ${Math.ceil(calibrateTimeout / 1000)} 秒)。确定继续?`)) return;
 
-        btn.disabled = true;
-        btn.textContent = '校准中...';
-        const originalText = `校准${count > 1 ? '(' + count + ')' : ''}`;
+	        btn.disabled = true;
+	        btn.textContent = '校准中...';
+	        const originalText = `校准${count > 1 ? '(' + count + ')' : ''}`;
 
-        // 使用更长的超时时间用于校准 API (基础超时 * 链接数)
-        const baseTimeout = NetworkManager.getApiTimeout();
-        const calibrateTimeout = Math.min(baseTimeout * count, 60000); // 最多60秒
+                const useAsync = window.CalibrationClient && window.CalibrationClient.isAsyncEnabled && window.CalibrationClient.isAsyncEnabled();
+                if (!useAsync) {
+                    await calibrateSync(noteId, calibrateTimeout);
+                    return;
+                }
 
-        NetworkManager.fetchWithRetry(`/api/calibrate/${noteId}`, {
+                let taskId = null;
+                try {
+                    taskId = await window.CalibrationClient.submitNoteCalibration(noteId);
+                } catch (e) {
+                    console.warn('异步校准提交失败，回退同步接口:', e);
+                    await calibrateSync(noteId, calibrateTimeout);
+                    return;
+                }
+
+                btn.textContent = '校准中... (0/60s)';
+
+                try {
+                    const status = await window.CalibrationClient.pollTask(taskId, {
+                        intervalMs: 1000,
+                        maxMs: 60000,
+                        onTick: ({ elapsedSec }) => {
+                            btn.textContent = `校准中... (${elapsedSec}/60s)`;
+                        }
+                    });
+
+                    const result = status && status.result ? status.result : null;
+                    if (!result || !result.success) {
+                        throw new Error((result && result.error) ? result.error : '校准失败');
+                    }
+
+                    // 无刷新更新: 更新笔记卡片显示
+                    updateNoteAfterCalibration(noteId, result);
+                    alert(`校准完成!\n总共: ${result.total}\n成功: ${result.success_count}\n失败: ${result.fail_count}`);
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                } catch (error) {
+                    console.error('异步校准轮询失败:', error);
+                    alert('校准失败: ' + (error && error.message ? error.message : '未知错误'));
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+
+                async function calibrateSync(noteId, timeoutMs) {
+                    try {
+                        const response = await NetworkManager.fetchWithRetry(`/api/calibrate/${noteId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        }, 2, timeoutMs);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        const data = await response.json();
+                        if (data.success) {
+                            // 无刷新更新: 更新笔记卡片显示
+                            updateNoteAfterCalibration(noteId, data);
+                            alert(`校准完成!\n总共: ${data.total}\n成功: ${data.success_count}\n失败: ${data.fail_count}`);
+                            btn.disabled = false;
+                            btn.textContent = originalText;
+                            return;
+                        }
+                        throw new Error(data.error || '未知错误');
+                    } catch (error) {
+                        console.error('同步校准出错:', error);
+                        alert('校准失败: ' + (error && error.message ? error.message : '未知错误'));
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    }
+                }
+	    }, 1000);
+
+    window.calibrateNote = function(noteId, count, btn) {
+        calibrateNoteThrottled(noteId, count, btn);
+    };
+
+    /**
+     * 校准完成后更新笔记卡片显示
+     * @param {number} noteId - 笔记ID
+     * @param {object} calibrationResult - 校准结果
+     */
+    function updateNoteAfterCalibration(noteId, calibrationResult) {
+        const noteCard = document.querySelector(`[data-note-id="${noteId}"]`);
+        if (!noteCard) {
+            console.warn('未找到笔记卡片,将刷新页面');
+            setTimeout(() => location.reload(), 1000);
+            return;
+        }
+
+        // 更新校准按钮文本
+        const calibrateBtn = noteCard.querySelector('.calibrate-btn');
+        if (calibrateBtn && calibrationResult.success_count > 0) {
+            const successCount = calibrationResult.success_count;
+            calibrateBtn.textContent = `已校准(${successCount})`;
+            calibrateBtn.classList.add('calibrated');
+            calibrateBtn.style.backgroundColor = '#10b981';
+            calibrateBtn.style.cursor = 'default';
+        }
+
+        // 可选: 显示成功动画
+        noteCard.style.transition = 'all 0.3s ease';
+        noteCard.style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.3)';
+        setTimeout(() => {
+            noteCard.style.boxShadow = '';
+        }, 2000);
+    }
+
+
+    // Batch calibrate function
+    window.batchCalibrate = function() {
+        if (!confirm('确定要将最近100条笔记添加到自动校准队列吗？\n\n这将自动校准所有未校准的磁力链接。')) {
+            return;
+        }
+
+        // 显示加载提示
+        const loadingMsg = document.createElement('div');
+        loadingMsg.id = 'batchCalibrateLoading';
+        loadingMsg.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            z-index: 10000;
+            font-size: 16px;
+            text-align: center;
+        `;
+        loadingMsg.textContent = '正在添加到校准队列...';
+        document.body.appendChild(loadingMsg);
+
+        NetworkManager.fetchWithRetry('/api/calibrate/batch', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        }, 2) // 校准操作最多重试2次
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ count: 100 })
+        }, 1, 10000) // 最多重试1次，超时10秒
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -728,31 +650,135 @@
             return response.json();
         })
         .then(data => {
+            // 移除加载提示
+            const loading = document.getElementById('batchCalibrateLoading');
+            if (loading) loading.remove();
+
             if (data.success) {
-                alert(`校准完成!\n总共: ${data.total}\n成功: ${data.success_count}\n失败: ${data.fail_count}`);
-                setTimeout(() => location.reload(), 1000);
+                alert(`批量校准任务已添加！\n\n总计: ${data.total} 条笔记\n成功添加: ${data.added} 条\n跳过: ${data.skipped} 条\n错误: ${data.errors} 条\n\n${data.message}`);
             } else {
                 throw new Error(data.error || '未知错误');
             }
         })
         .catch(error => {
-            console.error('校准出错:', error);
-            alert('校准失败: ' + error.message);
-            btn.disabled = false;
-            btn.textContent = originalText;
-        });
-    }, 1000);
+            // 移除加载提示
+            const loading = document.getElementById('batchCalibrateLoading');
+            if (loading) loading.remove();
 
-    window.calibrateNote = function(noteId, count, btn) {
-        calibrateNoteThrottled(noteId, count, btn);
+            console.error('批量校准失败:', error);
+            alert('批量校准失败: ' + error.message);
+        });
     };
 
     // DOMContentLoaded event handler
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize saved theme
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
+        if (window.ThemeManager && typeof window.ThemeManager.apply === 'function' && typeof window.ThemeManager.readPreference === 'function') {
+            window.ThemeManager.apply(window.ThemeManager.readPreference(), false);
+        } else {
+            let isDark = false;
+            try {
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme === 'dark') isDark = true;
+                else if (savedTheme === 'light') isDark = false;
+                else isDark = localStorage.getItem('darkMode') === 'true';
+            } catch (e) {
+                // ignore
+            }
+
+            document.documentElement.classList.toggle('dark', isDark);
+            if (isDark) document.documentElement.setAttribute('data-theme', 'dark');
+            else document.documentElement.removeAttribute('data-theme');
+        }
+
+        // CSP: 禁止 inline 事件属性后，使用 JS 事件绑定替代（模态框关闭/导航/缩放）
+        const imageModal = document.getElementById('imageModal');
+        if (imageModal) {
+            imageModal.addEventListener('click', function(e) {
+                if (e.target === imageModal && typeof window.closeImageModal === 'function') {
+                    window.closeImageModal();
+                }
+            });
+        }
+
+        const galleryModal = document.getElementById('galleryModal');
+        if (galleryModal) {
+            galleryModal.addEventListener('click', function(e) {
+                if (e.target === galleryModal && typeof window.closeGalleryModal === 'function') {
+                    window.closeGalleryModal();
+                }
+            });
+        }
+
+        const watchModal = document.getElementById('watchModal');
+        if (watchModal) {
+            watchModal.addEventListener('click', function(e) {
+                if (e.target === watchModal && typeof window.closeWatchModal === 'function') {
+                    window.closeWatchModal();
+                }
+            });
+        }
+
+        const editModal = document.getElementById('editModal');
+        if (editModal) {
+            editModal.addEventListener('click', function(e) {
+                if (e.target === editModal && typeof window.closeEditModal === 'function') {
+                    window.closeEditModal();
+                }
+            });
+        }
+
+        document.addEventListener('click', function(e) {
+            const target = e.target;
+            if (!target || typeof target.closest !== 'function') return;
+
+            const closeBtn = target.closest('[data-modal-close]');
+            if (closeBtn) {
+                const modalType = closeBtn.getAttribute('data-modal-close');
+                if (modalType === 'image' && typeof window.closeImageModal === 'function') window.closeImageModal();
+                else if (modalType === 'gallery' && typeof window.closeGalleryModal === 'function') window.closeGalleryModal();
+                else if (modalType === 'watch' && typeof window.closeWatchModal === 'function') window.closeWatchModal();
+                else if (modalType === 'edit' && typeof window.closeEditModal === 'function') window.closeEditModal();
+                return;
+            }
+
+            const actionBtn = target.closest('[data-modal-action]');
+            if (actionBtn) {
+                const action = actionBtn.getAttribute('data-modal-action');
+                if (action === 'save-note' && typeof window.saveNote === 'function') window.saveNote();
+            }
+        });
+
+        const modalImage = document.getElementById('modalImage');
+        if (modalImage) {
+            modalImage.addEventListener('click', function(e) {
+                if (typeof window.toggleImageZoom === 'function') {
+                    window.toggleImageZoom('modalImage', e);
+                }
+            });
+        }
+
+        const galleryImage = document.getElementById('galleryImage');
+        if (galleryImage) {
+            galleryImage.addEventListener('click', function(e) {
+                if (typeof window.toggleImageZoom === 'function') {
+                    window.toggleImageZoom('galleryImage', e);
+                }
+            });
+        }
+
+        const galleryPrev = document.getElementById('galleryPrev');
+        if (galleryPrev) {
+            galleryPrev.addEventListener('click', function() {
+                if (typeof window.changeGalleryImage === 'function') window.changeGalleryImage(-1);
+            });
+        }
+
+        const galleryNext = document.getElementById('galleryNext');
+        if (galleryNext) {
+            galleryNext.addEventListener('click', function() {
+                if (typeof window.changeGalleryImage === 'function') window.changeGalleryImage(1);
+            });
         }
 
         // Initialize lazy loading with Intersection Observer
@@ -783,8 +809,7 @@
             });
         }
 
-        // Initialize unified UI state management
-        MobileUIState.init();
+        // MobileUIState is initialized by sidebar.js, no need to call init() here
 
         // Top search input with Enter key and debounce
         const topSearchInput = document.getElementById('topSearchInput');

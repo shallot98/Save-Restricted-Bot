@@ -3,6 +3,7 @@
 {# 模板变量: total_count, sources #}
 
 <aside
+    id="sidebar"
     x-show="sidebarOpen"
     @click.away="if (window.innerWidth < 1024) sidebarOpen = false"
     x-cloak
@@ -38,22 +39,24 @@
                 浏览
             </div>
             
-            <a href="/notes?page=1" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group">
+            {% set is_notes = request.path == '/notes' and not request.args.get('favorite') and not request.args.get('source') %}
+            <a href="/notes?page=1" class="flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors group {{ 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' if is_notes else 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50' }}">
                 <div class="flex items-center space-x-3">
-                    <svg class="w-6 h-6 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-6 h-6 transition-colors {{ 'text-primary-500' if is_notes else 'text-gray-400 group-hover:text-primary-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
                     </svg>
                     <span class="font-medium">所有笔记</span>
                 </div>
                 {% if total_count %}
-                <span class="px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full">
+                <span class="px-2 py-0.5 text-xs font-semibold rounded-full {{ 'bg-primary-100 text-primary-600 dark:bg-primary-800/50 dark:text-primary-300' if is_notes else 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' }}">
                     {{ total_count }}
                 </span>
                 {% endif %}
             </a>
 
-            <a href="/notes?favorite=1" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group">
-                <svg class="w-6 h-6 text-gray-400 group-hover:text-yellow-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% set is_fav = request.path == '/notes' and request.args.get('favorite') == '1' %}
+            <a href="/notes?favorite=1" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors group {{ 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' if is_fav else 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50' }}">
+                <svg class="w-6 h-6 transition-colors {{ 'text-yellow-500' if is_fav else 'text-gray-400 group-hover:text-yellow-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
                 </svg>
                 <span class="font-medium">我的收藏</span>
@@ -67,13 +70,15 @@
                 来源频道
             </div>
             <div class="space-y-0.5">
-                <a href="/notes?page=1" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                    <div class="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                {% set is_all_sources = request.path == '/notes' and not request.args.get('source') and not request.args.get('favorite') %}
+                <a href="/notes?page=1" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors {{ 'text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700/50 font-medium' if is_all_sources else 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700/30' }}">
+                    <div class="w-1.5 h-1.5 rounded-full {{ 'bg-gray-600 dark:bg-gray-400' if is_all_sources else 'bg-gray-400' }}"></div>
                     <span>全部来源</span>
                 </a>
                 {% for source in sources[:8] %}
-                <a href="/notes?source={{ source.source_chat_id }}" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group">
-                    <div class="w-1.5 h-1.5 rounded-full bg-primary-400 group-hover:bg-primary-600 transition-colors"></div>
+                {% set is_active_source = request.args.get('source')|string == source.source_chat_id|string %}
+                <a href="/notes?source={{ source.source_chat_id }}" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors group {{ 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium' if is_active_source else 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700/30' }}">
+                    <div class="w-1.5 h-1.5 rounded-full transition-colors {{ 'bg-primary-600' if is_active_source else 'bg-primary-400 group-hover:bg-primary-600' }}"></div>
                     <span class="truncate">{{ source.source_name or source.source_chat_id }}</span>
                 </a>
                 {% endfor %}
@@ -87,36 +92,40 @@
                 管理
             </div>
             
-            <a href="/admin" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group">
-                <svg class="w-6 h-6 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% set is_admin = request.path == '/admin' %}
+            <a href="/admin" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors group {{ 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' if is_admin else 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50' }}">
+                <svg class="w-6 h-6 transition-colors {{ 'text-primary-500' if is_admin else 'text-gray-400 group-hover:text-primary-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
                 </svg>
                 <span class="font-medium">仪表盘</span>
             </a>
             
-            <a href="/admin/calibration" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group">
-                <svg class="w-6 h-6 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% set is_calib = request.path.startswith('/admin/calibration') %}
+            <a href="/admin/calibration" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors group {{ 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' if is_calib else 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50' }}">
+                <svg class="w-6 h-6 transition-colors {{ 'text-primary-500' if is_calib else 'text-gray-400 group-hover:text-primary-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path>
                 </svg>
                 <span class="font-medium">自动校准</span>
             </a>
 
-            <button onclick="batchCalibrate()" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group">
+            <button type="button" data-action="batch-calibrate" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group">
                 <svg class="w-6 h-6 text-gray-400 group-hover:text-green-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
                 </svg>
                 <span class="font-medium">批量校准</span>
             </button>
 
-            <a href="/admin/webdav" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group">
-                <svg class="w-6 h-6 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% set is_webdav = request.path.startswith('/admin/webdav') %}
+            <a href="/admin/webdav" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors group {{ 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' if is_webdav else 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50' }}">
+                <svg class="w-6 h-6 transition-colors {{ 'text-primary-500' if is_webdav else 'text-gray-400 group-hover:text-primary-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
                 </svg>
                 <span class="font-medium">WebDAV</span>
             </a>
             
-            <a href="/admin/viewer" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group">
-                <svg class="w-6 h-6 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% set is_viewer = request.path.startswith('/admin/viewer') %}
+            <a href="/admin/viewer" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors group {{ 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' if is_viewer else 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50' }}">
+                <svg class="w-6 h-6 transition-colors {{ 'text-primary-500' if is_viewer else 'text-gray-400 group-hover:text-primary-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
@@ -125,6 +134,8 @@
         </div>
 
     </nav>
+
+    <script src="{{ url_for('static', filename='js/components/csp-events.js') }}"></script>
     
     <!-- 底部用户信息 -->
     <div class="p-4 border-t border-gray-100 dark:border-gray-700/50">

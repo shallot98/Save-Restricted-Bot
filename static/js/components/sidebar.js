@@ -34,37 +34,36 @@
             this.viewportWidth = window.innerWidth;
             this.isMobile = this.viewportWidth < 768;
 
-            try {
-                const saved = window.StorageManager.getItem(this.STORAGE_KEY, null);
-                if (saved) {
-                    // 已有保存状态,加载并应用
-                    // 移动端始终默认关闭侧边栏（用户可通过菜单按钮打开）
-                    if (this.isMobile) {
-                        this.sidebarOpen = false;
-                        console.log('Mobile mode: sidebar closed by default');
-                    } else {
-                        // 桌面端使用保存的状态
-                        this.sidebarOpen = saved.sidebarOpen !== false;
-                        console.log('Desktop mode: loaded saved sidebar state:', this.sidebarOpen);
-                    }
-                } else {
-                    // 首次访问
-                    if (this.isMobile) {
-                        // 移动端默认关闭侧边栏
-                        this.sidebarOpen = false;
-                        console.log('First visit on mobile: sidebar closed by default');
-                    } else {
-                        // 桌面端默认打开侧边栏
-                        this.sidebarOpen = true;
-                        console.log('First visit on desktop: sidebar open by default');
-                    }
-                    // 保存初始状态
-                    this.persist();
-                }
-            } catch (e) {
-                console.warn('Failed to load saved UI state:', e);
-                this.sidebarOpen = this.isMobile ? false : true;
-            }
+	            try {
+	                const saved = window.StorageManager.getItem(this.STORAGE_KEY, null);
+	                if (saved) {
+                        // 桌面端：如果不希望记住上次状态，可以在这里强制 false
+                        // 但为了用户体验，通常我们希望记住用户的选择
+                        // 方案要求：桌面端首次访问默认关闭。
+                        // 这里我们遵循 localStorage，如果 localStorage 里没有(首次)，则默认关闭。
+                        // 如果有，说明用户之前操作过。
+                        // 不过方案明确说 "桌面端首次访问默认关闭侧边栏"，这意味着如果没有记录，就是关闭。
+                        // 代码逻辑：如果 saved 存在，用 saved。如果没有，用默认。
+                        
+	                    // 移动端始终默认关闭
+	                    if (this.isMobile) {
+	                        this.sidebarOpen = false;
+	                    } else {
+	                        // 桌面端使用保存的状态
+	                        this.sidebarOpen = saved.sidebarOpen === true;
+	                    }
+	                } else {
+	                    // 首次访问 (无 localStorage)
+                        // 桌面端和移动端都默认关闭
+	                    this.sidebarOpen = false;
+	                    
+	                    // 保存初始状态
+	                    this.persist();
+	                }
+	            } catch (e) {
+	                console.warn('Failed to load saved UI state:', e);
+	                this.sidebarOpen = false;
+	            }
 
             // Apply initial state to DOM
             this.syncDOM();
@@ -104,34 +103,30 @@
             this.syncDOM();
             this.persist();
             console.log('Sidebar toggled:', this.sidebarOpen);
+
+            // Dispatch custom event for state synchronization
+            window.dispatchEvent(new CustomEvent('sidebarStateChange', {
+                detail: { sidebarOpen: this.sidebarOpen }
+            }));
         },
 
         // Update viewport dimensions
-        updateViewport: function() {
-            const oldIsMobile = this.isMobile;
-            this.viewportWidth = window.innerWidth;
-            this.isMobile = this.viewportWidth < 768;
+	        updateViewport: function() {
+	            // const oldIsMobile = this.isMobile;
+	            this.viewportWidth = window.innerWidth;
+	            this.isMobile = this.viewportWidth < 768;
 
-            // Handle mobile <-> desktop transitions
-            if (oldIsMobile && !this.isMobile) {
-                // Transitioning from mobile to desktop: auto-open if closed
-                if (!this.sidebarOpen) {
-                    this.sidebarOpen = true;
-                    console.log('Desktop mode: auto-opening sidebar');
-                }
-            } else if (!oldIsMobile && this.isMobile) {
-                // Transitioning from desktop to mobile: close sidebar
-                this.sidebarOpen = false;
-                console.log('Mobile mode: closing sidebar');
-            }
-
+                // 移除自动关闭/打开逻辑，保持用户当前选择的状态
+                // 仅更新 DOM 类名以适应新的视口
+                
             this.syncDOM();
-            this.persist();
+            // this.persist(); // Resize 时不必频繁写入存储，除非状态真的变了
         },
 
         // Sync state to DOM classes
         syncDOM: function() {
             const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
             if (!sidebar) {
                 console.warn('Sidebar element not found, cannot sync DOM');
                 return;
@@ -142,12 +137,15 @@
                 sidebar.classList.remove('collapsed');
                 if (this.sidebarOpen) {
                     sidebar.classList.add('mobile-open');
+                    if (overlay) overlay.classList.add('active');
                 } else {
                     sidebar.classList.remove('mobile-open');
+                    if (overlay) overlay.classList.remove('active');
                 }
             } else {
                 // Desktop mode: use collapsed class
                 sidebar.classList.remove('mobile-open');
+                if (overlay) overlay.classList.remove('active');
                 if (this.sidebarOpen) {
                     sidebar.classList.remove('collapsed');
                 } else {

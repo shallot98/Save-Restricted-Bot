@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
@@ -10,16 +10,17 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc g++ && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip3 install -r requirements.txt
+COPY requirements.lock requirements.runtime.txt ./
+RUN pip3 install -r requirements.runtime.txt -c requirements.lock
 
 COPY . .
 
 RUN mkdir -p downloads data/config data/media data/logs
+RUN chmod +x docker/entrypoint.sh docker/healthcheck.sh
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python3 -c "import requests; requests.get('http://localhost:10000/login', timeout=5)" || exit 1
+    CMD ["./docker/healthcheck.sh"]
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "flask run -h 0.0.0.0 -p 10000 & python3 main.py"]
+CMD ["./docker/entrypoint.sh"]

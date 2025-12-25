@@ -1,5 +1,5 @@
 {# 顶部导航栏组件 #}
-{# 依赖: Alpine.js x-data 中需要有 sidebarOpen, showMobileSearch, searchQuery, debounceSearch() #}
+{# 备注：历史上依赖 Alpine.js 的 x-* 指令；为逐步收紧 CSP（移除 unsafe-eval），已提供无 Alpine 的交互兜底脚本（layout-fallback.js）。 #}
 
 <style>
     .theme-icon--light { display: inline-block; }
@@ -8,7 +8,7 @@
     html.dark .theme-icon--dark { display: inline-block; }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
     (function() {
         window.ThemeManager = window.ThemeManager || (function() {
             function readPreference() {
@@ -61,7 +61,7 @@
         <div class="flex items-center justify-between h-16">
 		            <!-- 左侧：Logo 和标题 -->
 		            <div class="flex items-center space-x-3">
-			                <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+			                <button data-action="toggle-sidebar" @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
 			                    <svg class="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 			                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
 			                    </svg>
@@ -80,6 +80,7 @@
             <div class="hidden md:flex flex-1 max-w-2xl mx-8">
                 <div class="relative w-full">
                     <input
+                        id="topSearchInput"
                         type="text"
                         x-model="searchQuery"
                         @input="debounceSearch()"
@@ -95,14 +96,14 @@
             <!-- 右侧：操作按钮 -->
             <div class="flex items-center space-x-2">
                 <!-- 搜索按钮 (移动端) -->
-                <button @click="showMobileSearch = !showMobileSearch" class="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <button data-action="toggle-mobile-search" @click="showMobileSearch = !showMobileSearch" class="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                     <svg class="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </button>
 
 	                <!-- 暗色模式切换 -->
-	                <button @click="window.ThemeManager.toggle()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+	                <button data-action="toggle-theme" @click="window.ThemeManager.toggle()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
 	                    <svg class="theme-icon--light w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 	                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
 	                    </svg>
@@ -113,14 +114,14 @@
 
                 <!-- 用户菜单 -->
                 <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <button data-action="toggle-user-menu" @click="open = !open" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                         <div class="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold">
                             A
                         </div>
                     </button>
 
                     <!-- 下拉菜单 -->
-                    <div x-show="open" @click.away="open = false" x-cloak
+                    <div id="userMenuDropdown" x-show="open" @click.away="open = false" x-cloak
                          class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
                         <a href="/admin" class="group flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                             <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-gray-500 dark:text-gray-500 dark:group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -142,9 +143,10 @@
     </div>
 
     <!-- 移动端搜索栏 -->
-    <div x-show="showMobileSearch" x-cloak class="md:hidden px-4 pb-4">
+    <div id="topbarMobileSearch" x-show="showMobileSearch" x-cloak class="md:hidden px-4 pb-4">
         <div class="relative">
             <input
+                id="mobileSearchInput"
                 type="text"
                 x-model="searchQuery"
                 @input="debounceSearch()"
@@ -157,3 +159,5 @@
         </div>
     </div>
 </nav>
+
+<script defer src="{{ url_for('static', filename='js/components/layout-fallback.js') }}"></script>

@@ -1,0 +1,102 @@
+{
+  "summary": "修复笔记页面中图片点击和相机图标无响应的问题。根本原因是openImageGallery函数定义在页面底部,导致inline onclick执行时函数未定义或被Alpine.js覆盖。修复方案是将所有图片查看器函数提前到<head>中,确保全局早期可用。",
+  "root_cause": "templates/notes.html中的openImageGallery函数定义在底部<script>标签(line 335-418),但templates/components/note_card.html中的inline onclick处理器(line 14,17)在页面渲染时立即调用该函数,此时函数可能尚未定义或被Alpine.js覆盖,导致点击事件无响应。",
+  "strategy": "immediate_patch",
+  "tasks": [
+    {
+      "id": "FIX1",
+      "title": "将图片查看器函数提前到head中",
+      "scope": "templates/notes.html",
+      "action": "Update",
+      "description": "将openImageGallery、closeGalleryModal、showGalleryImage、changeGalleryImage、handleGalleryKeyboard等函数及全局变量从底部<script>移到<head>中的早期<script>标签,确保在DOM渲染前全局可用",
+      "modification_points": [
+        {
+          "file": "templates/notes.html",
+          "target": "lines 331-418 (current script block)",
+          "change": "移动图片查看器函数到<head>中新增的<script>标签"
+        },
+        {
+          "file": "templates/notes.html",
+          "target": "<head> section (before closing </head>)",
+          "change": "添加新的<script>标签包含所有gallery相关函数"
+        }
+      ],
+      "implementation": [
+        "在templates/notes.html的</head>前添加新的<script>标签",
+        "将window.galleryImages和window.currentGalleryIndex变量初始化代码移到新script中",
+        "将window.openImageGallery、window.closeGalleryModal等5个函数定义移到新script中",
+        "删除底部<script>中的这些函数定义(line 331-418)",
+        "保留其他函数(toggleFavorite, toggleText等)在底部script中"
+      ],
+      "verification": [
+        "在浏览器Console中检查window.openImageGallery是否在DOMContentLoaded前已定义",
+        "点击笔记卡片中的图片,验证galleryModal正常打开",
+        "点击右上角相机图标(📷 N),验证galleryModal正常打开并显示多张图片"
+      ],
+      "reference": {
+        "pattern": "early-global-function-definition",
+        "files": [
+          "templates/notes.html:299-323 (openImageModal成功案例)"
+        ],
+        "examples": "参考openImageModal的window绑定模式,该函数工作正常因为定义在相对较早的位置"
+      },
+      "risk": "low"
+    },
+    {
+      "id": "FIX2",
+      "title": "添加Console日志用于调试验证",
+      "scope": "templates/notes.html",
+      "action": "Add",
+      "description": "在openImageGallery函数开头添加console.log,便于调试和验证函数是否被正确调用",
+      "modification_points": [
+        {
+          "file": "templates/notes.html",
+          "target": "openImageGallery function (after move to <head>)",
+          "change": "添加console.log('Opening gallery for note:', noteId, mediaPaths)"
+        }
+      ],
+      "implementation": [
+        "在window.openImageGallery函数第一行添加console.log",
+        "记录noteId和mediaPaths参数,便于验证函数调用和参数传递"
+      ],
+      "verification": [
+        "打开浏览器Console",
+        "点击图片后查看Console是否输出'Opening gallery for note: X'",
+        "验证参数正确传递"
+      ],
+      "depends_on": ["FIX1"],
+      "risk": "low"
+    }
+  ],
+  "focus_paths": [
+    "templates/notes.html",
+    "templates/components/note_card.html",
+    "templates/components/modals.html"
+  ],
+  "test_strategy": {
+    "scope": "smoke",
+    "specific_tests": [],
+    "manual_verification": [
+      "访问/notes页面,点击包含单张图片的笔记,验证单图查看器正常工作(openImageModal)",
+      "点击包含多张图片的笔记卡片图片,验证图片画廊正常打开",
+      "点击右上角相机图标(📷 N),验证图片画廊正常打开并显示多张图片",
+      "在图片画廊中点击左右切换按钮,验证图片切换功能正常",
+      "按ESC键关闭图片画廊,验证关闭功能正常",
+      "点击缩略图切换图片,验证缩略图导航功能正常"
+    ]
+  },
+  "estimated_time": "15 minutes",
+  "recommended_execution": "Agent",
+  "severity": "Medium",
+  "risk_level": "low",
+  "_metadata": {
+    "timestamp": "2025-12-16T08:10:00Z",
+    "source": "direct-planning",
+    "planning_mode": "direct",
+    "diagnosis_angles": [
+      "event-handling",
+      "state-management"
+    ],
+    "duration_seconds": 60
+  }
+}

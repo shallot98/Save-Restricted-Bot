@@ -1,0 +1,266 @@
+{
+  "id": "IMPL-3",
+  "title": "整合环境变量和配置文件加载",
+  "status": "pending",
+  "context_package_path": ".workflow/active/WFS-config-refactor/.process/context-package.json",
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "增强Settings类，支持Pydantic配置模型加载",
+      "实现配置优先级处理: 环境变量 > 配置文件 > 默认值",
+      "修改4个配置加载方法: [_load_main_config, _load_watch_config, _load_webdav_config, _load_viewer_config]",
+      "添加1个配置持久化方法: _persist_config",
+      "创建1个配置加载器类: ConfigLoader",
+      "编写10个集成测试用例验证配置加载和优先级"
+    ],
+    "focus_paths": [
+      "src/core/config/settings.py",
+      "src/core/config/loader.py",
+      "tests/integration/test_config_loading.py"
+    ],
+    "acceptance": [
+      "Settings类支持Pydantic模型: 验证 grep 'MainConfig\\|WatchConfig\\|WebDAVConfig\\|ViewerConfig' src/core/config/settings.py | wc -l >= 4",
+      "配置优先级正确: 验证 pytest tests/integration/test_config_loading.py::test_config_priority 通过",
+      "ConfigLoader已创建: 验证 grep 'class ConfigLoader' src/core/config/loader.py",
+      "配置持久化正常: 验证 pytest tests/integration/test_config_loading.py::test_config_persistence 通过",
+      "集成测试覆盖率 >=80%: 验证 pytest tests/integration/test_config_loading.py --cov=src/core/config --cov-report=term | grep 'TOTAL.*8[0-9]%\\|TOTAL.*9[0-9]%\\|TOTAL.*100%'"
+    ],
+    "depends_on": ["IMPL-2"],
+    "inherited": {
+      "from": "IMPL-2",
+      "context": [
+        "配置模型已定义并包含验证规则",
+        "配置验证机制已实现",
+        "ConfigValidationError异常已定义"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "Pydantic", "pytest"],
+      "loading_strategy": [
+        "使用Pydantic的parse_obj加载配置",
+        "环境变量通过Config.env_prefix自动加载",
+        "配置文件通过Config.env_file指定",
+        "默认值在Field()中定义"
+      ],
+      "conventions": [
+        "配置加载失败时记录警告并使用默认值",
+        "配置更新时自动验证",
+        "配置持久化使用原子写入"
+      ]
+    },
+    "artifacts": [
+      {
+        "type": "implementation",
+        "source": "IMPL-2",
+        "path": "src/core/config/models.py",
+        "priority": "highest",
+        "usage": "配置模型定义，用于加载和验证",
+        "contains": "5个配置模型类和验证规则"
+      },
+      {
+        "type": "implementation",
+        "source": "IMPL-2",
+        "path": "src/core/config/validators.py",
+        "priority": "high",
+        "usage": "配置验证器，用于加载时验证",
+        "contains": "3个验证器类和验证注册机制"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "加载上下文包",
+        "commands": ["Read(.workflow/active/WFS-config-refactor/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "review_config_models",
+        "action": "查看配置模型和验证器",
+        "commands": [
+          "Read(src/core/config/models.py)",
+          "Read(src/core/config/validators.py)"
+        ],
+        "output_to": "config_models_and_validators",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_current_settings",
+        "action": "分析当前Settings类的实现",
+        "commands": ["Read(src/core/config/settings.py)"],
+        "output_to": "current_settings",
+        "on_error": "fail"
+      },
+      {
+        "step": "research_pydantic_loading",
+        "action": "研究Pydantic配置加载模式",
+        "commands": [
+          "bash(rg 'parse_obj|parse_file|env_prefix|env_file' --type py -n --max-count 10)"
+        ],
+        "output_to": "pydantic_loading_patterns",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "创建配置加载器类",
+        "description": "实现ConfigLoader类，封装配置加载逻辑",
+        "modification_points": [
+          "创建文件: src/core/config/loader.py",
+          "定义ConfigLoader类",
+          "实现load_from_env方法: 从环境变量加载",
+          "实现load_from_file方法: 从JSON文件加载",
+          "实现merge_configs方法: 合并多个配置源",
+          "实现validate_config方法: 验证配置"
+        ],
+        "logic_flow": [
+          "导入依赖: from typing import Type, Dict, Any, Optional",
+          "导入配置模型: from .models import MainConfig, WatchConfig, WebDAVConfig, ViewerConfig",
+          "导入验证器: from .validators import ValidatorRegistry",
+          "定义ConfigLoader类",
+          "实现load_from_env: 读取环境变量，返回字典",
+          "实现load_from_file: 读取JSON文件，返回字典",
+          "实现merge_configs: 按优先级合并配置（env > file > default）",
+          "实现validate_config: 使用Pydantic模型验证配置",
+          "添加错误处理和日志记录"
+        ],
+        "depends_on": [],
+        "output": "src/core/config/loader.py"
+      },
+      {
+        "step": 2,
+        "title": "增强Settings类支持Pydantic模型",
+        "description": "修改Settings类，使用ConfigLoader和Pydantic模型",
+        "modification_points": [
+          "修改文件: src/core/config/settings.py",
+          "添加ConfigLoader实例: self._loader = ConfigLoader()",
+          "修改_load_all_configs方法: 使用ConfigLoader加载配置",
+          "修改_load_json_config方法: 返回Pydantic模型实例",
+          "添加_validate_config方法: 验证配置模型",
+          "修改配置缓存: 存储Pydantic模型实例而非字典"
+        ],
+        "logic_flow": [
+          "导入ConfigLoader: from .loader import ConfigLoader",
+          "导入配置模型: from .models import MainConfig, WatchConfig, WebDAVConfig, ViewerConfig",
+          "在__init__中创建ConfigLoader实例",
+          "修改_load_all_configs: 使用loader.load_from_env和loader.load_from_file",
+          "修改_load_json_config: 使用loader.merge_configs合并配置源",
+          "使用Pydantic模型的parse_obj方法创建模型实例",
+          "在set方法中添加配置验证",
+          "在save方法中使用模型的dict()方法序列化"
+        ],
+        "depends_on": [1],
+        "output": "src/core/config/settings.py"
+      },
+      {
+        "step": 3,
+        "title": "实现配置持久化方法",
+        "description": "添加原子写入的配置持久化方法",
+        "modification_points": [
+          "修改文件: src/core/config/settings.py",
+          "添加_persist_config方法: 原子写入配置文件",
+          "使用临时文件 + 重命名实现原子写入",
+          "添加备份机制: 保存前备份旧配置"
+        ],
+        "logic_flow": [
+          "导入tempfile和shutil",
+          "定义_persist_config方法，接收配置路径和配置对象",
+          "创建临时文件",
+          "将配置序列化为JSON写入临时文件",
+          "fsync确保写入磁盘",
+          "如果原配置文件存在，创建备份",
+          "使用os.rename原子替换配置文件",
+          "添加错误处理和回滚机制"
+        ],
+        "depends_on": [2],
+        "output": "src/core/config/settings.py:_persist_config"
+      },
+      {
+        "step": 4,
+        "title": "更新配置访问方法",
+        "description": "修改get/set方法支持Pydantic模型",
+        "modification_points": [
+          "修改文件: src/core/config/settings.py",
+          "修改get方法: 从Pydantic模型获取值",
+          "修改set方法: 更新Pydantic模型并验证",
+          "修改属性方法: 返回模型的dict()而非缓存字典"
+        ],
+        "logic_flow": [
+          "修改get方法: 使用getattr从模型获取属性",
+          "修改set方法: 使用setattr更新模型，触发验证",
+          "修改main_config属性: 返回self._main_config.dict()",
+          "修改watch_config属性: 返回self._watch_config.dict()",
+          "修改webdav_config属性: 返回self._webdav_config.dict()",
+          "修改viewer_config属性: 返回self._viewer_config.dict()",
+          "确保线程安全"
+        ],
+        "depends_on": [2, 3],
+        "output": "src/core/config/settings.py:get,set,properties"
+      },
+      {
+        "step": 5,
+        "title": "编写集成测试",
+        "description": "创建集成测试验证配置加载和优先级",
+        "modification_points": [
+          "创建目录: tests/integration/",
+          "创建文件: tests/integration/test_config_loading.py",
+          "编写10个测试用例: 配置优先级、环境变量加载、文件加载、默认值、持久化、验证、合并、错误处理、线程安全、热重载准备"
+        ],
+        "logic_flow": [
+          "导入pytest、os、tempfile",
+          "导入Settings和配置模型",
+          "测试配置优先级: 设置环境变量、配置文件、默认值，验证优先级",
+          "测试环境变量加载: 设置环境变量，验证加载正确",
+          "测试文件加载: 创建配置文件，验证加载正确",
+          "测试默认值: 无环境变量和文件，验证使用默认值",
+          "测试配置持久化: 更新配置，验证文件更新",
+          "测试配置验证: 提供无效配置，验证抛出异常",
+          "测试配置合并: 多个配置源，验证合并正确",
+          "测试错误处理: 文件损坏、权限错误等",
+          "测试线程安全: 多线程并发访问配置",
+          "测试热重载准备: 验证配置可以重新加载"
+        ],
+        "depends_on": [1, 2, 3, 4],
+        "output": "tests/integration/test_config_loading.py"
+      },
+      {
+        "step": 6,
+        "title": "运行集成测试并验证",
+        "description": "执行集成测试并确保通过",
+        "modification_points": [
+          "运行pytest: pytest tests/integration/test_config_loading.py -v",
+          "检查覆盖率: pytest tests/integration/test_config_loading.py --cov=src/core/config --cov-report=term"
+        ],
+        "logic_flow": [
+          "执行pytest命令",
+          "查看测试结果，确保所有测试通过",
+          "查看覆盖率报告，确保 >=80%",
+          "如果有失败，分析原因并修复",
+          "重新运行测试直到全部通过"
+        ],
+        "depends_on": [5],
+        "output": "测试报告"
+      }
+    ],
+    "target_files": [
+      "src/core/config/loader.py",
+      "src/core/config/settings.py:_load_all_configs",
+      "src/core/config/settings.py:_load_json_config",
+      "src/core/config/settings.py:_persist_config",
+      "src/core/config/settings.py:get",
+      "src/core/config/settings.py:set",
+      "src/core/config/settings.py:main_config",
+      "src/core/config/settings.py:watch_config",
+      "src/core/config/settings.py:webdav_config",
+      "src/core/config/settings.py:viewer_config",
+      "tests/integration/test_config_loading.py"
+    ]
+  }
+}

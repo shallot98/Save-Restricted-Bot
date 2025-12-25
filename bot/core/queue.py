@@ -3,6 +3,7 @@
 职责：初始化消息队列和工作线程
 """
 import queue
+import os
 import threading
 from bot.utils.logger import get_logger
 from bot.workers import MessageWorker
@@ -31,7 +32,14 @@ def initialize_message_queue(acc):
     logger.info("📬 正在初始化消息队列系统...")
 
     # 创建消息队列
-    message_queue = queue.Queue()
+    default_maxsize = 1000
+    maxsize_raw = os.environ.get("MESSAGE_QUEUE_MAXSIZE")
+    try:
+        maxsize = int(maxsize_raw) if maxsize_raw is not None else default_maxsize
+    except ValueError:
+        maxsize = default_maxsize
+
+    message_queue = queue.Queue(maxsize=maxsize)
 
     # 创建消息工作线程
     message_worker = MessageWorker(message_queue, acc, max_retries=MAX_RETRIES)
@@ -46,6 +54,7 @@ def initialize_message_queue(acc):
 
     logger.info("✅ 消息队列系统初始化完成")
     logger.info(f"   - 最大重试次数: {MAX_RETRIES}")
+    logger.info(f"   - 队列上限: {message_queue.maxsize}")
     logger.info(f"   - 工作线程: {worker_thread.name}")
 
     return message_queue, message_worker

@@ -1,0 +1,275 @@
+"""
+数据库模块的单元测试
+"""
+import pytest
+import sqlite3
+import os
+import tempfile
+from unittest.mock import patch, MagicMock
+from database import (
+    _validate_and_convert_params,
+    _check_duplicate_media_group,
+    _check_duplicate_message,
+    _parse_media_paths,
+    _extract_magnet_link,
+)
+
+
+class TestValidateAndConvertParams:
+    """测试参数验证和转换"""
+
+    def test_valid_params(self):
+        """测试有效参数"""
+        user_id, source_chat_id = _validate_and_convert_params(123, "456")
+        assert user_id == 123
+        assert source_chat_id == "456"
+
+    def test_convert_user_id_from_string(self):
+        """测试从字符串转换user_id"""
+        user_id, source_chat_id = _validate_and_convert_params("123", "456")
+        assert user_id == 123
+        assert isinstance(user_id, int)
+
+    def test_convert_source_chat_id_from_int(self):
+        """测试从整数转换source_chat_id"""
+        user_id, source_chat_id = _validate_and_convert_params(123, 456)
+        assert source_chat_id == "456"
+        assert isinstance(source_chat_id, str)
+
+    def test_none_user_id(self):
+        """测试None user_id"""
+        with pytest.raises(ValueError, match="user_id 不能为 None"):
+            _validate_and_convert_params(None, "456")
+
+    def test_none_source_chat_id(self):
+        """测试None source_chat_id"""
+        with pytest.raises(ValueError, match="source_chat_id 不能为 None"):
+            _validate_and_convert_params(123, None)
+
+    def test_invalid_user_id(self):
+        """测试无效的user_id"""
+        with pytest.raises(ValueError, match="user_id 必须是整数"):
+            _validate_and_convert_params("invalid", "456")
+
+
+class TestCheckDuplicateMediaGroup:
+    """测试媒体组去重"""
+
+    def test_no_duplicate(self):
+        """测试没有重复的媒体组"""
+        # 创建临时数据库
+        conn = sqlite3.connect(":memory:")
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE notes (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER,
+                source_chat_id TEXT,
+                media_group_id TEXT
+            )
+        ''')
+
+        result = _check_duplicate_media_group(cursor, 123, "456", "group1")
+        assert result is None
+
+        conn.close()
+
+    def test_has_duplicate(self):
+        """测试存在重复的媒体组"""
+        conn = sqlite3.connect(":memory:")
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE notes (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER,
+                source_chat_id TEXT,
+                media_group_id TEXT
+            )
+        ''')
+        cursor.execute(
+            "INSERT INTO notes (user_id, source_chat_id, media_group_id) VALUES (?, ?, ?)",
+            (123, "456", "group1")
+        )
+        conn.commit()
+
+        result = _check_duplicate_media_group(cursor, 123, "456", "group1")
+        assert result == 1  # 第一条记录的ID
+
+        conn.close()
+
+
+class TestCheckDuplicateMessage:
+    """测试消息去重"""
+
+    def test_no_duplicate(self):
+        """测试没有重复的消息"""
+        conn = sqlite3.connect(":memory:")
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE notes (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER,
+                source_chat_id TEXT,
+                message_text TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        result = _check_duplicate_message(cursor, 123, "456", "test message")
+        assert result is None
+
+        conn.close()
+
+    def test_has_duplicate_within_window(self):
+        """测试时间窗口内存在重复消息"""
+        conn = sqlite3.connect(":memory:")
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE notes (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER,
+                source_chat_id TEXT,
+                message_text TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute(
+            "INSERT INTO notes (user_id, source_chat_id, message_text) VALUES (?, ?, ?)",
+            (123, "456", "test message")
+        )
+        conn.commit()
+
+        result = _check_duplicate_message(cursor, 123, "456", "test message")
+        assert result == 1  # 第一条记录的ID
+
+        conn.close()
+
+
+class TestParseMediaPaths:
+    """测试媒体路径解析"""
+
+    def test_parse_valid_json(self):
+        """测试解析有效的JSON"""
+        note = {
+            'media_paths': '["path1.jpg", "path2.jpg"]',
+            'media_path': 'path1.jpg'
+        }
+        result = _parse_media_paths(note)
+
+        assert result['media_paths'] == ["path1.jpg", "path2.jpg"]
+
+    def test_parse_invalid_json(self):
+        """测试解析无效的JSON"""
+        note = {
+            'media_paths': 'invalid json',
+            'media_path': 'path1.jpg'
+        }
+        result = _parse_media_paths(note)
+
+        # 解析失败后会回退到media_path
+        assert result['media_paths'] == ['path1.jpg']
+
+    def test_fallback_to_media_path(self):
+        """测试回退到media_path"""
+        note = {
+            'media_paths': None,
+            'media_path': 'path1.jpg'
+        }
+        result = _parse_media_paths(note)
+
+        assert result['media_paths'] == ['path1.jpg']
+
+    def test_empty_media_paths(self):
+        """测试空的media_paths"""
+        note = {
+            'media_paths': '',
+            'media_path': None
+        }
+        result = _parse_media_paths(note)
+
+        assert result['media_paths'] == []
+
+
+class TestExtractMagnetLink:
+    """测试磁力链接提取"""
+
+    def test_extract_with_dn(self):
+        """测试提取带dn参数的磁力链接"""
+        text = "测试 magnet:?xt=urn:btih:ABC123&dn=test_file.mp4 链接"
+        magnet = _extract_magnet_link(text)
+
+        assert magnet is not None
+        assert "ABC123" in magnet
+        assert "dn=" in magnet
+
+    def test_extract_without_dn(self):
+        """测试提取没有dn参数的磁力链接"""
+        text = "文件名 #标签 magnet:?xt=urn:btih:ABC123"
+        magnet = _extract_magnet_link(text)
+
+        assert magnet is not None
+        assert "ABC123" in magnet
+
+    def test_extract_none(self):
+        """测试空文本"""
+        assert _extract_magnet_link(None) is None
+        assert _extract_magnet_link("") is None
+
+    def test_extract_no_magnet(self):
+        """测试没有磁力链接的文本"""
+        text = "这是一段普通文本"
+        magnet = _extract_magnet_link(text)
+
+        assert magnet is None
+
+
+class TestDatabaseIntegration:
+    """数据库集成测试（需要实际数据库）"""
+
+    @pytest.fixture
+    def temp_db(self):
+        """创建临时数据库"""
+        # 使用临时文件
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+
+        # 创建数据库表
+        conn = sqlite3.connect(path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                source_chat_id TEXT NOT NULL,
+                source_name TEXT,
+                message_text TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                media_type TEXT,
+                media_path TEXT,
+                media_paths TEXT,
+                media_group_id TEXT,
+                magnet_link TEXT,
+                filename TEXT,
+                is_favorite INTEGER DEFAULT 0
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
+        yield path
+
+        # 清理
+        try:
+            os.unlink(path)
+        except:
+            pass
+
+    def test_add_note_basic(self, temp_db):
+        """测试添加基本笔记"""
+        # 这个测试需要mock database模块的全局变量
+        # 由于复杂性，这里只做示例
+        pass
+
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])

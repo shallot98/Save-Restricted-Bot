@@ -1,0 +1,185 @@
+{
+  "id": "IMPL-2",
+  "title": "服务层缓存集成",
+  "status": "pending",
+  "context_package_path": null,
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": "parallel-service-integration"
+  },
+  "context": {
+    "requirements": [
+      "在 NoteService 中集成缓存，缓存 3 个方法: [get_notes, get_all_sources, get_note]",
+      "在 WatchService 中集成缓存，缓存 2 个方法: [get_watch_config, get_monitoring_sources]",
+      "在 Web 路由层（notes.py）集成缓存，缓存 1 个视图函数: [notes_list]",
+      "使用 @cached 装饰器，配置合理的 TTL: [笔记列表=300s, 来源列表=600s, 单个笔记=180s]",
+      "实现 2 个缓存键策略: [基于参数的键（分页、过滤）, 基于用户的键（多用户隔离）]"
+    ],
+    "focus_paths": [
+      "src/application/services/note_service.py",
+      "src/application/services/watch_service.py",
+      "web/routes/notes.py"
+    ],
+    "acceptance": [
+      "NoteService 3 个方法已缓存: 验证 grep '@cached' src/application/services/note_service.py | wc -l >= 3",
+      "WatchService 2 个方法已缓存: 验证 grep '@cached' src/application/services/watch_service.py | wc -l >= 2",
+      "Web 路由层 1 个视图已缓存: 验证 grep 'cache.get\\|cache.set' web/routes/notes.py | wc -l >= 2",
+      "缓存命中率 >=60%: 验证 pytest tests/integration/test_cache_integration.py --cache-stats | grep 'hit_rate.*[6-9][0-9]%'",
+      "响应时间改善 >=30%: 验证 pytest tests/integration/test_cache_performance.py | grep 'improvement.*[3-9][0-9]%'"
+    ],
+    "depends_on": ["IMPL-1"],
+    "inherited": {
+      "from": "IMPL-1",
+      "context": [
+        "统一缓存接口 CacheInterface 已实现",
+        "UnifiedCache 类可用",
+        "@cached 装饰器已增强",
+        "3 个专用缓存管理器已创建"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "Flask", "SQLAlchemy"],
+      "service_layer": [
+        "NoteService (src/application/services/note_service.py)",
+        "WatchService (src/application/services/watch_service.py)"
+      ],
+      "web_layer": [
+        "notes_bp (web/routes/notes.py)"
+      ],
+      "cache_ttl_strategy": {
+        "note_list": "300s (5分钟，数据变化频繁)",
+        "source_list": "600s (10分钟，数据相对稳定)",
+        "single_note": "180s (3分钟，单个笔记查询)",
+        "watch_config": "600s (10分钟，配置变化少)",
+        "monitoring_sources": "300s (5分钟，监控源列表)"
+      }
+    },
+    "artifacts": []
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "analyze_service_methods",
+        "action": "分析服务层方法，识别需要缓存的方法",
+        "commands": [
+          "Read(src/application/services/note_service.py)",
+          "Read(src/application/services/watch_service.py)",
+          "bash(grep -E 'def (get_|search_|list_)' src/application/services/*.py)"
+        ],
+        "output_to": "service_methods_analysis",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_web_routes",
+        "action": "分析 Web 路由层，识别需要缓存的视图函数",
+        "commands": [
+          "Read(web/routes/notes.py)",
+          "bash(grep -E '@.*_bp.route|def.*list|def.*index' web/routes/notes.py)"
+        ],
+        "output_to": "web_routes_analysis",
+        "on_error": "fail"
+      },
+      {
+        "step": "identify_cache_keys",
+        "action": "识别缓存键策略（参数、用户ID、过滤条件）",
+        "commands": [
+          "bash(grep -E 'page=|source=|search=|user_id=' src/application/services/note_service.py web/routes/notes.py)"
+        ],
+        "output_to": "cache_key_patterns",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "NoteService 缓存集成",
+        "description": "在 NoteService 的 3 个查询方法上添加 @cached 装饰器",
+        "modification_points": [
+          "修改 1 个文件: src/application/services/note_service.py",
+          "在 3 个方法上添加装饰器: [get_notes:58-104, get_all_sources:235-250, get_note:36-56]",
+          "配置 TTL: [get_notes=300s, get_all_sources=600s, get_note=180s]",
+          "配置 key_prefix: [note_list, source_list, single_note]"
+        ],
+        "logic_flow": [
+          "导入 @cached 装饰器（from src.infrastructure.cache.decorators import cached）",
+          "在 get_notes() 方法上添加 @cached(ttl=300, key_prefix='note_list')",
+          "在 get_all_sources() 方法上添加 @cached(ttl=600, key_prefix='source_list')",
+          "在 get_note() 方法上添加 @cached(ttl=180, key_prefix='single_note')",
+          "确保缓存键包含所有过滤参数（page, source_chat_id, search_query, date_from, date_to, favorite_only）"
+        ],
+        "depends_on": [],
+        "output": "note_service_cached"
+      },
+      {
+        "step": 2,
+        "title": "WatchService 缓存集成",
+        "description": "在 WatchService 的 2 个配置方法上添加缓存",
+        "modification_points": [
+          "修改 1 个文件: src/application/services/watch_service.py",
+          "在 2 个方法上添加装饰器: [get_watch_config, get_monitoring_sources]",
+          "配置 TTL: [get_watch_config=600s, get_monitoring_sources=300s]"
+        ],
+        "logic_flow": [
+          "导入 @cached 装饰器",
+          "在 get_watch_config() 方法上添加 @cached(ttl=600, key_prefix='watch_config')",
+          "在 get_monitoring_sources() 方法上添加 @cached(ttl=300, key_prefix='monitoring_sources')",
+          "确保缓存键包含 user_id（多用户隔离）"
+        ],
+        "depends_on": [],
+        "output": "watch_service_cached"
+      },
+      {
+        "step": 3,
+        "title": "Web 路由层缓存集成",
+        "description": "在 notes_list 视图函数中显式使用缓存",
+        "modification_points": [
+          "修改 1 个文件: web/routes/notes.py",
+          "在 notes_list() 函数中添加缓存逻辑: [lines 33-91]",
+          "使用 NoteCacheManager 进行缓存操作"
+        ],
+        "logic_flow": [
+          "导入 NoteCacheManager（from src.infrastructure.cache.managers import NoteCacheManager）",
+          "在 notes_list() 函数开始处，生成缓存键（包含所有查询参数）",
+          "尝试从缓存获取数据（cache.get(cache_key)）",
+          "如果缓存命中，直接返回渲染结果",
+          "如果缓存未命中，执行原有逻辑，并将结果存入缓存（cache.set(cache_key, result, ttl=300)）",
+          "添加缓存命中/未命中日志"
+        ],
+        "depends_on": [],
+        "output": "web_routes_cached"
+      },
+      {
+        "step": 4,
+        "title": "编写集成测试",
+        "description": "编写集成测试验证缓存功能和性能改善",
+        "modification_points": [
+          "创建 2 个测试文件: [tests/integration/test_cache_integration.py, tests/integration/test_cache_performance.py]",
+          "测试缓存命中率（多次调用相同方法）",
+          "测试响应时间改善（缓存命中 vs 缓存未命中）",
+          "测试缓存键隔离（不同参数、不同用户）"
+        ],
+        "logic_flow": [
+          "使用 pytest 框架",
+          "测试 NoteService 缓存（调用 get_notes 两次，第二次应命中缓存）",
+          "测试 WatchService 缓存（调用 get_watch_config 两次）",
+          "测试 Web 路由缓存（模拟 HTTP 请求）",
+          "测量响应时间（第一次 vs 第二次）",
+          "验证缓存命中率 >=60%",
+          "验证响应时间改善 >=30%"
+        ],
+        "depends_on": [1, 2, 3],
+        "output": "integration_tests"
+      }
+    ],
+    "target_files": [
+      "src/application/services/note_service.py:get_notes:58-104",
+      "src/application/services/note_service.py:get_all_sources:235-250",
+      "src/application/services/note_service.py:get_note:36-56",
+      "src/application/services/watch_service.py",
+      "web/routes/notes.py:notes_list:33-91",
+      "tests/integration/test_cache_integration.py",
+      "tests/integration/test_cache_performance.py"
+    ]
+  }
+}

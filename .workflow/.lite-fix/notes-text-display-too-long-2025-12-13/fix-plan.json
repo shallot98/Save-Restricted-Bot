@@ -1,0 +1,107 @@
+{
+  "summary": "修复笔记文本显示过长问题，通过在templates/notes.html中添加自定义line-clamp CSS实现文本截断，同时在static/css/pages/notes.css中添加word-break属性处理长链接换行，并优化展开按钮的检测时机。保持使用Tailwind CDN，无需构建步骤，固定3行截断，保留动画效果。",
+  "root_cause": "Tailwind CDN的line-clamp-3类依赖@tailwindcss/line-clamp插件但CDN版本不包含该插件，导致文本截断失效。同时缺少word-break等CSS属性处理长链接换行，展开按钮的scrollHeight检测时机早于Tailwind样式加载完成，存在时序竞争问题。",
+  "strategy": "immediate_patch",
+  "tasks": [
+    {
+      "id": "FIX1",
+      "title": "添加自定义line-clamp CSS并修复文本溢出",
+      "scope": "templates/notes.html",
+      "action": "Fix",
+      "description": "在templates/notes.html的<style>标签中添加自定义.line-clamp-3 CSS实现，包含-webkit-line-clamp、word-break、overflow-wrap等属性，确保文本正确截断为3行且长链接能够换行。",
+      "modification_points": [
+        {
+          "file": "templates/notes.html",
+          "target": "<style>标签内（约line 10-50）",
+          "change": "添加.line-clamp-3自定义CSS类，包含display: -webkit-box、-webkit-line-clamp: 3、word-break: break-word等属性"
+        }
+      ],
+      "implementation": [
+        "在templates/notes.html的<style>标签中添加以下CSS：\n.line-clamp-3 {\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  word-break: break-word;\n  overflow-wrap: break-word;\n  max-width: 100%;\n  min-width: 0;\n}",
+        "确保.line-clamp-3类的CSS优先级高于Tailwind CDN的默认样式（可以使用!important或更具体的选择器）",
+        "保留现有的line-clamp-3类名在HTML中的使用，无需修改HTML结构"
+      ],
+      "verification": [
+        "访问/notes页面，检查包含长文本的笔记是否正确截断为3行",
+        "检查包含长磁力链接的笔记是否能够正确换行而不溢出",
+        "在浏览器开发者工具中确认.line-clamp-3的CSS属性已生效（-webkit-line-clamp: 3等）"
+      ],
+      "risk": "low"
+    },
+    {
+      "id": "FIX2",
+      "title": "优化展开按钮检测时机",
+      "scope": "templates/notes.html",
+      "action": "Update",
+      "description": "将展开按钮的scrollHeight检测逻辑从DOMContentLoaded移到window.load事件，并添加setTimeout延迟，确保在Tailwind CDN和自定义CSS完全加载后再检测文本高度。",
+      "modification_points": [
+        {
+          "file": "templates/notes.html",
+          "target": "DOMContentLoaded事件监听器（约line 697-707）",
+          "change": "将事件从DOMContentLoaded改为window.load，添加100ms setTimeout延迟"
+        }
+      ],
+      "implementation": [
+        "找到templates/notes.html中的DOMContentLoaded事件监听器（约line 697-707）",
+        "将document.addEventListener('DOMContentLoaded', ...)改为window.addEventListener('load', ...)",
+        "在检测逻辑外层包裹setTimeout(() => { ... }, 100)，确保CSS完全应用后再检测",
+        "保持现有的scrollHeight > clientHeight + 5的检测逻辑不变"
+      ],
+      "verification": [
+        "访问/notes页面，等待页面完全加载",
+        "检查超过3行的笔记是否正确显示'展开全文'按钮",
+        "检查不超过3行的笔记是否正确隐藏展开按钮"
+      ],
+      "risk": "low"
+    },
+    {
+      "id": "FIX3",
+      "title": "增强CSS文本处理规则",
+      "scope": "static/css/pages/notes.css",
+      "action": "Update",
+      "description": "在static/css/pages/notes.css的.note-text样式中添加word-break和overflow-wrap属性，作为全局备用方案，确保即使line-clamp失效也能处理长链接换行。",
+      "modification_points": [
+        {
+          "file": "static/css/pages/notes.css",
+          "target": ".note-text样式（约line 287-299）",
+          "change": "添加word-break: break-word和overflow-wrap: anywhere属性"
+        }
+      ],
+      "implementation": [
+        "打开static/css/pages/notes.css，找到.note-text样式定义（约line 287-299）",
+        "在现有样式中添加：\nword-break: break-word;\noverflow-wrap: anywhere;\nhyphens: auto;",
+        "保持现有的max-height: 120px和overflow: hidden不变"
+      ],
+      "verification": [
+        "访问/notes页面，检查长链接是否能够正确换行",
+        "在移动端（宽度<768px）测试，确认文本不会横向溢出",
+        "检查暗色模式下文本显示是否正常"
+      ],
+      "risk": "low"
+    }
+  ],
+  "focus_paths": [
+    "templates/notes.html",
+    "static/css/pages/notes.css"
+  ],
+  "test_strategy": {
+    "scope": "smoke",
+    "manual_verification": [
+      "访问/notes页面，测试包含长文本和长链接的笔记显示",
+      "测试展开/收起按钮功能是否正常工作",
+      "在移动端和桌面端分别测试响应式布局",
+      "测试暗色模式下的文本显示效果"
+    ]
+  },
+  "estimated_time": "20 minutes",
+  "recommended_execution": "Agent",
+  "severity": "Medium",
+  "risk_level": "low",
+  "_metadata": {
+    "timestamp": "2025-12-13T00:00:00Z",
+    "source": "direct-planning",
+    "planning_mode": "direct",
+    "diagnosis_angles": ["state-management", "rendering"],
+    "duration_seconds": 30
+  }
+}

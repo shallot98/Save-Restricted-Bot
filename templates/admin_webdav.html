@@ -48,7 +48,7 @@
         }
     </style>
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         tailwind.config = {
             darkMode: 'class',
             theme: {
@@ -184,6 +184,7 @@
 
                     <div class="p-6">
                         <form method="POST" class="space-y-6">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             
                             <!-- 启用开关 -->
                             <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700">
@@ -272,7 +273,7 @@
     {# 移动端底部导航栏 #}
     {% include "components/mobile_nav.html" %}
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         function adminApp() {
             return {
                 sidebarOpen: window.innerWidth >= 1024,

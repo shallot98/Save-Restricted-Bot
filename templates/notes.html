@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>我的笔记 - Telegram 笔记</title>
+	<head>
+	    <meta charset="UTF-8">
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	    <meta name="csrf-token" content="{{ csrf_token() }}">
+	    <title>我的笔记 - Telegram 笔记</title>
 
 	    <!-- 首屏状态预初始化：在任何样式/框架执行前同步应用主题与侧边栏默认状态，避免闪烁 -->
-	    <script>
+	    <script nonce="{{ csp_nonce() }}">
 	        (function() {
 	            var initialState = { sidebarOpen: false, darkMode: false };
 
@@ -97,32 +98,33 @@
     <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        primary: {
-                            50: '#eff6ff',
-                            100: '#dbeafe',
-                            200: '#bfdbfe',
-                            300: '#93c5fd',
-                            400: '#60a5fa',
-                            500: '#3b82f6',
-                            600: '#2563eb',
-                            700: '#1d4ed8',
-                            800: '#1e40af',
-                            900: '#1e3a8a',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
     <!-- Tailwind CSS (Local) -->
     <script src="{{ url_for('static', filename='js/tailwindcss-3.4.1.js') }}"></script>
+
+	    <script nonce="{{ csp_nonce() }}">
+	        // Tailwind 配置必须在加载后设置
+	        tailwind.config = {
+	            darkMode: 'class',
+	            theme: {
+	                extend: {
+	                    colors: {
+	                        primary: {
+	                            50: '#eff6ff',
+	                            100: '#dbeafe',
+	                            200: '#bfdbfe',
+	                            300: '#93c5fd',
+	                            400: '#60a5fa',
+	                            500: '#3b82f6',
+	                            600: '#2563eb',
+	                            700: '#1d4ed8',
+	                            800: '#1e40af',
+	                            900: '#1e3a8a',
+	                        }
+	                    }
+	                }
+	            }
+	        };
+	    </script>
 
     <!-- Alpine.js (Local) -->
     <script defer src="{{ url_for('static', filename='js/alpinejs-3.14.3.min.js') }}"></script>
@@ -288,7 +290,7 @@
     </style>
 
     <!-- 图片画廊功能 - 提前定义确保全局可用 -->
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         // 图片画廊相关变量(绑定到window确保全局可访问)
         window.galleryImages = [];
         window.currentGalleryIndex = 0;
@@ -432,6 +434,19 @@
         <!-- 主内容区 -->
         <main class="flex-1 overflow-y-auto">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                
+                <!-- 页面标题 (与 Dashboard 保持一致) -->
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <div class="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg text-primary-600 dark:text-primary-400">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                            </svg>
+                        </div>
+                        我的笔记
+                    </h1>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">查看、搜索和管理所有已保存的消息内容</p>
+                </div>
 
                 <!-- 搜索结果提示 -->
                 {% if search_query %}
@@ -511,7 +526,7 @@
 	    <script src="{{ url_for('static', filename='js/components/note-card.js') }}"></script>
 	    <script src="{{ url_for('static', filename='js/notes.js') }}"></script>
 
-		    <script>
+		    <script nonce="{{ csp_nonce() }}">
 			        function notesApp(initialState) {
 	                    const resolvedInitial = (initialState && typeof initialState === 'object') ? initialState : {};
                         
@@ -609,13 +624,13 @@
 
         // 注意: 图片画廊函数已移至 <head> 中,确保全局早期可用
 
-        function toggleFavorite(noteId, btn) {
-            fetch('/toggle_favorite/' + noteId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
+	        function toggleFavorite(noteId, btn) {
+	            NetworkManager.fetchWithRetry('/toggle_favorite/' + noteId, {
+	                method: 'POST',
+	                headers: { 'Content-Type': 'application/json' }
+	            })
+	            .then(response => response.json())
+	            .then(data => {
                 if (data.success) {
                     // 重新构建SVG
                     const isFavorite = btn.querySelector('svg').classList.contains('text-yellow-500');

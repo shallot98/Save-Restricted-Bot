@@ -1,12 +1,16 @@
 """
 Command handlers for /start, /help, /watch commands
+
+Architecture: Uses new layered architecture
+- src/core/container for service access
 """
 import pyrogram
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import logging
 
-from config import load_watch_config
+# New architecture imports
+from src.core.container import get_watch_service
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +92,13 @@ def register_command_handlers(bot, acc):
 
 
 def show_watch_menu(chat_id, reply_to_message_id=None):
-    """Show watch menu"""
+    """Show watch menu using WatchService"""
     from bot.handlers import get_bot_instance
     bot = get_bot_instance()
-    
-    watch_config = load_watch_config()
+
+    # 使用 WatchService 获取配置
+    watch_service = get_watch_service()
+    watch_config = watch_service.get_all_configs_dict()
     user_id = str(chat_id)
     
     watch_count = len(watch_config.get(user_id, {}))

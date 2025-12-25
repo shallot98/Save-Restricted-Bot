@@ -48,7 +48,7 @@
         }
     </style>
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         tailwind.config = {
             darkMode: 'class',
             theme: {
@@ -257,6 +257,15 @@
                     </div>
 
                     <div class="p-6">
+                        {% if must_change_password %}
+                        <div class="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-start gap-3">
+                            <svg class="w-5 h-5 text-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86l-8.1 14.02A2 2 0 004 21h16a2 2 0 001.81-3.12l-8.1-14.02a2 2 0 00-3.42 0z"></path>
+                            </svg>
+                            <span class="text-sm text-yellow-900 dark:text-yellow-200">检测到正在使用默认密码（admin/admin），为保障安全请先修改密码后再继续使用其他功能。</span>
+                        </div>
+                        {% endif %}
+
                         {% if success %}
                         <div class="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-3">
                             <svg class="w-5 h-5 text-green-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -276,6 +285,7 @@
                         {% endif %}
 
                         <form method="POST" action="/admin" @submit="validateForm" class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <div class="md:col-span-4">
                                 <label for="current_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">当前密码</label>
                                 <input type="password" id="current_password" name="current_password" autocomplete="current-password" required
@@ -311,7 +321,7 @@
     {# 移动端底部导航栏 #}
     {% include "components/mobile_nav.html" %}
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         function adminApp() {
             return {
                 sidebarOpen: window.innerWidth >= 1024,

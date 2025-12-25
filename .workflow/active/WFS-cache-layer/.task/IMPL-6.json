@@ -1,0 +1,253 @@
+{
+  "id": "IMPL-6",
+  "title": "文档与部署",
+  "status": "pending",
+  "context_package_path": null,
+  "meta": {
+    "type": "docs",
+    "agent": "@code-developer",
+    "execution_group": "parallel-documentation"
+  },
+  "context": {
+    "requirements": [
+      "编写 4 个技术文档: [架构设计文档, API参考文档, 使用指南, 性能优化指南]",
+      "编写 2 个部署文档: [部署指南, 配置说明]",
+      "更新 1 个项目文档: README.md（添加缓存层说明）",
+      "创建 3 个示例代码: [基本使用, 高级配置, 性能优化]",
+      "生成 1 个性能报告: CACHE_PERFORMANCE_REPORT.md"
+    ],
+    "focus_paths": [
+      "docs/cache/",
+      "examples/cache/",
+      "README.md"
+    ],
+    "acceptance": [
+      "4 个技术文档已创建: 验证 ls docs/cache/*.md | wc -l >= 4",
+      "2 个部署文档已创建: 验证 ls docs/cache/deployment/*.md | wc -l >= 2",
+      "README.md 已更新: 验证 grep '缓存层' README.md | wc -l >= 1",
+      "3 个示例代码已创建: 验证 ls examples/cache/*.py | wc -l >= 3",
+      "性能报告已生成: 验证 test -f docs/cache/CACHE_PERFORMANCE_REPORT.md"
+    ],
+    "depends_on": ["IMPL-1", "IMPL-2", "IMPL-3", "IMPL-4", "IMPL-5"],
+    "inherited": {
+      "from": "IMPL-5",
+      "context": [
+        "所有测试已通过",
+        "测试覆盖率 >=80%",
+        "性能基准测试已完成"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Markdown", "Python docstrings", "Sphinx (可选)"],
+      "documentation_structure": {
+        "architecture": "架构设计文档（系统架构、模块关系、设计决策）",
+        "api_reference": "API参考文档（接口、类、方法、参数）",
+        "user_guide": "使用指南（快速开始、常见场景、最佳实践）",
+        "performance_guide": "性能优化指南（优化策略、性能调优、监控）",
+        "deployment_guide": "部署指南（环境要求、安装步骤、配置）",
+        "configuration": "配置说明（配置项、默认值、示例）"
+      }
+    },
+    "artifacts": []
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "analyze_code_structure",
+        "action": "分析代码结构，提取文档信息",
+        "commands": [
+          "bash(find src/infrastructure/cache -name '*.py' -type f | xargs grep -E '^class|^def' | head -50)"
+        ],
+        "output_to": "code_structure",
+        "on_error": "skip_optional"
+      },
+      {
+        "step": "extract_docstrings",
+        "action": "提取代码中的文档字符串",
+        "commands": [
+          "bash(grep -A 5 '\"\"\"' src/infrastructure/cache/*.py | head -100)"
+        ],
+        "output_to": "docstrings",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "编写架构设计文档",
+        "description": "创建缓存层架构设计文档",
+        "modification_points": [
+          "创建 1 个文档: docs/cache/ARCHITECTURE.md",
+          "包含 5 个章节: [系统概述, 架构设计, 模块关系, 设计决策, 技术选型]",
+          "添加架构图（使用 Mermaid 或 ASCII）"
+        ],
+        "logic_flow": [
+          "创建 docs/cache/ 目录",
+          "编写系统概述（缓存层的目标、范围、关键特性）",
+          "编写架构设计（分层架构、核心组件、数据流）",
+          "绘制架构图（CacheInterface → UnifiedCache → Managers → Services）",
+          "编写模块关系（依赖关系、交互方式）",
+          "编写设计决策（ADR: 为什么选择TTLCache, 为什么使用装饰器模式）",
+          "编写技术选型（Python threading, 内存缓存 vs Redis）"
+        ],
+        "depends_on": [],
+        "output": "architecture_doc"
+      },
+      {
+        "step": 2,
+        "title": "编写 API 参考文档",
+        "description": "创建完整的 API 参考文档",
+        "modification_points": [
+          "创建 1 个文档: docs/cache/API_REFERENCE.md",
+          "包含 6 个模块的 API: [CacheInterface, UnifiedCache, Decorators, Managers, Invalidation, Batch]",
+          "每个 API 包含: [签名, 参数, 返回值, 异常, 示例]"
+        ],
+        "logic_flow": [
+          "编写 CacheInterface API（5 个抽象方法）",
+          "编写 UnifiedCache API（实现方法 + 额外方法）",
+          "编写 @cached 装饰器 API（参数、用法、示例）",
+          "编写 3 个 Manager API（NoteCacheManager, ConfigCacheManager, PeerCacheManager）",
+          "编写 CacheInvalidation API（3 种失效策略）",
+          "编写 BatchCache API（batch_get, batch_set）",
+          "每个 API 包含代码示例"
+        ],
+        "depends_on": [],
+        "output": "api_reference_doc"
+      },
+      {
+        "step": 3,
+        "title": "编写使用指南",
+        "description": "创建用户友好的使用指南",
+        "modification_points": [
+          "创建 1 个文档: docs/cache/USER_GUIDE.md",
+          "包含 5 个章节: [快速开始, 基本使用, 高级配置, 常见场景, 最佳实践]",
+          "添加丰富的代码示例"
+        ],
+        "logic_flow": [
+          "编写快速开始（5分钟上手缓存层）",
+          "编写基本使用（使用 @cached 装饰器, 手动缓存操作）",
+          "编写高级配置（自定义 TTL, 失效策略, 批量操作）",
+          "编写常见场景（服务层缓存, Web路由缓存, 配置缓存）",
+          "编写最佳实践（缓存键设计, TTL选择, 失效时机, 性能优化）",
+          "添加完整的代码示例（可运行）"
+        ],
+        "depends_on": [],
+        "output": "user_guide_doc"
+      },
+      {
+        "step": 4,
+        "title": "编写性能优化指南",
+        "description": "创建性能优化指南",
+        "modification_points": [
+          "创建 1 个文档: docs/cache/PERFORMANCE_GUIDE.md",
+          "包含 4 个章节: [性能指标, 优化策略, 性能调优, 监控告警]",
+          "添加性能测试结果和对比"
+        ],
+        "logic_flow": [
+          "编写性能指标（命中率, 响应时间, 内存使用, 吞吐量）",
+          "编写优化策略（批量操作, 缓存预热, LRU淘汰, 智能预加载）",
+          "编写性能调优（TTL调优, max_size调优, 并发优化）",
+          "编写监控告警（使用 /api/cache/stats, 设置告警阈值）",
+          "添加性能测试结果（缓存命中 vs 未命中, 批量 vs 单次）"
+        ],
+        "depends_on": [],
+        "output": "performance_guide_doc"
+      },
+      {
+        "step": 5,
+        "title": "编写部署文档",
+        "description": "创建部署指南和配置说明",
+        "modification_points": [
+          "创建 2 个文档: [docs/cache/deployment/DEPLOYMENT_GUIDE.md, docs/cache/deployment/CONFIGURATION.md]",
+          "包含环境要求、安装步骤、配置项"
+        ],
+        "logic_flow": [
+          "编写 DEPLOYMENT_GUIDE.md:",
+          "  - 环境要求（Python 3.x, 依赖包）",
+          "  - 安装步骤（pip install, 初始化）",
+          "  - 启动配置（缓存预热, 监控启用）",
+          "  - 验证部署（运行测试, 检查监控）",
+          "编写 CONFIGURATION.md:",
+          "  - 配置项列表（default_ttl, max_size, cleanup_interval）",
+          "  - 默认值和推荐值",
+          "  - 配置示例（开发环境 vs 生产环境）",
+          "  - 环境变量配置"
+        ],
+        "depends_on": [],
+        "output": "deployment_docs"
+      },
+      {
+        "step": 6,
+        "title": "更新 README.md",
+        "description": "在项目 README 中添加缓存层说明",
+        "modification_points": [
+          "修改 1 个文件: README.md",
+          "添加缓存层章节（在架构说明部分）",
+          "添加快速链接到详细文档"
+        ],
+        "logic_flow": [
+          "在 README.md 中找到架构说明部分",
+          "添加 ## 缓存层 章节",
+          "简要介绍缓存层功能（统一接口, 服务层集成, 失效管理, 性能优化）",
+          "添加快速开始示例（使用 @cached 装饰器）",
+          "添加文档链接（[详细文档](docs/cache/USER_GUIDE.md)）"
+        ],
+        "depends_on": [],
+        "output": "readme_update"
+      },
+      {
+        "step": 7,
+        "title": "创建示例代码",
+        "description": "创建 3 个可运行的示例代码",
+        "modification_points": [
+          "创建 3 个示例文件: [examples/cache/basic_usage.py, examples/cache/advanced_config.py, examples/cache/performance_optimization.py]",
+          "每个示例包含完整的代码和注释"
+        ],
+        "logic_flow": [
+          "创建 examples/cache/ 目录",
+          "编写 basic_usage.py: 基本使用（@cached 装饰器, 手动缓存）",
+          "编写 advanced_config.py: 高级配置（自定义 TTL, 失效策略, 批量操作）",
+          "编写 performance_optimization.py: 性能优化（批量操作, 缓存预热, 监控统计）",
+          "每个示例包含详细注释和输出说明",
+          "确保示例可以直接运行（python examples/cache/basic_usage.py）"
+        ],
+        "depends_on": [],
+        "output": "example_code"
+      },
+      {
+        "step": 8,
+        "title": "生成性能报告",
+        "description": "基于测试结果生成性能报告",
+        "modification_points": [
+          "创建 1 个报告: docs/cache/CACHE_PERFORMANCE_REPORT.md",
+          "包含 5 个部分: [测试环境, 性能指标, 对比分析, 优化效果, 结论建议]",
+          "添加图表和数据"
+        ],
+        "logic_flow": [
+          "从性能测试结果中提取数据",
+          "编写测试环境（硬件配置, 软件版本, 测试数据规模）",
+          "编写性能指标（缓存命中率, 响应时间, 吞吐量, 内存使用）",
+          "编写对比分析（缓存前 vs 缓存后, 单次 vs 批量）",
+          "编写优化效果（响应时间改善 X%, 吞吐量提升 Y%）",
+          "编写结论建议（缓存层达到预期目标, 建议生产环境配置）",
+          "添加性能图表（使用 Markdown 表格或 ASCII 图）"
+        ],
+        "depends_on": [],
+        "output": "performance_report"
+      }
+    ],
+    "target_files": [
+      "docs/cache/ARCHITECTURE.md",
+      "docs/cache/API_REFERENCE.md",
+      "docs/cache/USER_GUIDE.md",
+      "docs/cache/PERFORMANCE_GUIDE.md",
+      "docs/cache/deployment/DEPLOYMENT_GUIDE.md",
+      "docs/cache/deployment/CONFIGURATION.md",
+      "README.md",
+      "examples/cache/basic_usage.py",
+      "examples/cache/advanced_config.py",
+      "examples/cache/performance_optimization.py",
+      "docs/cache/CACHE_PERFORMANCE_REPORT.md"
+    ]
+  }
+}

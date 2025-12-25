@@ -1784,10 +1784,12 @@ nano docker-compose.yml
 
 # 修改为：
 services:
-  telegram-bot:
-    container_name: save-restricted-bot-2
+  web:
+    container_name: save-restricted-bot-2-web
     ports:
       - "10001:10000"  # 改为不同端口
+  bot:
+    container_name: save-restricted-bot-2-bot
 
 # 4. 创建新的 .env 文件，填入不同的 Token
 nano .env

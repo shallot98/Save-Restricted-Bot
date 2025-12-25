@@ -1,0 +1,97 @@
+{
+  "symptom": {
+    "description": "图片查看器(Gallery Modal)无法打开,点击图片和相机图标后状态未更新",
+    "error_message": null,
+    "stack_trace": null,
+    "frequency": "always",
+    "user_impact": "用户无法查看笔记中的多张图片,图片浏览功能完全失效"
+  },
+  "root_cause": {
+    "file": "templates/notes.html",
+    "line_range": "335-368",
+    "function": "window.openImageGallery",
+    "issue": "openImageGallery函数定义在页面底部的<script>标签中,但inline onclick handler执行时可能函数尚未定义或被Alpine.js初始化覆盖。此外,函数中使用的galleryImages和currentGalleryIndex全局变量(line 332-333)可能未正确初始化",
+    "confidence": 0.85,
+    "introduced_by": "移动端响应式重构",
+    "category": "logic_error"
+  },
+  "affected_files": [
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.95,
+      "rationale": "包含openImageGallery函数定义和galleryImages状态变量,是状态管理的核心文件",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "templates/components/modals.html",
+      "relevance": 0.8,
+      "rationale": "定义galleryModal的DOM结构和状态类(hidden/flex),状态切换依赖openImageGallery",
+      "change_type": "reference_only"
+    },
+    {
+      "path": "templates/components/note_card.html",
+      "relevance": 0.75,
+      "rationale": "触发openImageGallery的入口点,传递noteId和mediaPaths参数",
+      "change_type": "needs_update"
+    },
+    {
+      "path": "static/js/components/modal.js",
+      "relevance": 0.5,
+      "rationale": "包含ModalManager.openImageModal单图查看器,与多图查看器可能状态冲突",
+      "change_type": "reference_only"
+    }
+  ],
+  "reproduction_steps": [
+    "打开浏览器开发者工具Console",
+    "访问 /notes 页面",
+    "在Console中检查 window.openImageGallery 是否存在",
+    "点击包含多张图片的笔记卡片图片",
+    "观察:Console可能报错 'openImageGallery is not defined' 或函数未执行",
+    "检查 #galleryModal 元素的class是否从hidden变为flex",
+    "观察:modal仍保持hidden状态"
+  ],
+  "fix_hints": [
+    {
+      "description": "将图片查看器状态管理提前到DOMContentLoaded之前",
+      "approach": "将window.galleryImages, window.currentGalleryIndex变量和所有gallery相关函数移到<head>中的早期<script>,确保在页面渲染前可用",
+      "code_example": "<!-- 在<head>底部添加 -->\n<script>\n  // 初始化全局状态\n  window.galleryImages = [];\n  window.currentGalleryIndex = 0;\n  \n  // 定义所有gallery函数\n  window.openImageGallery = function(noteId, mediaPaths) {\n    console.log('Opening gallery for note:', noteId);\n    // ... 函数实现 ...\n  };\n</script>",
+      "risk": "low"
+    },
+    {
+      "description": "添加函数存在性检查和调试日志",
+      "approach": "在note_card.html的onclick中添加条件检查,确保函数存在再调用",
+      "code_example": "<!-- 改进note_card.html line 14 -->\nonclick=\"if(typeof window.openImageGallery === 'function') { window.openImageGallery({{ note.id }}, {{ note.media_paths|tojson }}); } else { console.error('openImageGallery not defined'); }\"",
+      "risk": "low"
+    },
+    {
+      "description": "使用事件委托替代inline onclick",
+      "approach": "移除inline onclick,改用DOMContentLoaded后的事件委托监听,确保DOM和函数都已就绪",
+      "code_example": "// 在templates/notes.html底部\ndocument.addEventListener('DOMContentLoaded', function() {\n  document.querySelectorAll('[data-gallery-trigger]').forEach(el => {\n    el.addEventListener('click', function() {\n      const noteId = this.dataset.noteId;\n      const mediaPaths = JSON.parse(this.dataset.mediaPaths);\n      window.openImageGallery(noteId, mediaPaths);\n    });\n  });\n});",
+      "risk": "medium"
+    }
+  ],
+  "dependencies": "Alpine.js state management, Tailwind CSS utility classes (hidden/flex), DOM ready state",
+  "constraints": "必须确保函数在页面加载早期定义,避免与Alpine.js的x-data状态冲突",
+  "related_issues": [
+    {
+      "type": "similar_bug",
+      "reference": "templates/notes.html:299",
+      "description": "openImageModal单图查看器使用相同的window绑定模式,但工作正常,可参考"
+    },
+    {
+      "type": "tech_debt",
+      "reference": "static/js/pages/notes.js",
+      "description": "存在重复的modal管理逻辑,应统一状态管理方式"
+    }
+  ],
+  "clarification_needs": [],
+  "_metadata": {
+    "timestamp": "2025-12-16T08:00:00Z",
+    "bug_description": "修复笔记点击图片和右上角相机图标无效的问题",
+    "source": "cli-explore-agent",
+    "diagnosis_angle": "state-management",
+    "diagnosis_index": 2,
+    "total_diagnoses": 2,
+    "duration_seconds": 135
+  }
+}

@@ -1,0 +1,266 @@
+{
+  "id": "IMPL-5",
+  "title": "添加配置热重载支持",
+  "status": "pending",
+  "context_package_path": ".workflow/active/WFS-config-refactor/.process/context-package.json",
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "引入watchdog库用于文件监控",
+      "创建1个配置监控器类: ConfigWatcher",
+      "实现1个配置变更通知机制: ConfigChangeNotifier",
+      "为Settings类添加2个方法: [subscribe, unsubscribe]",
+      "创建1个热重载管理器: HotReloadManager",
+      "编写8个测试用例验证热重载功能"
+    ],
+    "focus_paths": [
+      "src/core/config/watcher.py",
+      "src/core/config/notifier.py",
+      "src/core/config/hot_reload.py",
+      "src/core/config/settings.py",
+      "tests/integration/test_hot_reload.py"
+    ],
+    "acceptance": [
+      "watchdog已安装: 验证 pip list | grep watchdog",
+      "ConfigWatcher已创建: 验证 grep 'class ConfigWatcher' src/core/config/watcher.py",
+      "ConfigChangeNotifier已创建: 验证 grep 'class ConfigChangeNotifier' src/core/config/notifier.py",
+      "Settings支持订阅: 验证 grep 'def subscribe\\|def unsubscribe' src/core/config/settings.py | wc -l = 2",
+      "热重载测试通过: 验证 pytest tests/integration/test_hot_reload.py -v 全部通过"
+    ],
+    "depends_on": ["IMPL-4"],
+    "inherited": {
+      "from": "IMPL-4",
+      "context": [
+        "配置迁移已完成",
+        "所有模块使用新配置管理器",
+        "兼容层正常工作"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "watchdog", "threading", "pytest"],
+      "hot_reload_strategy": [
+        "使用watchdog监控配置文件变更",
+        "文件变更时触发重新加载",
+        "通过回调机制通知订阅者",
+        "使用防抖机制避免频繁重载"
+      ],
+      "conventions": [
+        "配置变更时先验证再应用",
+        "变更失败时保持原配置",
+        "通知订阅者时传递变更详情",
+        "热重载不影响正在运行的请求"
+      ]
+    },
+    "artifacts": [
+      {
+        "type": "implementation",
+        "source": "IMPL-4",
+        "path": "src/core/config/settings.py",
+        "priority": "highest",
+        "usage": "Settings类，需要添加订阅机制",
+        "contains": "增强的配置管理器"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "加载上下文包",
+        "commands": ["Read(.workflow/active/WFS-config-refactor/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "review_settings",
+        "action": "查看Settings类实现",
+        "commands": ["Read(src/core/config/settings.py)"],
+        "output_to": "settings_implementation",
+        "on_error": "fail"
+      },
+      {
+        "step": "research_watchdog",
+        "action": "研究watchdog使用模式",
+        "commands": [
+          "bash(rg 'FileSystemEventHandler|Observer' --type py -n --max-count 10)"
+        ],
+        "output_to": "watchdog_patterns",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "安装watchdog依赖",
+        "description": "添加watchdog到项目依赖",
+        "modification_points": [
+          "修改文件: requirements.txt",
+          "添加依赖: watchdog>=2.1.0"
+        ],
+        "logic_flow": [
+          "打开requirements.txt",
+          "添加watchdog>=2.1.0",
+          "运行pip install -r requirements.txt",
+          "验证安装: pip list | grep watchdog"
+        ],
+        "depends_on": [],
+        "output": "requirements.txt"
+      },
+      {
+        "step": 2,
+        "title": "创建配置变更通知器",
+        "description": "实现ConfigChangeNotifier类",
+        "modification_points": [
+          "创建文件: src/core/config/notifier.py",
+          "定义ConfigChangeNotifier类",
+          "实现3个方法: [subscribe, unsubscribe, notify]",
+          "支持多个订阅者"
+        ],
+        "logic_flow": [
+          "导入依赖: from typing import Callable, Dict, Any, List",
+          "定义ConfigChangeNotifier类",
+          "初始化订阅者列表: self._subscribers = []",
+          "实现subscribe方法: 添加回调函数到订阅者列表",
+          "实现unsubscribe方法: 从订阅者列表移除回调函数",
+          "实现notify方法: 遍历订阅者列表，调用回调函数",
+          "添加线程安全保护",
+          "添加错误处理，单个订阅者失败不影响其他订阅者"
+        ],
+        "depends_on": [1],
+        "output": "src/core/config/notifier.py"
+      },
+      {
+        "step": 3,
+        "title": "创建配置文件监控器",
+        "description": "实现ConfigWatcher类",
+        "modification_points": [
+          "创建文件: src/core/config/watcher.py",
+          "定义ConfigWatcher类，继承FileSystemEventHandler",
+          "实现on_modified方法: 处理文件修改事件",
+          "添加防抖机制: 避免短时间内多次触发"
+        ],
+        "logic_flow": [
+          "导入watchdog: from watchdog.events import FileSystemEventHandler",
+          "导入Observer: from watchdog.observers import Observer",
+          "定义ConfigWatcher类，继承FileSystemEventHandler",
+          "初始化: 接收配置路径和回调函数",
+          "实现on_modified方法: 检查是否为配置文件，调用回调",
+          "添加防抖机制: 使用时间戳记录上次触发时间，间隔<1秒忽略",
+          "实现start方法: 启动Observer监控配置目录",
+          "实现stop方法: 停止Observer",
+          "添加日志记录"
+        ],
+        "depends_on": [1, 2],
+        "output": "src/core/config/watcher.py"
+      },
+      {
+        "step": 4,
+        "title": "创建热重载管理器",
+        "description": "实现HotReloadManager类",
+        "modification_points": [
+          "创建文件: src/core/config/hot_reload.py",
+          "定义HotReloadManager类",
+          "实现4个方法: [start, stop, reload_config, handle_change]",
+          "集成ConfigWatcher和ConfigChangeNotifier"
+        ],
+        "logic_flow": [
+          "导入依赖: from .watcher import ConfigWatcher",
+          "导入依赖: from .notifier import ConfigChangeNotifier",
+          "定义HotReloadManager类",
+          "初始化: 创建ConfigWatcher和ConfigChangeNotifier实例",
+          "实现start方法: 启动文件监控",
+          "实现stop方法: 停止文件监控",
+          "实现reload_config方法: 重新加载配置并验证",
+          "实现handle_change方法: 处理文件变更事件",
+          "添加配置验证: 变更前验证新配置",
+          "添加回滚机制: 验证失败时保持原配置",
+          "添加日志记录和错误处理"
+        ],
+        "depends_on": [2, 3],
+        "output": "src/core/config/hot_reload.py"
+      },
+      {
+        "step": 5,
+        "title": "为Settings添加订阅机制",
+        "description": "修改Settings类支持配置变更订阅",
+        "modification_points": [
+          "修改文件: src/core/config/settings.py",
+          "添加HotReloadManager实例: self._hot_reload_manager",
+          "添加subscribe方法: 订阅配置变更",
+          "添加unsubscribe方法: 取消订阅",
+          "添加enable_hot_reload方法: 启用热重载",
+          "添加disable_hot_reload方法: 禁用热重载"
+        ],
+        "logic_flow": [
+          "导入HotReloadManager: from .hot_reload import HotReloadManager",
+          "在__init__中创建HotReloadManager实例",
+          "实现subscribe方法: 委托给HotReloadManager.notifier.subscribe",
+          "实现unsubscribe方法: 委托给HotReloadManager.notifier.unsubscribe",
+          "实现enable_hot_reload方法: 调用HotReloadManager.start",
+          "实现disable_hot_reload方法: 调用HotReloadManager.stop",
+          "修改reload方法: 触发配置变更通知",
+          "添加线程安全保护",
+          "添加文档字符串"
+        ],
+        "depends_on": [4],
+        "output": "src/core/config/settings.py"
+      },
+      {
+        "step": 6,
+        "title": "编写热重载测试",
+        "description": "创建测试验证热重载功能",
+        "modification_points": [
+          "创建文件: tests/integration/test_hot_reload.py",
+          "编写8个测试用例: 启动停止、文件变更检测、配置重载、订阅通知、防抖机制、验证失败、并发安全、完整流程"
+        ],
+        "logic_flow": [
+          "导入pytest、time、tempfile",
+          "导入Settings和HotReloadManager",
+          "测试启动停止: 验证热重载可以启动和停止",
+          "测试文件变更检测: 修改配置文件，验证检测到变更",
+          "测试配置重载: 修改配置文件，验证配置自动重载",
+          "测试订阅通知: 订阅配置变更，验证收到通知",
+          "测试防抖机制: 短时间内多次修改，验证只触发一次",
+          "测试验证失败: 写入无效配置，验证保持原配置",
+          "测试并发安全: 多线程同时修改配置，验证线程安全",
+          "测试完整流程: 启动热重载 → 修改配置 → 验证重载 → 通知订阅者 → 停止热重载"
+        ],
+        "depends_on": [1, 2, 3, 4, 5],
+        "output": "tests/integration/test_hot_reload.py"
+      },
+      {
+        "step": 7,
+        "title": "运行热重载测试并验证",
+        "description": "执行测试确保热重载功能正常",
+        "modification_points": [
+          "运行pytest: pytest tests/integration/test_hot_reload.py -v",
+          "验证所有测试通过"
+        ],
+        "logic_flow": [
+          "执行pytest命令",
+          "查看测试结果，确保所有测试通过",
+          "如果有失败，分析原因并修复",
+          "重新运行测试直到全部通过",
+          "验证热重载不影响性能"
+        ],
+        "depends_on": [6],
+        "output": "测试报告"
+      }
+    ],
+    "target_files": [
+      "requirements.txt",
+      "src/core/config/notifier.py",
+      "src/core/config/watcher.py",
+      "src/core/config/hot_reload.py",
+      "src/core/config/settings.py:subscribe",
+      "src/core/config/settings.py:unsubscribe",
+      "src/core/config/settings.py:enable_hot_reload",
+      "src/core/config/settings.py:disable_hot_reload",
+      "tests/integration/test_hot_reload.py"
+    ]
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "session_id": "WFS-config-refactor",
+  "analysis_timestamp": "2025-12-14T00:00:00Z",
+  "goal": "配置管理重构 - 实现统一配置管理器",
+  "scope": ["统一配置管理器", "环境变量与配置文件整合", "配置验证机制"],
+  
+  "current_architecture": {
+    "layers": [
+      {
+        "name": "新架构层",
+        "path": "src/core/config/settings.py",
+        "description": "单例模式的Settings类，线程安全，统一路径配置"
+      },
+      {
+        "name": "兼容层",
+        "path": "src/compat/config_compat.py",
+        "description": "向后兼容的函数接口，委托给新Settings类"
+      },
+      {
+        "name": "传统配置层",
+        "path": "config.py",
+        "description": "主要作为导入代理，重新导出兼容层函数"
+      }
+    ]
+  },
+  
+  "config_files": {
+    "environment": [".env", ".env.example"],
+    "main_config": ["config.json", "data/config/config.json"],
+    "feature_config": [
+      "data/config/watch_config.json",
+      "data/config/webdav_config.json",
+      "data/config/viewer_config.json"
+    ],
+    "constants": [
+      "src/core/constants/app_constants.py",
+      "bot/config/constants.py",
+      "src/compat/constants_compat.py",
+      "constants.py"
+    ]
+  },
+  
+  "usage_patterns": {
+    "new_architecture": "from src.core.config import settings; settings.get('KEY', default)",
+    "compat_layer": "from config import load_config, getenv; config = load_config()",
+    "direct_env": "os.environ.get('KEY', default)"
+  },
+  
+  "integration_points": [
+    {"module": "database.py", "usage": "settings.paths"},
+    {"module": "web routes", "usage": "配置函数导入"},
+    {"module": "message_worker.py", "usage": "WebDAV配置"},
+    {"module": "sources_manager.py", "usage": "监控源配置"}
+  ],
+  
+  "issues": [
+    "多层配置系统并存（新架构、兼容层、传统层）",
+    "常量在多个文件中重复定义",
+    "不同模块使用不同的导入方式",
+    "缺乏统一的配置验证机制",
+    "配置间的依赖关系未明确管理",
+    "配置文件可能被重复读取",
+    "配置更新时缓存可能不同步"
+  ],
+  
+  "improvement_opportunities": [
+    "统一配置访问接口",
+    "实现强类型配置定义",
+    "建立完整的配置验证体系",
+    "支持配置热重载",
+    "智能配置缓存机制",
+    "配置变更监控和告警"
+  ],
+  
+  "conflict_risk": "medium",
+  "risk_factors": [
+    "API兼容性：统一配置管理器可能破坏现有API",
+    "数据迁移：配置格式变更可能导致数据丢失",
+    "模块依赖：配置重构可能影响多个业务模块",
+    "运行时错误：配置验证加强可能暴露现有问题"
+  ],
+  
+  "mitigation_strategies": [
+    "渐进式重构：保持向后兼容性",
+    "配置迁移工具：提供自动迁移脚本",
+    "全面测试：确保重构后功能正常",
+    "回滚机制：提供配置回滚能力"
+  ]
+}

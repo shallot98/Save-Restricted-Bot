@@ -1,15 +1,21 @@
 """
 Watch configuration and setup handlers
+
+Architecture: Uses new layered architecture
+- src/core/container for service access
 """
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from typing import List, Optional
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from pyrogram.errors import ChannelPrivate, UsernameInvalid
 
 from bot.handlers.instances import get_bot_instance, get_acc_instance
 from bot.utils.status import user_states
-from config import load_watch_config, save_watch_config
+
+# New architecture imports
+from src.core.container import get_watch_service
 
 
-def show_filter_options(chat_id, message_id, user_id):
+def show_filter_options(chat_id: int, message_id: int, user_id: str) -> None:
     """Show filter options for forward mode"""
     bot = get_bot_instance()
     
@@ -75,7 +81,7 @@ def show_filter_options(chat_id, message_id, user_id):
         bot.send_message(chat_id, text, reply_markup=keyboard)
 
 
-def show_filter_options_single(chat_id, message_id, user_id):
+def show_filter_options_single(chat_id: int, message_id: int, user_id: str) -> None:
     """Show filter options for record mode"""
     bot = get_bot_instance()
     
@@ -139,7 +145,7 @@ def show_filter_options_single(chat_id, message_id, user_id):
         bot.send_message(chat_id, text, reply_markup=keyboard)
 
 
-def show_preserve_source_options(chat_id, message_id, user_id):
+def show_preserve_source_options(chat_id: int, message_id: int, user_id: str) -> None:
     """Show preserve source options"""
     bot = get_bot_instance()
     
@@ -168,7 +174,16 @@ def show_preserve_source_options(chat_id, message_id, user_id):
     bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
 
 
-def show_forward_mode_options(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source):
+def show_forward_mode_options(
+    chat_id: int,
+    message_id: int,
+    user_id: str,
+    whitelist: List[str],
+    blacklist: List[str],
+    whitelist_regex: List[str],
+    blacklist_regex: List[str],
+    preserve_source: bool
+) -> None:
     """Show forward mode options"""
     bot = get_bot_instance()
 
@@ -198,7 +213,7 @@ def show_forward_mode_options(chat_id, message_id, user_id, whitelist, blacklist
     bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
 
 
-def show_dn_append_options(chat_id, message_id, user_id, forward_mode):
+def show_dn_append_options(chat_id: int, message_id: int, user_id: str, forward_mode: str) -> None:
     """Show DN append options for forward mode"""
     bot = get_bot_instance()
 
@@ -217,15 +232,22 @@ def show_dn_append_options(chat_id, message_id, user_id, forward_mode):
     text += f"来源：`{source_name}`\n"
     text += f"目标：`{dest_name}`\n"
     text += f"转发模式：{'🎯 提取模式' if forward_mode == 'extract' else '📦 完整转发'}\n\n"
-    text += "**是否为磁力链接补全 dn 参数？**\n\n"
-    text += "✅ **是** - 自动为缺少 dn 参数的磁力链接补全文件名\n"
-    text += "❌ **否** - 保持磁力链接原样（默认）\n\n"
-    text += "💡 dn 参数用于指定下载文件名，补全后可以提升下载体验"
-
-    bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+    # 已删除 show_dn_append_options 函数（不再使用DN补全功能）
+    pass
 
 
-def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex, preserve_source, forward_mode, extract_patterns, append_dn=False):
+def complete_watch_setup(
+    chat_id: int,
+    message_id: int,
+    user_id: str,
+    whitelist: List[str],
+    blacklist: List[str],
+    whitelist_regex: List[str],
+    blacklist_regex: List[str],
+    preserve_source: bool,
+    forward_mode: str,
+    extract_patterns: List[str]
+) -> None:
     """Complete watch setup for forward mode"""
     bot = get_bot_instance()
 
@@ -235,7 +257,9 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
         dest_id = user_states[user_id]["dest_id"]
         dest_name = user_states[user_id]["dest_name"]
 
-        watch_config = load_watch_config()
+        # 使用 WatchService 获取和保存配置
+        watch_service = get_watch_service()
+        watch_config = watch_service.get_all_configs_dict()
 
         if user_id not in watch_config:
             watch_config[user_id] = {}
@@ -259,10 +283,9 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
             "preserve_forward_source": preserve_source,
             "forward_mode": forward_mode,
             "extract_patterns": extract_patterns,
-            "append_dn_to_magnet": append_dn,
             "record_mode": False
         }
-        save_watch_config(watch_config)
+        watch_service.save_config_dict(watch_config)
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控列表", callback_data="watch_list")]])
 
@@ -280,8 +303,7 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
             result_msg += f"正则黑名单：`{', '.join(blacklist_regex)}`\n"
         if extract_patterns:
             result_msg += f"提取规则：`{', '.join(extract_patterns)}`\n"
-        if append_dn:
-            result_msg += f"DN补全：`已启用`\n"
+        # Note: append_dn feature has been removed
         if preserve_source:
             result_msg += f"保留来源：`是`\n"
         result_msg += "\n从现在开始，新消息将自动转发 🎉"
@@ -296,7 +318,15 @@ def complete_watch_setup(chat_id, message_id, user_id, whitelist, blacklist, whi
             del user_states[user_id]
 
 
-def complete_watch_setup_single(chat_id, message_id, user_id, whitelist, blacklist, whitelist_regex, blacklist_regex):
+def complete_watch_setup_single(
+    chat_id: int,
+    message_id: int,
+    user_id: str,
+    whitelist: List[str],
+    blacklist: List[str],
+    whitelist_regex: List[str],
+    blacklist_regex: List[str]
+) -> None:
     """Complete watch setup for record mode"""
     bot = get_bot_instance()
     
@@ -304,20 +334,22 @@ def complete_watch_setup_single(chat_id, message_id, user_id, whitelist, blackli
         source_id = user_states[user_id]["source_id"]
         source_name = user_states[user_id]["source_name"]
         
-        watch_config = load_watch_config()
-        
+        # 使用 WatchService 获取和保存配置
+        watch_service = get_watch_service()
+        watch_config = watch_service.get_all_configs_dict()
+
         if user_id not in watch_config:
             watch_config[user_id] = {}
-        
+
         # Use composite key with "record" as dest for record mode
         watch_key = f"{source_id}|record"
-        
+
         if watch_key in watch_config[user_id]:
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回", callback_data="menu_watch")]])
             bot.edit_message_text(chat_id, message_id, f"**⚠️ 该监控任务已存在**\n\n来源：`{source_name}`\n模式：记录模式", reply_markup=keyboard)
             del user_states[user_id]
             return
-        
+
         watch_config[user_id][watch_key] = {
             "source": source_id,
             "dest": None,
@@ -330,7 +362,7 @@ def complete_watch_setup_single(chat_id, message_id, user_id, whitelist, blackli
             "extract_patterns": [],
             "record_mode": True
         }
-        save_watch_config(watch_config)
+        watch_service.save_config_dict(watch_config)
         
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 返回监控列表", callback_data="watch_list")]])
 
@@ -357,7 +389,7 @@ def complete_watch_setup_single(chat_id, message_id, user_id, whitelist, blackli
             del user_states[user_id]
 
 
-def handle_add_source(message, user_id):
+def handle_add_source(message: Message, user_id: str) -> None:
     """Handle add source step"""
     bot = get_bot_instance()
     acc = get_acc_instance()
@@ -412,7 +444,7 @@ def handle_add_source(message, user_id):
         bot.send_message(message.chat.id, f"**❌ 错误：** `{str(e)}`")
 
 
-def handle_add_dest(message, user_id):
+def handle_add_dest(message: Message, user_id: str) -> None:
     """Handle add destination step"""
     bot = get_bot_instance()
     acc = get_acc_instance()

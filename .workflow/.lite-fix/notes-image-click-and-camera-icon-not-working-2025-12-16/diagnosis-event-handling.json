@@ -1,0 +1,91 @@
+{
+  "symptom": {
+    "description": "笔记卡片中点击图片和右上角相机图标(📷)无响应,无法打开图片查看器",
+    "error_message": null,
+    "stack_trace": null,
+    "frequency": "always",
+    "user_impact": "用户无法预览笔记中的图片,严重影响图片浏览功能"
+  },
+  "root_cause": {
+    "file": "templates/components/note_card.html",
+    "line_range": "14-17",
+    "function": "inline onclick handler",
+    "issue": "inline onclick调用openImageGallery函数,但该函数定义在templates/notes.html的<script>标签中(line 335),与static/js/pages/notes.js中的window.openImageModal(line 52)冲突。openImageGallery函数虽已定义,但可能被Alpine.js或其他脚本覆盖",
+    "confidence": 0.9,
+    "introduced_by": "移动端优化重构",
+    "category": "integration"
+  },
+  "affected_files": [
+    {
+      "path": "templates/components/note_card.html",
+      "relevance": 0.95,
+      "rationale": "包含图片点击和相机图标的onclick事件绑定,调用openImageGallery函数",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.9,
+      "rationale": "定义openImageGallery等图片查看器函数(line 335-418),需确保全局可访问",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "templates/components/modals.html",
+      "relevance": 0.75,
+      "rationale": "定义galleryModal模态框结构,包含图片查看器UI元素",
+      "change_type": "reference_only"
+    },
+    {
+      "path": "static/js/pages/notes.js",
+      "relevance": 0.6,
+      "rationale": "定义window.openImageModal函数(line 52),与inline handler可能冲突",
+      "change_type": "needs_update"
+    }
+  ],
+  "reproduction_steps": [
+    "打开笔记页面 /notes",
+    "找到包含图片的笔记卡片",
+    "点击笔记卡片中的图片",
+    "观察:图片查看器未打开,无响应",
+    "点击右上角的相机图标(📷 N)",
+    "观察:图片查看器未打开,无响应"
+  ],
+  "fix_hints": [
+    {
+      "description": "确保openImageGallery函数在DOM加载完成前定义",
+      "approach": "将templates/notes.html中的图片查看器函数(openImageGallery, closeGalleryModal等)移到<head>中的早期<script>标签,确保在页面渲染前全局可用",
+      "code_example": "<!-- 在<head>中添加 -->\n<script>\n  // 确保window对象有这些函数\n  window.openImageGallery = function(noteId, mediaPaths) { /* ... */ };\n  window.closeGalleryModal = function() { /* ... */ };\n  window.showGalleryImage = function(index) { /* ... */ };\n  window.changeGalleryImage = function(direction) { /* ... */ };\n  window.handleGalleryKeyboard = function(e) { /* ... */ };\n</script>",
+      "risk": "low"
+    },
+    {
+      "description": "移除static/js/pages/notes.js中冲突的函数定义",
+      "approach": "检查static/js/pages/notes.js,移除或重命名window.openImageModal函数(line 52-54),避免与openImageGallery冲突",
+      "code_example": "// 移除或注释掉:\n// window.openImageModal = function(src) {\n//     window.ModalManager.openImageModal(src);\n// };",
+      "risk": "low"
+    },
+    {
+      "description": "验证Alpine.js不会覆盖全局函数",
+      "approach": "在定义window.openImageGallery后添加Object.freeze或使用Alpine.data确保函数不被覆盖",
+      "code_example": "// 方案1: 冻结函数\nObject.freeze(window.openImageGallery);\n\n// 方案2: 使用Alpine.data\nAlpine.data('notesApp', () => ({ /* ... */ }));",
+      "risk": "medium"
+    }
+  ],
+  "dependencies": "Alpine.js 3.14.3 (CDN), Tailwind CSS 3.4.1, static/js/pages/notes.js",
+  "constraints": "必须保持与Alpine.js的兼容性,不能影响现有的其他点击事件(如toggleFavorite, deleteNote等)",
+  "related_issues": [
+    {
+      "type": "similar_bug",
+      "reference": "templates/notes.html:299-323",
+      "description": "openImageModal函数已正确绑定到window对象,可参考相同模式"
+    }
+  ],
+  "clarification_needs": [],
+  "_metadata": {
+    "timestamp": "2025-12-16T08:00:00Z",
+    "bug_description": "修复笔记点击图片和右上角相机图标无效的问题",
+    "source": "cli-explore-agent",
+    "diagnosis_angle": "event-handling",
+    "diagnosis_index": 1,
+    "total_diagnoses": 2,
+    "duration_seconds": 120
+  }
+}

@@ -2,6 +2,13 @@
 Save-Restricted-Bot - Telegram Bot for Saving Restricted Content
 Main entry point - coordinates all modules
 
+Architecture: Uses new layered architecture (src/)
+- src/core/         Configuration, constants, exceptions
+- src/domain/       Business entities and logic
+- src/infrastructure/  Database, storage implementations
+- src/application/  Services and use cases
+- src/presentation/ Bot handlers and web routes
+
 职责：
 - 初始化日志系统
 - 初始化客户端
@@ -12,10 +19,10 @@ Main entry point - coordinates all modules
 - 启动Bot
 """
 
-# 导入日志配置模块
-from bot.utils.logger import setup_logging, get_logger
+# 导入新架构的日志配置
+from src.infrastructure.logging import setup_logging, get_logger
 
-# 初始化日志系统（保存到data/logs目录）
+# 初始化日志系统
 setup_logging()
 logger = get_logger(__name__)
 
@@ -29,16 +36,34 @@ from bot.core import (
 # 导入处理器注册
 from bot.handlers import register_all_handlers
 
-# 导入数据库
+# 导入数据库（通过兼容层使用新架构）
 from database import init_database
 
 # 导入自动校准调度器
 from bot.services.calibration_scheduler import start_scheduler, stop_scheduler
 
+# 导入新架构配置（用于验证）
+from src.core.config import settings
+
 
 def main():
     """主函数：协调所有模块启动Bot"""
+    instance_lock = None
     try:
+        # 0. 验证新架构配置
+        logger.info(f"📁 数据目录: {settings.paths.data_dir}")
+        logger.info(f"📁 配置目录: {settings.paths.config_dir}")
+
+        # 0.1 显式单实例约束：同一 DATA_DIR 下只允许运行一个 Bot
+        try:
+            from src.core.utils.single_instance_lock import acquire_single_instance_lock, SingleInstanceError
+
+            instance_lock = acquire_single_instance_lock(settings.paths.data_dir / "bot.lock")
+            logger.info("🔒 已获取单实例锁")
+        except SingleInstanceError as e:
+            logger.critical(f"❌ 无法获取单实例锁: {e}")
+            raise SystemExit(1)
+
         # 1. 初始化客户端
         logger.info("🚀 正在启动 Save-Restricted-Bot...")
         bot, acc = initialize_clients()
@@ -49,22 +74,24 @@ def main():
         # 3. 注册所有处理器
         register_all_handlers(bot, acc, message_queue)
 
-        # 4. 初始化数据库
+        # 4. 初始化数据库（致命错误）
         logger.info("🔧 正在初始化数据库系统...")
         try:
             init_database()
+            logger.info("✅ 数据库初始化成功")
         except Exception as e:
-            logger.error(f"⚠️ 数据库初始化时发生错误: {e}")
-            logger.warning("⚠️ 继续启动，但记录模式可能无法工作")
+            logger.critical(f"❌ 数据库初始化失败: {e}", exc_info=True)
+            logger.critical("❌ 数据库是核心功能，无法继续启动")
+            raise SystemExit(1)
 
-        # 5. 启动自动校准调度器
+        # 5. 启动自动校准调度器（非致命错误）
         logger.info("🔧 正在启动自动校准调度器...")
         try:
-            start_scheduler(interval=60)  # 每60秒检查一次
+            start_scheduler(interval=60)
             logger.info("✅ 自动校准调度器已启动")
         except Exception as e:
-            logger.error(f"⚠️ 启动校准调度器时出错: {e}")
-            logger.warning("⚠️ 继续启动，但自动校准功能可能无法工作")
+            logger.error(f"⚠️ 启动校准调度器失败: {e}")
+            logger.warning("⚠️ 系统将以降级模式运行（自动校准功能不可用）")
 
         # 6. 打印启动配置
         print_startup_config(acc)
@@ -94,6 +121,12 @@ def main():
                 logger.info("✅ User客户端已停止")
             except Exception as e:
                 logger.error(f"⚠️ 停止User客户端时出错: {e}")
+
+        if instance_lock is not None:
+            try:
+                instance_lock.close()
+            except Exception as e:
+                logger.debug(f"释放单实例锁失败（忽略）: {e}")
 
         logger.info("👋 Bot已关闭")
 

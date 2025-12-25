@@ -1,0 +1,515 @@
+"""
+自动校准任务管理器
+负责处理磁力链接的自动校准任务
+
+Architecture: Uses new layered architecture
+- src/core/container for service access
+- src/application/services for business logic
+"""
+import logging
+import os
+import subprocess
+import sys
+from typing import Optional, List, Dict
+
+# New architecture imports
+from src.core.container import get_calibration_service, get_note_service
+
+# Legacy imports (for functions not yet migrated to services)
+from database import (
+    add_calibration_task,
+    get_pending_calibration_tasks,
+    update_calibration_task,
+    get_note_by_id,
+    update_note_with_calibrated_dn,
+    update_note_with_calibrated_dns,  # 多磁力链接更新
+)
+from bot.utils.magnet_utils import MagnetLinkParser
+
+logger = logging.getLogger(__name__)
+
+
+class CalibrationManager:
+    """校准任务管理器
+
+    Uses CalibrationService from new architecture for configuration management.
+    """
+
+    def __init__(self):
+        self.config = None
+        self._calibration_service = None
+        self.reload_config()
+
+    @property
+    def calibration_service(self):
+        """Lazy load calibration service"""
+        if self._calibration_service is None:
+            self._calibration_service = get_calibration_service()
+        return self._calibration_service
+
+    def reload_config(self):
+        """重新加载配置 - 使用 CalibrationService"""
+        try:
+            config_obj = self.calibration_service.get_config()
+            self.config = config_obj.to_dict()
+            if self.config:
+                logger.info(f"📋 校准配置已加载: enabled={self.config['enabled']}, filter_mode={self.config['filter_mode']}")
+            else:
+                logger.warning("⚠️ 无法加载校准配置")
+        except Exception as e:
+            logger.error(f"❌ 加载校准配置失败: {e}")
+            self.config = None
+
+    def is_enabled(self) -> bool:
+        """检查自动校准是否启用 - 使用 CalibrationService"""
+        return self.calibration_service.is_enabled()
+
+    def should_calibrate_note(self, note: Dict) -> bool:
+        """判断笔记是否需要校准
+
+        Args:
+            note: 笔记字典
+
+        Returns:
+            是否需要校准
+        """
+        if not self.is_enabled():
+            return False
+
+        magnet_link = note.get('magnet_link')
+        message_text = note.get('message_text', '')
+
+        # 如果既没有magnet_link也没有文本中的磁力链接，不需要校准
+        all_magnets = self.extract_all_magnets_from_text(message_text)
+        if not magnet_link and not all_magnets:
+            return False
+
+        filter_mode = self.config.get('filter_mode', 'empty_only')
+
+        # 检查filename字段是否为空（真正校准成功后才会填充）
+        filename = note.get('filename')
+
+        if filter_mode == 'empty_only':
+            # 仅校准未校准过的笔记
+            # 规则：只有没有dn参数的磁力链接才需要校准
+
+            # 如果magnet_link有dn参数，说明已经有文件名，不需要校准
+            if magnet_link:
+                from urllib.parse import parse_qs, urlparse, unquote
+                try:
+                    # 解析magnet链接的dn参数
+                    parsed = urlparse(magnet_link)
+                    params = parse_qs(parsed.query)
+                    dn_values = params.get('dn', [])
+
+                    if dn_values:
+                        # 有dn参数，不需要校准
+                        logger.debug(f"笔记 {note.get('id')} 的磁力链接已有dn参数，跳过校准")
+                        return False
+                except Exception as e:
+                    logger.debug(f"解析dn参数失败: {e}")
+
+            # 没有dn参数，检查filename
+            if not filename or filename.strip() == '':
+                # filename为空，需要校准
+                return True
+
+            # filename不为空，说明已经校准过，不需要再校准
+            return False
+
+        elif filter_mode == 'all':
+            # 校准所有笔记
+            return True
+
+        return False
+
+    def extract_magnet_hash(self, magnet_link: str) -> Optional[str]:
+        """从磁力链接提取info hash
+
+        Args:
+            magnet_link: 磁力链接
+
+        Returns:
+            info hash（大写）
+        """
+        return MagnetLinkParser.extract_info_hash(magnet_link)
+
+    def extract_all_magnets_from_text(self, message_text: str) -> List[str]:
+        """从笔记文本中提取所有磁力链接
+
+        Args:
+            message_text: 笔记文本
+
+        Returns:
+            磁力链接列表
+        """
+        return MagnetLinkParser.extract_all_magnets(message_text)
+
+    def extract_all_dns_from_note(self, note: Dict) -> List[Dict]:
+        """从笔记中提取所有磁力链接的信息（与app.py保持一致）
+
+        Args:
+            note: 笔记字典
+
+        Returns:
+            [{'magnet': 磁力链接, 'info_hash': info_hash}, ...]
+        """
+        message_text = note.get('message_text', '')
+        filename = note.get('filename')
+
+        # 使用统一的工具函数
+        all_info = MagnetLinkParser.extract_all_magnet_info(message_text, filename)
+
+        # 转换为旧格式（向后兼容）
+        return [{'magnet': info['magnet'], 'info_hash': info['info_hash']} for info in all_info]
+
+    def add_note_to_calibration_queue(self, note_id: int, force: bool = False) -> bool:
+        """将笔记添加到校准队列（为每个磁力链接创建独立任务）
+
+        Args:
+            note_id: 笔记ID
+            force: 是否强制添加（跳过校准检查）
+
+        Returns:
+            是否成功添加（至少添加一个任务）
+        """
+        try:
+            logger.info(f"🔄 开始处理校准任务: note_id={note_id}, force={force}")
+
+            note = get_note_by_id(note_id)
+            if not note:
+                logger.warning(f"⚠️ 笔记 {note_id} 不存在")
+                return False
+
+            logger.info(f"✅ 笔记已找到: note_id={note_id}, magnet_link={'有' if note.get('magnet_link') else '无'}")
+
+            # 如果不是强制模式，检查是否需要校准
+            if not force and not self.should_calibrate_note(note):
+                logger.info(f"⏭️ 笔记 {note_id} 不需要校准（filter_mode={self.config.get('filter_mode')}）")
+                return False
+
+            if force:
+                logger.info(f"✅ 强制模式：跳过校准检查，直接添加笔记 {note_id}")
+            else:
+                logger.info(f"✅ 笔记需要校准: note_id={note_id}")
+
+            # 提取所有磁力链接（支持多条）
+            all_dns = self.extract_all_dns_from_note(note)
+            if not all_dns:
+                logger.warning(f"⚠️ 无法从笔记 {note_id} 提取磁力链接")
+                return False
+
+            logger.info(f"✅ 发现 {len(all_dns)} 个磁力链接，为每个磁力链接创建独立任务")
+
+            # 为每个磁力链接创建独立的校准任务
+            first_delay = self.config.get('first_delay', 600)
+            added_count = 0
+
+            for idx, dn_info in enumerate(all_dns, 1):
+                magnet_hash = dn_info['info_hash']
+
+                # 检查是否已存在该磁力链接的任务
+                task_id = add_calibration_task(note_id, magnet_hash, first_delay)
+
+                if task_id:
+                    logger.info(f"✅ 第 {idx}/{len(all_dns)} 个磁力链接任务已添加: task_id={task_id}, hash={magnet_hash[:16]}...")
+                    added_count += 1
+                else:
+                    logger.warning(f"⚠️ 第 {idx}/{len(all_dns)} 个磁力链接任务添加失败（可能已存在）: hash={magnet_hash[:16]}...")
+
+            if added_count > 0:
+                logger.info(f"🎉 校准任务添加完成: note_id={note_id}, 成功添加 {added_count}/{len(all_dns)} 个任务")
+                return True
+            else:
+                logger.warning(f"⚠️ 没有添加任何新任务: note_id={note_id}")
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ 添加校准任务异常: note_id={note_id}, error={e}", exc_info=True)
+            return False
+
+    def calibrate_magnet(self, magnet_hash: str, timeout: int = 30, prefer_bot: bool = True) -> Optional[str]:
+        """校准单个磁力链接，获取真实文件名
+
+        Args:
+            magnet_hash: 磁力链接的info hash
+            timeout: 超时时间（秒）
+            prefer_bot: 是否优先使用机器人方式（True=自动校准优先机器人，False=手动校准优先qBittorrent）
+
+        Returns:
+            文件名，失败返回None
+        """
+        try:
+            # 容器内工作目录是/app,宿主机是/root/Save-Restricted-Bot
+            qbt_script_path = '/app/calibrate_qbt_helper.py' if os.path.exists('/app/calibrate_qbt_helper.py') else os.path.join(os.path.dirname(__file__), '../../calibrate_qbt_helper.py')
+            bot_script_path = '/app/calibrate_bot_helper.py' if os.path.exists('/app/calibrate_bot_helper.py') else os.path.join(os.path.dirname(__file__), '../../calibrate_bot_helper.py')
+
+            # 根据prefer_bot参数决定优先级
+            if prefer_bot:
+                # 自动校准：优先使用Telegram机器人
+                logger.info(f"🔄 自动校准模式：优先使用Telegram机器人")
+
+                # 优先尝试机器人方式
+                if os.path.exists(bot_script_path):
+                    logger.info(f"🔄 使用Telegram机器人校准: {magnet_hash[:16]}...")
+                    result = subprocess.run(
+                        [sys.executable, bot_script_path, magnet_hash],
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout
+                    )
+
+                    if result.returncode == 0 and result.stdout.strip():
+                        filename = result.stdout.strip()
+                        logger.info(f"✅ Telegram机器人校准成功: {filename[:50]}...")
+                        return filename
+                    else:
+                        error_msg = result.stderr.strip() if result.stderr else "未知错误"
+                        logger.warning(f"⚠️ Telegram机器人校准失败: {error_msg[:100]}")
+                        logger.info(f"🔄 回退到qBittorrent API方式...")
+
+                # 回退到qBittorrent API方式
+                if os.path.exists(qbt_script_path):
+                    logger.info(f"🔄 尝试使用qBittorrent API校准: {magnet_hash[:16]}...")
+                    result = subprocess.run(
+                        [sys.executable, qbt_script_path, magnet_hash],
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout
+                    )
+
+                    if result.returncode == 0 and result.stdout.strip():
+                        filename = result.stdout.strip()
+                        logger.info(f"✅ qBittorrent API校准成功: {filename[:50]}...")
+                        return filename
+                    else:
+                        error_msg = result.stderr.strip() if result.stderr else "未知错误"
+                        logger.warning(f"⚠️ qBittorrent API校准失败: {error_msg[:100]}")
+            else:
+                # 手动校准：优先使用qBittorrent API
+                logger.info(f"🔄 手动校准模式：优先使用qBittorrent API")
+
+                # 优先尝试qBittorrent API方式
+                if os.path.exists(qbt_script_path):
+                    logger.info(f"🔄 尝试使用qBittorrent API校准: {magnet_hash[:16]}...")
+                    result = subprocess.run(
+                        [sys.executable, qbt_script_path, magnet_hash],
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout
+                    )
+
+                    if result.returncode == 0 and result.stdout.strip():
+                        filename = result.stdout.strip()
+                        logger.info(f"✅ qBittorrent API校准成功: {filename[:50]}...")
+                        return filename
+                    else:
+                        error_msg = result.stderr.strip() if result.stderr else "未知错误"
+                        logger.warning(f"⚠️ qBittorrent API校准失败: {error_msg[:100]}")
+                        logger.info(f"🔄 回退到Telegram机器人方式...")
+
+                # 回退到机器人方式
+                if os.path.exists(bot_script_path):
+                    logger.info(f"🔄 使用Telegram机器人校准: {magnet_hash[:16]}...")
+                    result = subprocess.run(
+                        [sys.executable, bot_script_path, magnet_hash],
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout
+                    )
+
+                    if result.returncode == 0 and result.stdout.strip():
+                        filename = result.stdout.strip()
+                        logger.info(f"✅ Telegram机器人校准成功: {filename[:50]}...")
+                        return filename
+                    else:
+                        error_msg = result.stderr.strip() if result.stderr else "未知错误"
+                        logger.warning(f"⚠️ Telegram机器人校准失败: {error_msg[:100]}")
+
+            logger.error(f"❌ 所有校准方式都失败了")
+            return None
+
+        except subprocess.TimeoutExpired:
+            logger.warning(f"⚠️ 校准超时（{timeout}秒）")
+            return None
+        except Exception as e:
+            logger.error(f"校准过程出错: {e}", exc_info=True)
+            return None
+
+    def process_calibration_task(self, task: Dict) -> bool:
+        """处理单个校准任务（只处理任务指定的磁力链接）
+
+        Args:
+            task: 任务字典
+
+        Returns:
+            是否成功
+        """
+        task_id = task['id']
+        note_id = task['note_id']
+        magnet_hash = task['magnet_hash']
+        retry_count = task['retry_count']
+
+        logger.info(f"🔧 开始处理校准任务: task_id={task_id}, note_id={note_id}, hash={magnet_hash[:16]}..., retry={retry_count}")
+
+        try:
+            # 获取笔记信息
+            note = get_note_by_id(note_id)
+            if not note:
+                logger.warning(f"笔记 {note_id} 不存在，删除任务")
+                update_calibration_task(task_id, 'failed', '笔记不存在')
+                return False
+
+            # 提取所有磁力链接，找到当前任务对应的磁力链接
+            all_dns = self.extract_all_dns_from_note(note)
+
+            if not all_dns:
+                logger.warning(f"⚠️ 笔记 {note_id} 没有找到磁力链接")
+                update_calibration_task(task_id, 'failed', '没有找到磁力链接')
+                return False
+
+            # 找到当前任务对应的磁力链接
+            target_magnet = None
+            for dn_info in all_dns:
+                if dn_info['info_hash'] == magnet_hash:
+                    target_magnet = dn_info
+                    break
+
+            if not target_magnet:
+                logger.warning(f"⚠️ 笔记 {note_id} 中未找到 hash={magnet_hash[:16]}... 的磁力链接")
+                update_calibration_task(task_id, 'failed', '磁力链接不存在')
+                return False
+
+            # 检查该磁力链接是否已经被校准过
+            # 如果磁力链接有dn参数，且不是从原始dn提取的，说明已经校准过
+            if target_magnet.get('dn'):
+                from urllib.parse import parse_qs, urlparse, unquote
+                try:
+                    # 检查是否是真正校准过的文件名（不是从原始dn提取的）
+                    parsed = urlparse(target_magnet['magnet'])
+                    params = parse_qs(parsed.query)
+                    dn_values = params.get('dn', [])
+
+                    if dn_values:
+                        dn_decoded = unquote(dn_values[0])
+                        # 如果dn参数看起来像是校准后的完整文件名（不是简单的数字或短文本）
+                        if len(dn_decoded) > 10 and not dn_decoded.isdigit():
+                            logger.info(f"✅ 磁力链接 {magnet_hash[:16]}... 已经校准过，直接标记任务成功")
+                            update_calibration_task(task_id, 'success')
+                            return True
+                except Exception:
+                    pass
+
+            logger.info(f"🔄 开始校准磁力链接: {magnet_hash[:16]}...")
+
+            # 校准该磁力链接（自动校准优先使用机器人）
+            timeout = self.config.get('timeout_per_magnet', 30)
+            filename = self.calibrate_magnet(magnet_hash, timeout, prefer_bot=True)
+
+            if filename:
+                logger.info(f"✅ 磁力链接校准成功: {filename[:50]}...")
+
+                # 更新数据库（只更新这一个磁力链接）
+                calibrated_results = [{
+                    'info_hash': magnet_hash,
+                    'old_magnet': target_magnet['magnet'],
+                    'filename': filename,
+                    'success': True
+                }]
+
+                update_success = update_note_with_calibrated_dns(note_id, calibrated_results)
+
+                if update_success:
+                    logger.info(f"✅ 笔记 {note_id} 更新成功（磁力链接 {magnet_hash[:16]}... 已校准）")
+
+                    # 使缓存失效，确保刷新页面后能看到更新后的数据
+                    try:
+                        from src.infrastructure.cache.managers import get_note_cache_manager
+                        cache_manager = get_note_cache_manager()
+                        user_id = note.get('user_id')
+                        if user_id:
+                            invalidated = cache_manager.invalidate_note(note_id, user_id)
+                            logger.info(f"✅ 已失效笔记 {note_id} 的缓存 ({invalidated} 个条目)")
+                    except Exception as e:
+                        logger.warning(f"⚠️ 缓存失效失败 (不影响功能): {e}")
+
+                    update_calibration_task(task_id, 'success')
+                    return True
+                else:
+                    logger.error(f"❌ 更新笔记 {note_id} 失败")
+                    update_calibration_task(task_id, 'failed', '更新笔记失败')
+                    return False
+            else:
+                # 校准失败，判断是否需要重试
+                max_retries = self.config.get('max_retries', 3)
+
+                if retry_count < max_retries:
+                    # 计算下次重试延迟（渐进式退避）
+                    retry_delays = [
+                        self.config.get('retry_delay_1', 3600),   # 1小时
+                        self.config.get('retry_delay_2', 14400),  # 4小时
+                        self.config.get('retry_delay_3', 28800),  # 8小时
+                    ]
+                    next_delay = retry_delays[min(retry_count, len(retry_delays) - 1)]
+
+                    logger.info(f"⏰ 磁力链接校准失败，将在 {next_delay // 3600} 小时后重试")
+                    update_calibration_task(task_id, 'retrying', '校准失败，等待重试', next_delay)
+                    return False
+                else:
+                    # 超过最大重试次数，标记失败
+                    logger.warning(f"❌ 磁力链接校准失败（已重试{max_retries}次）: hash={magnet_hash[:16]}...")
+                    update_calibration_task(task_id, 'failed', f'校准失败（已重试{max_retries}次）')
+                    return False
+
+        except Exception as e:
+            logger.error(f"处理校准任务时出错: {e}", exc_info=True)
+            update_calibration_task(task_id, 'failed', str(e))
+            return False
+
+    def process_pending_tasks(self, max_concurrent: int = 5):
+        """批量处理待执行的校准任务
+
+        Args:
+            max_concurrent: 最大并发数
+        """
+        if not self.is_enabled():
+            logger.debug("自动校准未启用")
+            return
+
+        try:
+            tasks = get_pending_calibration_tasks(limit=max_concurrent)
+
+            if not tasks:
+                logger.debug("没有待处理的校准任务")
+                return
+
+            logger.info(f"📋 发现 {len(tasks)} 个待处理的校准任务")
+
+            success_count = 0
+            for task in tasks:
+                try:
+                    if self.process_calibration_task(task):
+                        success_count += 1
+                except Exception as e:
+                    logger.error(f"处理任务 {task['id']} 时出错: {e}", exc_info=True)
+
+            logger.info(f"✅ 批量处理完成: 成功 {success_count}/{len(tasks)}")
+
+        except Exception as e:
+            logger.error(f"批量处理校准任务失败: {e}", exc_info=True)
+
+    def get_stats(self) -> Dict:
+        """获取校准任务统计信息"""
+        return get_calibration_stats()
+
+
+# 全局实例
+_calibration_manager = None
+
+
+def get_calibration_manager() -> CalibrationManager:
+    """获取全局校准管理器实例"""
+    global _calibration_manager
+    if _calibration_manager is None:
+        _calibration_manager = CalibrationManager()
+    return _calibration_manager

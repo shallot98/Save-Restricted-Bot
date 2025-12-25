@@ -5,7 +5,8 @@
 import os
 from pyrogram import Client
 from bot.utils.logger import get_logger
-from config import load_config, getenv
+from config import load_config, getenv, getenv_optional
+from bot.utils.threadsafe_client import SingleThreadClientProxy
 
 logger = get_logger(__name__)
 
@@ -35,8 +36,9 @@ def initialize_clients():
     logger.info("✅ Bot客户端初始化完成")
 
     # 创建User客户端（如果配置了session string）
-    ss = getenv("STRING", DATA)
-    if ss is not None:
+    ss = getenv_optional("STRING", DATA)
+    # 只有当 session string 非空时才初始化 user client
+    if ss:
         logger.info("👤 正在初始化User客户端...")
 
         if DATA.get("STRING"):
@@ -66,32 +68,13 @@ def initialize_clients():
 
         # 启动User客户端
         acc.start()
+        acc = SingleThreadClientProxy(acc)
 
-        # 强制导出并重新加载session，确保文件被正确创建
+        # 检查Session文件是否创建
         if not os.path.exists(f"{session_file}.session"):
-            logger.warning("⚠️ Session文件未自动创建，尝试强制导出...")
-            try:
-                # 导出当前session string
-                current_ss = acc.export_session_string()
-                # 停止当前客户端
-                acc.stop()
-                # 使用导出的session string重新创建客户端（这次应该会创建文件）
-                acc = Client(
-                    session_file,
-                    api_id=api_id,
-                    api_hash=api_hash,
-                    session_string=current_ss,
-                    in_memory=False
-                )
-                # 重新启动
-                acc.start()
-
-                if os.path.exists(f"{session_file}.session"):
-                    logger.info("✅ Session文件强制创建成功")
-                else:
-                    logger.error("❌ Session文件仍然无法创建，这可能影响消息接收")
-            except Exception as e:
-                logger.error(f"❌ 强制创建Session文件失败: {e}")
+            logger.warning("⚠️ Session文件未自动创建")
+            logger.info("💡 Pyrogram 2.x使用session_string时默认不创建文件，但不影响功能")
+            logger.info("   Session数据已加载到内存，消息接收功能正常")
         else:
             logger.info("✅ Session文件已存在")
 

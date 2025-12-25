@@ -7,9 +7,9 @@
 **Your configuration and data are now protected from code updates!**
 
 ✅ **Auto-protected content**:
-- `config.json` - Bot configuration (TOKEN, ID, HASH, STRING)
-- `watch_config.json` - Watch task configuration  
-- `data/` - All user data (database and media files)
+- `data/config/config.json` - Bot configuration (TOKEN, ID, HASH, STRING)
+- `data/notes.db` - Database (notes + watch tasks)
+- `data/` - All user data (database, media files, configs)
 - `*.session` - Session files
 
 📖 **Details**: See [DATA_PROTECTION.md](DATA_PROTECTION.md)
@@ -145,7 +145,7 @@ Then visit `http://localhost:5000` in your browser and login with:
 
 ```
 data/
-├── notes.db       # Database with all saved notes and user accounts
+├── notes.db       # Database with all saved notes, user accounts, and watch tasks
 └── media/         # Downloaded images and video thumbnails
 ```
 
@@ -156,9 +156,9 @@ data/
 - ✅ **Gitignored**: The `data/` directory is automatically ignored by git to prevent accidental commits
 
 **Important:** 
-- Monitor configurations are stored in `watch_config.json` (also gitignored)
-- Both `data/` directory and `watch_config.json` are independent of code updates
-- Always backup these files before major system changes
+- Watch configurations are stored in `data/notes.db` (auto-migrated from `data/config/watch_config.json` if present)
+- Both `data/` directory and `*.session` are independent of code updates
+- Always backup the whole `data/` directory before major system changes
 
 ### Deployment
 
@@ -265,19 +265,25 @@ HASH=your_api_hash
 STRING=your_session_string
 ```
 
-3. Start the bot:
+3. Start services (web + bot):
 ```bash
-docker-compose up -d
+docker compose up -d --build
+```
+
+You can also start only one service:
+```bash
+docker compose up -d web
+docker compose up -d bot
 ```
 
 4. View logs:
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
-5. Stop the bot:
+5. Stop services:
 ```bash
-docker-compose down
+docker compose down
 ```
 
 #### Method 3: Heroku Deployment
@@ -403,9 +409,9 @@ data/
 - ✅ **Git 忽略**：`data/` 目录会被 git 自动忽略，防止意外提交
 
 **重要提示：**
-- 监控配置存储在 `watch_config.json` 中（也被 git 忽略）
-- `data/` 目录和 `watch_config.json` 都独立于代码更新
-- 进行重大系统更改之前，请务必备份这些文件
+- 监控配置存储在 `data/notes.db` 中（如存在 `data/config/watch_config.json` 会自动迁移一次）
+- `data/` 目录和 `*.session` 都独立于代码更新
+- 进行重大系统更改之前，请务必备份整个 `data/` 目录
 
 ### 部署教程
 

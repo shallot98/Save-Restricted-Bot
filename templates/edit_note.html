@@ -48,7 +48,7 @@
         }
     </style>
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         tailwind.config = {
             darkMode: 'class',
             theme: {
@@ -197,6 +197,7 @@
                             <div class="p-6">
                                 <form method="POST" action="/edit_note/{{ note.id }}">
                                     <input type="hidden" name="return_url" value="{{ return_url }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     
                                     <div class="form-group">
                                         <label for="message_text" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">笔记内容</label>
@@ -319,7 +320,7 @@
     {# 移动端底部导航栏 #}
     {% include "components/mobile_nav.html" %}
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         function editApp() {
             return {
                 sidebarOpen: window.innerWidth >= 1024,

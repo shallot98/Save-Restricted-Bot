@@ -1,0 +1,21 @@
+{
+  "session_id": "notes-text-display-too-long-2025-12-13",
+  "bug_description": "修复笔记文本显示有的太长了显示不到",
+  "timestamp": "2025-12-13T00:00:00Z",
+  "severity": "Medium",
+  "diagnosis_count": 2,
+  "diagnoses": [
+    {
+      "angle": "state-management",
+      "file": "diagnosis-state-management.json",
+      "path": ".workflow/.lite-fix/notes-text-display-too-long-2025-12-13/diagnosis-state-management.json",
+      "index": 1
+    },
+    {
+      "angle": "rendering",
+      "file": "diagnosis-rendering.json",
+      "path": ".workflow/.lite-fix/notes-text-display-too-long-2025-12-13/diagnosis-rendering.json",
+      "index": 2
+    }
+  ]
+}

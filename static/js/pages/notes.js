@@ -109,21 +109,18 @@
         // 根据连接类型估算时间
         const connType = window.NetworkManager.detectConnectionType();
         const estimatedTime = Math.ceil(count * (connType === 'slow-2g' || connType === '2g' ? 15 : 10));
+        const calibrateTimeout = window.NetworkManager.getCalibrationTimeoutMs(count);
 
-        if (!confirm('校准将向机器人发送 ' + count + ' 个磁力链接,预计需要约 ' + estimatedTime + ' 秒 (' + connType + ' 连接)。确定继续?')) return;
+        if (!confirm('校准将向机器人发送 ' + count + ' 个磁力链接,预计需要约 ' + estimatedTime + ' 秒 (' + connType + ' 连接,最长可能 ' + Math.ceil(calibrateTimeout / 1000) + ' 秒)。确定继续?')) return;
 
         btn.disabled = true;
         btn.textContent = '校准中...';
         const originalText = '校准' + (count > 1 ? '(' + count + ')' : '');
 
-        // 使用更长的超时时间用于校准 API (基础超时 * 链接数)
-        const baseTimeout = window.NetworkManager.getApiTimeout();
-        const calibrateTimeout = Math.min(baseTimeout * count, 60000); // 最多60秒
-
         window.NetworkManager.fetchWithRetry('/api/calibrate/' + noteId, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
-        }, 2) // 校准操作最多重试2次
+        }, 2, calibrateTimeout) // 校准操作最多重试2次，使用自定义超时
         .then(function(response) {
             if (!response.ok) {
                 throw new Error('HTTP ' + response.status + ': ' + response.statusText);

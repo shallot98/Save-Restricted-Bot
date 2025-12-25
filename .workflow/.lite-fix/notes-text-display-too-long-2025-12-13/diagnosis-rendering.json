@@ -1,0 +1,129 @@
+{
+  "symptom": {
+    "description": "笔记文本显示过长，部分文本内容无法完整显示或溢出容器边界，影响用户阅读体验。问题主要出现在笔记卡片的文本内容区域，特别是包含长文本或长单词（如URL、文件名）的笔记。",
+    "error_message": null,
+    "stack_trace": null,
+    "frequency": "intermittent",
+    "user_impact": "用户无法看到完整的笔记文本内容，长文本可能导致布局破坏，影响页面美观性和可读性。特别是在移动端，文本溢出问题更加明显。"
+  },
+  "root_cause": {
+    "file": "templates/notes.html",
+    "line_range": "316-322",
+    "function": "note-card text rendering",
+    "issue": "Tailwind CDN的line-clamp-3类依赖于@tailwindcss/line-clamp插件，但CDN版本默认不包含此插件。同时缺少word-break、overflow-wrap等CSS属性来处理长单词和URL的换行问题。文本容器没有设置max-width限制，导致长文本横向溢出。",
+    "confidence": 0.92,
+    "introduced_by": "b6c97db (feat: 完整的Telegram笔记系统 - 移动端优化版)",
+    "category": "integration"
+  },
+  "affected_files": [
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.95,
+      "rationale": "包含笔记文本渲染的HTML结构，使用了line-clamp-3类但未生效，缺少文本溢出处理的CSS属性",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "static/css/pages/notes.css",
+      "relevance": 0.85,
+      "rationale": "旧版CSS文件中包含.note-text的max-height和overflow处理逻辑（第287-299行），但新版notes.html未使用这些样式",
+      "change_type": "reference_only"
+    },
+    {
+      "path": "templates/notes_old.html",
+      "relevance": 0.70,
+      "rationale": "旧版模板使用自定义CSS类处理文本溢出，可作为修复方案的参考",
+      "change_type": "reference_only"
+    },
+    {
+      "path": "static/css/base/reset.css",
+      "relevance": 0.60,
+      "rationale": "基础样式文件，包含全局的overflow-x:hidden和max-width设置，但未针对文本内容做特殊处理",
+      "change_type": "needs_update"
+    }
+  ],
+  "reproduction_steps": [
+    "访问笔记页面 /notes",
+    "查找包含长文本内容的笔记卡片（特别是包含长URL、长文件名或连续字符的笔记）",
+    "观察文本是否被正确截断为3行，或是否出现横向溢出",
+    "检查浏览器开发者工具，确认line-clamp-3类是否生效（应该看到-webkit-line-clamp: 3等CSS属性）",
+    "在移动端设备或窄屏幕下测试，观察文本溢出问题是否更加明显"
+  ],
+  "fix_hints": [
+    {
+      "description": "修复Tailwind CDN的line-clamp不生效问题",
+      "approach": "在templates/notes.html的<style>标签中添加自定义CSS来实现line-clamp效果，使用-webkit-line-clamp和相关属性。或者在Tailwind配置中启用line-clamp插件（需要本地构建）。",
+      "code_example": ".line-clamp-3 {\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}",
+      "risk": "low"
+    },
+    {
+      "description": "添加长单词和URL的换行处理",
+      "approach": "为笔记文本容器添加word-break: break-word和overflow-wrap: break-word属性，确保长单词和URL能够正确换行而不是溢出容器。",
+      "code_example": ".line-clamp-3 {\n  word-break: break-word;\n  overflow-wrap: break-word;\n  hyphens: auto;\n}",
+      "risk": "low"
+    },
+    {
+      "description": "设置文本容器的最大宽度",
+      "approach": "为笔记卡片的文本区域设置max-width: 100%，确保文本不会超出父容器的宽度边界。结合min-width: 0来处理flex布局中的文本溢出问题。",
+      "code_example": "#text-{{ note.id }} {\n  max-width: 100%;\n  min-width: 0;\n  width: 100%;\n}",
+      "risk": "low"
+    },
+    {
+      "description": "优化展开/收起按钮的显示逻辑",
+      "approach": "修复DOMContentLoaded中的scrollHeight检测逻辑，确保在line-clamp生效后能正确判断文本是否超过3行。可能需要添加延迟或使用ResizeObserver来处理动态内容。",
+      "code_example": "// 使用setTimeout确保CSS已应用\nsetTimeout(() => {\n  if (el.scrollHeight > el.clientHeight + 5) {\n    btnEl.classList.remove('hidden');\n  }\n}, 100);",
+      "risk": "medium"
+    }
+  ],
+  "dependencies": "Tailwind CSS CDN (https://cdn.tailwindcss.com) - 默认不包含@tailwindcss/line-clamp插件。Alpine.js用于交互逻辑。浏览器需要支持-webkit-line-clamp属性（现代浏览器均支持）。",
+  "constraints": "使用CDN版本的Tailwind CSS限制了可用的插件和配置选项。需要保持与现有移动端优化的兼容性。修复方案需要在不引入构建步骤的情况下实现（或者需要配置本地Tailwind构建）。需要考虑暗色模式下的文本显示效果。",
+  "related_issues": [
+    {
+      "type": "similar_bug",
+      "reference": "static/css/pages/notes.css:287-299",
+      "description": "旧版CSS中已经实现了.note-text的max-height和overflow处理，但新版模板未使用这些样式类"
+    },
+    {
+      "type": "tech_debt",
+      "reference": "templates/notes.html:8-9",
+      "description": "使用Tailwind CDN而非本地构建，导致无法使用完整的插件生态系统，包括line-clamp插件"
+    }
+  ],
+  "clarification_needs": [
+    {
+      "question": "是否希望保持使用Tailwind CDN，还是可以切换到本地构建以启用line-clamp插件？",
+      "context": "Tailwind CDN版本不包含@tailwindcss/line-clamp插件，导致line-clamp-3类不生效。可以通过添加自定义CSS解决，或者配置本地Tailwind构建来启用插件。",
+      "options": [
+        "保持CDN，在<style>标签中添加自定义line-clamp CSS（快速修复，无需构建步骤）",
+        "切换到本地Tailwind构建，安装并配置@tailwindcss/line-clamp插件（更规范，但需要构建流程）",
+        "使用Tailwind v3.3+的原生line-clamp支持（需要确认CDN版本）"
+      ]
+    },
+    {
+      "question": "文本截断的行数是否固定为3行，还是需要根据不同设备/屏幕尺寸动态调整？",
+      "context": "当前设计为固定3行截断，但在不同屏幕尺寸下可能需要不同的行数限制以优化显示效果。",
+      "options": [
+        "固定3行截断（简单一致）",
+        "响应式行数：移动端2行，平板3行，桌面4行（更灵活）",
+        "根据卡片高度动态计算行数（最优体验，但实现复杂）"
+      ]
+    },
+    {
+      "question": "对于包含长URL或长文件名的笔记，是否需要特殊的显示处理？",
+      "context": "长URL和文件名可能导致文本溢出或换行不美观。可以考虑URL缩短显示、文件名中间省略等方案。",
+      "options": [
+        "直接使用word-break强制换行（简单但可能不美观）",
+        "URL和文件名使用中间省略显示（如：https://exam...le.com/file）",
+        "为URL和文件名添加特殊样式类，使用overflow:hidden和text-overflow:ellipsis"
+      ]
+    }
+  ],
+  "_metadata": {
+    "timestamp": "2025-12-13T00:00:00Z",
+    "bug_description": "修复笔记文本显示有的太长了显示不到",
+    "source": "cli-explore-agent",
+    "diagnosis_angle": "rendering",
+    "diagnosis_index": 2,
+    "total_diagnoses": 2,
+    "duration_seconds": 45
+  }
+}

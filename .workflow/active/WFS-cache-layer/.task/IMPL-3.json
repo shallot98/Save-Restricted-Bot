@@ -1,0 +1,180 @@
+{
+  "id": "IMPL-3",
+  "title": "缓存失效管理",
+  "status": "pending",
+  "context_package_path": null,
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "实现写操作缓存失效，覆盖 5 个写方法: [create_note, delete_note, update_text, toggle_favorite, update_magnet]",
+      "实现 3 种失效策略: [单键失效（精确匹配）, 前缀失效（批量失效）, 模式失效（正则匹配）]",
+      "在 NoteService 的写方法中添加缓存失效逻辑",
+      "实现缓存版本号机制，防止脏数据读取（版本号存储在缓存键中）",
+      "添加 2 个失效事件钩子: [pre_invalidate（失效前）, post_invalidate（失效后）]"
+    ],
+    "focus_paths": [
+      "src/infrastructure/cache/invalidation.py",
+      "src/application/services/note_service.py"
+    ],
+    "acceptance": [
+      "5 个写方法已添加失效逻辑: 验证 grep -E '(invalidate|clear_cache)' src/application/services/note_service.py | wc -l >= 5",
+      "3 种失效策略已实现: 验证 grep -E '(invalidate_key|invalidate_prefix|invalidate_pattern)' src/infrastructure/cache/invalidation.py | wc -l >= 3",
+      "缓存版本号机制已实现: 验证 grep 'version' src/infrastructure/cache/unified.py | wc -l >= 2",
+      "失效逻辑测试覆盖率 >=90%: 验证 pytest tests/unit/test_cache_invalidation.py --cov=src/infrastructure/cache/invalidation --cov-report=term | grep 'TOTAL.*9[0-9]%'",
+      "无脏数据读取: 验证 pytest tests/integration/test_cache_consistency.py -v 通过"
+    ],
+    "depends_on": ["IMPL-1", "IMPL-2"],
+    "inherited": {
+      "from": "IMPL-1",
+      "context": [
+        "统一缓存接口 CacheInterface 已实现",
+        "UnifiedCache 类可用",
+        "3 个专用缓存管理器已创建"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "re (正则表达式)"],
+      "write_operations": [
+        "create_note (NoteService:106-131)",
+        "delete_note (NoteService:133-154)",
+        "update_text (NoteService:207-233)",
+        "toggle_favorite (NoteService:156-166)",
+        "update_magnet (NoteService:168-185)"
+      ],
+      "invalidation_patterns": {
+        "create_note": "失效所有笔记列表缓存（note_list:*）和来源列表缓存（source_list:*）",
+        "delete_note": "失效单个笔记缓存（single_note:{note_id}）、笔记列表缓存、来源列表缓存",
+        "update_text": "失效单个笔记缓存（single_note:{note_id}）、笔记列表缓存",
+        "toggle_favorite": "失效单个笔记缓存、笔记列表缓存（仅 favorite_only=True 的缓存）",
+        "update_magnet": "失效单个笔记缓存"
+      }
+    },
+    "artifacts": []
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "analyze_write_operations",
+        "action": "分析 NoteService 的所有写操作方法",
+        "commands": [
+          "Read(src/application/services/note_service.py)",
+          "bash(grep -E 'def (create_|delete_|update_|toggle_)' src/application/services/note_service.py -A 5)"
+        ],
+        "output_to": "write_operations_analysis",
+        "on_error": "fail"
+      },
+      {
+        "step": "identify_cache_dependencies",
+        "action": "识别每个写操作影响的缓存键",
+        "commands": [
+          "bash(grep -E 'key_prefix=' src/application/services/note_service.py web/routes/notes.py)"
+        ],
+        "output_to": "cache_dependencies",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "实现缓存失效策略",
+        "description": "创建 CacheInvalidation 类，实现 3 种失效策略",
+        "modification_points": [
+          "创建 1 个新文件: src/infrastructure/cache/invalidation.py",
+          "实现 3 个失效方法: [invalidate_key, invalidate_prefix, invalidate_pattern]",
+          "实现 2 个事件钩子: [pre_invalidate, post_invalidate]",
+          "添加失效日志记录"
+        ],
+        "logic_flow": [
+          "导入 UnifiedCache 和 re 模块",
+          "定义 CacheInvalidation 类",
+          "实现 invalidate_key(key): 删除单个缓存键",
+          "实现 invalidate_prefix(prefix): 删除所有匹配前缀的键（遍历缓存）",
+          "实现 invalidate_pattern(pattern): 删除所有匹配正则的键",
+          "实现事件钩子机制（回调函数列表）",
+          "添加日志记录（失效的键数量、耗时）"
+        ],
+        "depends_on": [],
+        "output": "cache_invalidation"
+      },
+      {
+        "step": 2,
+        "title": "实现缓存版本号机制",
+        "description": "在 UnifiedCache 中添加版本号支持，防止脏数据",
+        "modification_points": [
+          "修改 1 个文件: src/infrastructure/cache/unified.py",
+          "在缓存键中添加版本号: {key_prefix}:v{version}:{actual_key}",
+          "实现版本号递增逻辑（每次失效时递增）",
+          "修改 get/set 方法，自动处理版本号"
+        ],
+        "logic_flow": [
+          "在 UnifiedCache 类中添加 _versions 字典（存储每个前缀的版本号）",
+          "修改 _make_key() 方法，生成带版本号的键",
+          "实现 _increment_version(prefix) 方法",
+          "在 invalidate_prefix() 中调用 _increment_version()",
+          "确保旧版本的缓存自动失效"
+        ],
+        "depends_on": [1],
+        "output": "cache_versioning"
+      },
+      {
+        "step": 3,
+        "title": "在 NoteService 写方法中添加失效逻辑",
+        "description": "在 5 个写方法中添加缓存失效调用",
+        "modification_points": [
+          "修改 1 个文件: src/application/services/note_service.py",
+          "在 5 个方法中添加失效逻辑: [create_note:106-131, delete_note:133-154, update_text:207-233, toggle_favorite:156-166, update_magnet:168-185]",
+          "使用 NoteCacheManager 的失效方法"
+        ],
+        "logic_flow": [
+          "导入 CacheInvalidation（from src.infrastructure.cache.invalidation import CacheInvalidation）",
+          "在 create_note() 末尾添加: invalidation.invalidate_prefix('note_list') 和 invalidation.invalidate_prefix('source_list')",
+          "在 delete_note() 末尾添加: invalidation.invalidate_key(f'single_note:{note_id}'), invalidation.invalidate_prefix('note_list'), invalidation.invalidate_prefix('source_list')",
+          "在 update_text() 末尾添加: invalidation.invalidate_key(f'single_note:{note_id}'), invalidation.invalidate_prefix('note_list')",
+          "在 toggle_favorite() 末尾添加: invalidation.invalidate_key(f'single_note:{note_id}'), invalidation.invalidate_prefix('note_list')",
+          "在 update_magnet() 末尾添加: invalidation.invalidate_key(f'single_note:{note_id}')",
+          "添加失效日志"
+        ],
+        "depends_on": [1, 2],
+        "output": "note_service_invalidation"
+      },
+      {
+        "step": 4,
+        "title": "编写失效逻辑测试",
+        "description": "编写单元测试和集成测试验证缓存失效",
+        "modification_points": [
+          "创建 2 个测试文件: [tests/unit/test_cache_invalidation.py, tests/integration/test_cache_consistency.py]",
+          "测试 3 种失效策略的正确性",
+          "测试版本号机制（旧版本缓存自动失效）",
+          "测试写操作后缓存一致性（无脏数据）"
+        ],
+        "logic_flow": [
+          "使用 pytest 框架",
+          "测试 invalidate_key: 删除单个键，其他键不受影响",
+          "测试 invalidate_prefix: 删除所有匹配前缀的键",
+          "测试 invalidate_pattern: 删除所有匹配正则的键",
+          "测试版本号: 失效后旧版本缓存不可访问",
+          "测试写操作: create_note 后，get_notes 返回最新数据",
+          "测试一致性: 并发写操作不会导致脏数据",
+          "验证覆盖率 >=90%"
+        ],
+        "depends_on": [3],
+        "output": "invalidation_tests"
+      }
+    ],
+    "target_files": [
+      "src/infrastructure/cache/invalidation.py",
+      "src/infrastructure/cache/unified.py",
+      "src/application/services/note_service.py:create_note:106-131",
+      "src/application/services/note_service.py:delete_note:133-154",
+      "src/application/services/note_service.py:update_text:207-233",
+      "src/application/services/note_service.py:toggle_favorite:156-166",
+      "src/application/services/note_service.py:update_magnet:168-185",
+      "tests/unit/test_cache_invalidation.py",
+      "tests/integration/test_cache_consistency.py"
+    ]
+  }
+}

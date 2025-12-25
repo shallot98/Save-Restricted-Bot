@@ -69,13 +69,17 @@ def save_to_config_json(token, api_id, api_hash, session_string):
         "TOKEN": token,
         "ID": api_id,
         "HASH": api_hash,
-        "STRING": session_string
     }
-    
+
+    # 只有当session_string非空时才保存STRING字段
+    # 这样可以明确区分"未配置"和"空字符串"
+    if session_string and session_string.strip():
+        config["STRING"] = session_string
+
     config_file = os.path.join(CONFIG_DIR, 'config.json')
     with open(config_file, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4)
-    
+
     print(f"✅ 配置已保存到 {config_file} 文件")
 
 

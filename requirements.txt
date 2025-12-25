@@ -1,12 +1,3 @@
-pyrogram
-tgcrypto
-flask
-flask-login
-bcrypt
-pillow
-webdavclient3
-requests
-libtorrent
-pytest>=7.4.0
-pytest-playwright>=0.4.0
-playwright>=1.40.0
+# 兼容入口：安装运行时依赖（受 requirements.lock 约束）
+-c requirements.lock
+-r requirements.runtime.txt

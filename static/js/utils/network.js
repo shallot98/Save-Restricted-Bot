@@ -77,11 +77,11 @@
             return navigator.onLine;
         },
 
-        // Fetch with retry and exponential backoff
-        fetchWithRetry: async function(url, options, maxRetries) {
-            if (!this.isOnline()) {
-                throw new Error('网络连接不可用,请检查您的网络设置');
-            }
+	        // Fetch with retry and exponential backoff
+	        fetchWithRetry: async function(url, options, maxRetries) {
+	            if (!this.isOnline()) {
+	                throw new Error('网络连接不可用,请检查您的网络设置');
+	            }
 
             const timeout = this.getApiTimeout();
             const retries = maxRetries !== null && maxRetries !== undefined ? maxRetries : this.getRetryCount();
@@ -92,13 +92,29 @@
                     const controller = new AbortController();
                     const timeoutId = setTimeout(function() { controller.abort(); }, timeout);
 
-                    // Add signal to fetch options
-                    const fetchOptions = Object.assign({}, options || {}, {
-                        signal: controller.signal
-                    });
+	                    // Add signal to fetch options
+	                    const fetchOptions = Object.assign({}, options || {}, {
+	                        signal: controller.signal
+	                    });
 
-                    const response = await fetch(url, fetchOptions);
-                    clearTimeout(timeoutId);
+	                    // 自动注入 CSRF（仅对非安全方法）
+	                    const method = (fetchOptions.method || 'GET').toUpperCase();
+	                    if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)) {
+	                        const metaTokenEl = document.querySelector('meta[name="csrf-token"]');
+	                        const csrfToken = window.CSRF_TOKEN || (metaTokenEl ? metaTokenEl.getAttribute('content') : null);
+
+	                        if (csrfToken) {
+	                            const existingHeaders = fetchOptions.headers || {};
+	                            const headers = Object.assign({}, existingHeaders);
+	                            if (!headers['X-CSRFToken'] && !headers['X-CSRF-Token']) {
+	                                headers['X-CSRFToken'] = csrfToken;
+	                            }
+	                            fetchOptions.headers = headers;
+	                        }
+	                    }
+
+	                    const response = await fetch(url, fetchOptions);
+	                    clearTimeout(timeoutId);
 
                     // Don't retry on client errors (4xx)
                     if (response.status >= 400 && response.status < 500) {

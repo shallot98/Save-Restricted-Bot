@@ -1,0 +1,209 @@
+{
+  "id": "IMPL-2",
+  "title": "实现配置验证机制",
+  "status": "pending",
+  "context_package_path": ".workflow/active/WFS-config-refactor/.process/context-package.json",
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "创建3个验证器类: [TypeValidator, RequiredFieldValidator, FormatValidator]",
+      "实现1个验证器注册机制: ValidatorRegistry",
+      "创建1个验证错误类: ConfigValidationError",
+      "为5个配置模型添加验证规则: [MainConfig, WatchConfig, WebDAVConfig, ViewerConfig, PathConfig]",
+      "编写15个单元测试用例覆盖所有验证场景"
+    ],
+    "focus_paths": [
+      "src/core/config/validators.py",
+      "src/core/config/exceptions.py",
+      "src/core/config/models.py",
+      "tests/unit/test_config_validators.py"
+    ],
+    "acceptance": [
+      "3个验证器类已创建: 验证 grep 'class.*Validator' src/core/config/validators.py | wc -l = 3",
+      "ValidatorRegistry已实现: 验证 grep 'class ValidatorRegistry' src/core/config/validators.py",
+      "ConfigValidationError已定义: 验证 grep 'class ConfigValidationError' src/core/config/exceptions.py",
+      "配置模型包含验证规则: 验证 grep '@validator\\|@field_validator' src/core/config/models.py | wc -l >= 5",
+      "单元测试覆盖率 >=85%: 验证 pytest tests/unit/test_config_validators.py --cov=src/core/config/validators --cov-report=term | grep 'TOTAL.*8[5-9]%\\|TOTAL.*9[0-9]%\\|TOTAL.*100%'"
+    ],
+    "depends_on": ["IMPL-1"],
+    "inherited": {
+      "from": "IMPL-1",
+      "context": [
+        "配置模型已定义: MainConfig, WatchConfig, WebDAVConfig, ViewerConfig, PathConfig",
+        "ConfigManager接口已定义",
+        "配置优先级机制已设计"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "Pydantic", "pytest"],
+      "validation_patterns": [
+        "使用Pydantic的@validator装饰器",
+        "使用Field()的validation参数",
+        "自定义验证器类实现复杂验证逻辑"
+      ],
+      "conventions": [
+        "验证失败抛出ConfigValidationError",
+        "错误信息包含字段名、当前值、期望格式",
+        "验证器可组合使用"
+      ]
+    },
+    "artifacts": [
+      {
+        "type": "implementation",
+        "source": "IMPL-1",
+        "path": "src/core/config/models.py",
+        "priority": "highest",
+        "usage": "配置模型定义，需要添加验证规则",
+        "contains": "5个配置模型类定义"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "加载上下文包",
+        "commands": ["Read(.workflow/active/WFS-config-refactor/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "review_config_models",
+        "action": "查看IMPL-1创建的配置模型",
+        "commands": ["Read(src/core/config/models.py)"],
+        "output_to": "config_models",
+        "on_error": "fail"
+      },
+      {
+        "step": "research_pydantic_validation",
+        "action": "研究Pydantic验证最佳实践",
+        "commands": [
+          "bash(rg '@validator|@field_validator|ValidationError' --type py -n --max-count 10)"
+        ],
+        "output_to": "validation_patterns",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "创建配置异常类",
+        "description": "定义ConfigValidationError异常类",
+        "modification_points": [
+          "创建文件: src/core/config/exceptions.py",
+          "定义ConfigValidationError类，继承自ValueError",
+          "添加字段: field_name, current_value, expected_format, message"
+        ],
+        "logic_flow": [
+          "定义ConfigValidationError类",
+          "添加__init__方法接收字段名、当前值、期望格式",
+          "生成详细的错误信息",
+          "添加__str__方法格式化输出"
+        ],
+        "depends_on": [],
+        "output": "src/core/config/exceptions.py"
+      },
+      {
+        "step": 2,
+        "title": "实现验证器类",
+        "description": "创建3个验证器类和验证器注册机制",
+        "modification_points": [
+          "创建文件: src/core/config/validators.py",
+          "定义TypeValidator: 验证字段类型",
+          "定义RequiredFieldValidator: 验证必填字段",
+          "定义FormatValidator: 验证字段格式（URL、路径等）",
+          "定义ValidatorRegistry: 管理验证器注册和执行"
+        ],
+        "logic_flow": [
+          "导入依赖: from typing import Any, Callable, Dict, List",
+          "定义Validator基类，包含validate抽象方法",
+          "实现TypeValidator: 检查字段类型是否匹配",
+          "实现RequiredFieldValidator: 检查必填字段是否存在",
+          "实现FormatValidator: 使用正则表达式验证格式",
+          "实现ValidatorRegistry: 提供register和validate_all方法",
+          "为每个验证器添加详细的文档字符串"
+        ],
+        "depends_on": [1],
+        "output": "src/core/config/validators.py"
+      },
+      {
+        "step": 3,
+        "title": "为配置模型添加验证规则",
+        "description": "在配置模型中集成验证器",
+        "modification_points": [
+          "修改文件: src/core/config/models.py",
+          "为MainConfig添加验证: TOKEN非空、ID为整数、HASH格式正确",
+          "为WatchConfig添加验证: 用户ID格式、源ID格式",
+          "为WebDAVConfig添加验证: URL格式、enabled为布尔值",
+          "为ViewerConfig添加验证: viewer_url格式",
+          "为PathConfig添加验证: 路径存在性"
+        ],
+        "logic_flow": [
+          "导入验证器: from .validators import TypeValidator, RequiredFieldValidator, FormatValidator",
+          "导入异常: from .exceptions import ConfigValidationError",
+          "在MainConfig中添加@validator装饰器验证TOKEN",
+          "在MainConfig中添加@validator装饰器验证ID类型",
+          "在MainConfig中添加@validator装饰器验证HASH格式",
+          "在WebDAVConfig中添加@validator装饰器验证URL格式",
+          "在ViewerConfig中添加@validator装饰器验证viewer_url格式",
+          "在PathConfig中添加@validator装饰器验证路径",
+          "验证失败时抛出ConfigValidationError"
+        ],
+        "depends_on": [1, 2],
+        "output": "src/core/config/models.py"
+      },
+      {
+        "step": 4,
+        "title": "编写单元测试",
+        "description": "创建完整的验证器测试套件",
+        "modification_points": [
+          "创建目录: tests/unit/",
+          "创建文件: tests/unit/test_config_validators.py",
+          "编写15个测试用例: 3个验证器类各5个测试用例"
+        ],
+        "logic_flow": [
+          "导入pytest和验证器模块",
+          "测试TypeValidator: 正确类型、错误类型、None值、复杂类型、类型转换",
+          "测试RequiredFieldValidator: 必填字段存在、必填字段缺失、空字符串、None值、空集合",
+          "测试FormatValidator: 正确格式、错误格式、空字符串、特殊字符、边界情况",
+          "测试ValidatorRegistry: 注册验证器、执行验证、多个验证器、验证失败、验证成功",
+          "使用pytest.raises验证异常抛出",
+          "使用参数化测试覆盖多种场景"
+        ],
+        "depends_on": [1, 2, 3],
+        "output": "tests/unit/test_config_validators.py"
+      },
+      {
+        "step": 5,
+        "title": "运行测试并验证覆盖率",
+        "description": "执行测试并确保覆盖率达标",
+        "modification_points": [
+          "运行pytest: pytest tests/unit/test_config_validators.py --cov=src/core/config/validators --cov-report=term",
+          "检查覆盖率: 确保 >=85%"
+        ],
+        "logic_flow": [
+          "执行pytest命令",
+          "查看覆盖率报告",
+          "如果覆盖率不足，补充测试用例",
+          "确保所有验证器方法都被测试覆盖"
+        ],
+        "depends_on": [4],
+        "output": "测试报告"
+      }
+    ],
+    "target_files": [
+      "src/core/config/exceptions.py",
+      "src/core/config/validators.py",
+      "src/core/config/models.py:MainConfig:validate_token",
+      "src/core/config/models.py:MainConfig:validate_id",
+      "src/core/config/models.py:MainConfig:validate_hash",
+      "src/core/config/models.py:WebDAVConfig:validate_url",
+      "src/core/config/models.py:ViewerConfig:validate_viewer_url",
+      "tests/unit/test_config_validators.py"
+    ]
+  }
+}

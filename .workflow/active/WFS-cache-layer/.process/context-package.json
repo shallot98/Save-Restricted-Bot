@@ -1,0 +1,113 @@
+{
+  "session_id": "WFS-cache-layer",
+  "generated_at": "2025-12-14",
+  "task_description": {
+    "goal": "实现缓存层系统",
+    "scope": "缓存机制设计、缓存策略实现、缓存失效管理",
+    "context": "现有项目需要添加缓存层以提升性能"
+  },
+  "project_analysis": {
+    "architecture": {
+      "type": "hybrid",
+      "new_architecture": {
+        "path": "src/",
+        "layers": ["core", "domain", "infrastructure", "application", "presentation"]
+      },
+      "legacy_architecture": {
+        "path": "bot/",
+        "modules": ["handlers", "services", "utils", "workers"]
+      }
+    },
+    "existing_cache_systems": [
+      {
+        "name": "TTLCache",
+        "path": "src/infrastructure/cache/__init__.py",
+        "features": ["TTL支持", "线程安全", "LRU淘汰", "自动清理", "统计信息"],
+        "status": "production_ready"
+      },
+      {
+        "name": "MemoryCache/CacheManager",
+        "path": "bot/utils/cache.py",
+        "features": ["内存缓存", "Redis支持", "装饰器模式"],
+        "status": "legacy"
+      },
+      {
+        "name": "MessageDedup",
+        "path": "bot/utils/dedup.py",
+        "features": ["消息去重", "媒体组去重", "时间窗口"],
+        "status": "active"
+      },
+      {
+        "name": "PeerCache",
+        "path": "bot/services/peer_cache.py",
+        "features": ["Telegram Peer缓存", "Session利用"],
+        "status": "active"
+      }
+    ],
+    "database": {
+      "file": "database.py",
+      "tables": ["notes", "users", "calibration_tasks", "auto_calibration_config"],
+      "hot_queries": [
+        "get_notes() - 分页查询笔记",
+        "get_note_count() - 统计笔记数量",
+        "get_sources() - 获取来源列表"
+      ]
+    }
+  },
+  "integration_points": [
+    {
+      "module": "web/routes/notes.py",
+      "type": "web_layer",
+      "cache_opportunities": ["笔记列表分页", "来源列表", "搜索结果"]
+    },
+    {
+      "module": "bot/handlers/auto_forward.py",
+      "type": "bot_handler",
+      "cache_opportunities": ["监控源列表", "配置查询", "过滤规则"]
+    },
+    {
+      "module": "bot/workers/message_worker.py",
+      "type": "worker",
+      "cache_opportunities": ["批量写入优化", "配置缓存"]
+    },
+    {
+      "module": "src/application/services/note_service.py",
+      "type": "service_layer",
+      "cache_opportunities": ["服务层缓存装饰器", "查询结果缓存"]
+    }
+  ],
+  "key_files": [
+    "src/infrastructure/cache/__init__.py",
+    "bot/utils/cache.py",
+    "bot/utils/dedup.py",
+    "bot/services/peer_cache.py",
+    "database.py",
+    "config.py",
+    "src/core/config/settings.py",
+    "src/application/services/note_service.py",
+    "web/routes/notes.py"
+  ],
+  "conflict_risk": "low",
+  "conflict_analysis": {
+    "risk_level": "low",
+    "reason": "项目已有完善的缓存基础设施(TTLCache)，新增缓存层是扩展而非重构",
+    "potential_conflicts": [
+      "新旧缓存系统并存可能导致一致性问题",
+      "缓存失效策略需要与现有写操作协调"
+    ]
+  },
+  "recommendations": {
+    "primary_approach": "基于现有TTLCache扩展，统一缓存接口",
+    "cache_layers": {
+      "L1": "应用内存缓存 (TTLCache) - 热点数据",
+      "L2": "Redis缓存 (可选) - 分布式场景"
+    },
+    "key_patterns": {
+      "notes_list": "notes:list:{user_id}:{source}:{search}:{page}",
+      "sources": "notes:sources:{user_id}",
+      "config": "config:watch:{user_id}",
+      "peer": "peer:info:{peer_id}"
+    },
+    "invalidation_strategy": "写操作时清理相关缓存键"
+  }
+}

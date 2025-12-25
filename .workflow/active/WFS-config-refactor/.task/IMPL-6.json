@@ -1,0 +1,303 @@
+{
+  "id": "IMPL-6",
+  "title": "完善文档和测试",
+  "status": "pending",
+  "context_package_path": ".workflow/active/WFS-config-refactor/.process/context-package.json",
+  "meta": {
+    "type": "docs",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "创建3个文档: [配置管理使用指南, API参考文档, 最佳实践指南]",
+      "补充单元测试，确保覆盖率达到80%",
+      "编写5个端到端测试用例验证完整配置生命周期",
+      "更新项目README.md，添加配置管理章节",
+      "创建1个配置示例文件: config.example.json"
+    ],
+    "focus_paths": [
+      "docs/config/USER_GUIDE.md",
+      "docs/config/API_REFERENCE.md",
+      "docs/config/BEST_PRACTICES.md",
+      "README.md",
+      "config.example.json",
+      "tests/unit/",
+      "tests/e2e/test_config_lifecycle.py"
+    ],
+    "acceptance": [
+      "3个文档已创建: 验证 ls docs/config/USER_GUIDE.md docs/config/API_REFERENCE.md docs/config/BEST_PRACTICES.md | wc -l = 3",
+      "测试覆盖率达标: 验证 pytest tests/ --cov=src/core/config --cov-report=term | grep 'TOTAL.*8[0-9]%\\|TOTAL.*9[0-9]%\\|TOTAL.*100%'",
+      "端到端测试通过: 验证 pytest tests/e2e/test_config_lifecycle.py -v 全部通过",
+      "README已更新: 验证 grep '配置管理' README.md",
+      "示例文件已创建: 验证 test -f config.example.json"
+    ],
+    "depends_on": ["IMPL-5"],
+    "inherited": {
+      "from": "IMPL-5",
+      "context": [
+        "配置热重载已实现",
+        "所有核心功能已完成",
+        "集成测试已通过"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "Pydantic", "pytest", "Markdown"],
+      "documentation_strategy": [
+        "使用Markdown格式编写文档",
+        "包含代码示例和最佳实践",
+        "提供清晰的API参考",
+        "覆盖常见使用场景"
+      ],
+      "conventions": [
+        "文档结构清晰，易于导航",
+        "代码示例可运行",
+        "API文档包含参数说明和返回值",
+        "最佳实践基于实际使用场景"
+      ]
+    },
+    "artifacts": [
+      {
+        "type": "implementation",
+        "source": "IMPL-1 to IMPL-5",
+        "path": "src/core/config/",
+        "priority": "highest",
+        "usage": "完整的配置管理实现，用于文档编写",
+        "contains": "所有配置管理模块"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "加载上下文包",
+        "commands": ["Read(.workflow/active/WFS-config-refactor/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "review_implementation",
+        "action": "查看所有实现的模块",
+        "commands": [
+          "bash(find src/core/config -name '*.py' -type f)",
+          "bash(rg 'class|def' src/core/config/*.py -n --max-count 30)"
+        ],
+        "output_to": "implementation_overview",
+        "on_error": "fail"
+      },
+      {
+        "step": "check_test_coverage",
+        "action": "检查当前测试覆盖率",
+        "commands": [
+          "bash(pytest tests/ --cov=src/core/config --cov-report=term 2>&1 | tail -20)"
+        ],
+        "output_to": "current_coverage",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "编写配置管理使用指南",
+        "description": "创建用户友好的使用指南",
+        "modification_points": [
+          "创建文件: docs/config/USER_GUIDE.md",
+          "包含7个章节: 快速开始、配置模型、配置加载、配置验证、配置热重载、常见问题、故障排查"
+        ],
+        "logic_flow": [
+          "编写快速开始: 最简单的配置使用示例",
+          "介绍配置模型: 5个配置类的用途和字段",
+          "说明配置加载: 环境变量、配置文件、默认值的使用",
+          "介绍配置验证: 如何定义验证规则，处理验证错误",
+          "说明配置热重载: 如何启用热重载，订阅配置变更",
+          "列出常见问题: FAQ格式，包含问题和解决方案",
+          "编写故障排查: 常见错误和调试方法",
+          "添加完整的代码示例"
+        ],
+        "depends_on": [],
+        "output": "docs/config/USER_GUIDE.md"
+      },
+      {
+        "step": 2,
+        "title": "编写API参考文档",
+        "description": "创建详细的API文档",
+        "modification_points": [
+          "创建文件: docs/config/API_REFERENCE.md",
+          "包含5个模块的API: [models, validators, loader, settings, hot_reload]",
+          "每个API包含: 签名、参数、返回值、异常、示例"
+        ],
+        "logic_flow": [
+          "文档结构: 按模块组织",
+          "models模块: 5个配置类的API",
+          "validators模块: 3个验证器类的API",
+          "loader模块: ConfigLoader类的API",
+          "settings模块: Settings类的API",
+          "hot_reload模块: HotReloadManager类的API",
+          "每个类包含: 类说明、方法列表、方法详情",
+          "每个方法包含: 签名、参数说明、返回值、可能的异常、使用示例",
+          "添加类型注解和默认值说明"
+        ],
+        "depends_on": [],
+        "output": "docs/config/API_REFERENCE.md"
+      },
+      {
+        "step": 3,
+        "title": "编写最佳实践指南",
+        "description": "创建最佳实践文档",
+        "modification_points": [
+          "创建文件: docs/config/BEST_PRACTICES.md",
+          "包含6个主题: 配置组织、验证规则、错误处理、性能优化、安全性、测试"
+        ],
+        "logic_flow": [
+          "配置组织: 如何组织配置文件和环境变量",
+          "验证规则: 如何编写有效的验证规则",
+          "错误处理: 如何处理配置错误",
+          "性能优化: 配置缓存、懒加载等优化技巧",
+          "安全性: 敏感信息保护、配置文件权限",
+          "测试: 如何测试配置相关代码",
+          "每个主题包含: 原则、示例、反模式",
+          "添加实际项目中的经验总结"
+        ],
+        "depends_on": [],
+        "output": "docs/config/BEST_PRACTICES.md"
+      },
+      {
+        "step": 4,
+        "title": "更新项目README",
+        "description": "在README中添加配置管理章节",
+        "modification_points": [
+          "修改文件: README.md",
+          "添加配置管理章节",
+          "包含: 快速开始、配置文件说明、环境变量列表、文档链接"
+        ],
+        "logic_flow": [
+          "在README中找到合适的位置插入配置管理章节",
+          "编写快速开始: 最简单的配置示例",
+          "列出配置文件: config.json, watch_config.json等",
+          "列出环境变量: TOKEN, HASH, ID等",
+          "添加文档链接: 指向详细文档",
+          "保持README简洁，详细内容链接到专门文档"
+        ],
+        "depends_on": [1, 2, 3],
+        "output": "README.md"
+      },
+      {
+        "step": 5,
+        "title": "创建配置示例文件",
+        "description": "创建config.example.json示例文件",
+        "modification_points": [
+          "创建文件: config.example.json",
+          "包含所有配置项的示例值",
+          "添加注释说明每个字段的用途"
+        ],
+        "logic_flow": [
+          "创建JSON文件",
+          "添加主配置示例: TOKEN, HASH, ID, STRING, OWNER_ID",
+          "使用占位符值: 'your_token_here'等",
+          "添加JSON注释（如果支持）或在README中说明",
+          "确保示例文件格式正确，可以直接复制使用"
+        ],
+        "depends_on": [],
+        "output": "config.example.json"
+      },
+      {
+        "step": 6,
+        "title": "补充单元测试",
+        "description": "补充单元测试确保覆盖率达标",
+        "modification_points": [
+          "检查覆盖率报告，识别未覆盖的代码",
+          "为未覆盖的模块和函数编写测试",
+          "重点补充: 边界情况、错误处理、异常路径"
+        ],
+        "logic_flow": [
+          "运行pytest --cov=src/core/config --cov-report=html",
+          "查看HTML覆盖率报告，识别未覆盖的行",
+          "为models模块补充测试: 测试所有字段和验证规则",
+          "为validators模块补充测试: 测试边界情况",
+          "为loader模块补充测试: 测试错误处理",
+          "为settings模块补充测试: 测试并发场景",
+          "为hot_reload模块补充测试: 测试异常情况",
+          "重新运行测试，确保覆盖率 >=80%"
+        ],
+        "depends_on": [],
+        "output": "tests/unit/ (补充测试)"
+      },
+      {
+        "step": 7,
+        "title": "编写端到端测试",
+        "description": "创建端到端测试验证完整配置生命周期",
+        "modification_points": [
+          "创建目录: tests/e2e/",
+          "创建文件: tests/e2e/test_config_lifecycle.py",
+          "编写5个端到端测试: 完整生命周期、配置迁移、热重载流程、多模块集成、错误恢复"
+        ],
+        "logic_flow": [
+          "导入所有相关模块",
+          "测试完整生命周期: 加载 → 验证 → 使用 → 更新 → 持久化 → 重载",
+          "测试配置迁移: 旧格式 → 迁移脚本 → 新格式 → 验证",
+          "测试热重载流程: 启动 → 修改文件 → 自动重载 → 通知订阅者",
+          "测试多模块集成: database + web + worker同时使用配置",
+          "测试错误恢复: 配置损坏 → 使用备份 → 恢复正常",
+          "使用真实的配置文件和环境",
+          "清理测试数据"
+        ],
+        "depends_on": [],
+        "output": "tests/e2e/test_config_lifecycle.py"
+      },
+      {
+        "step": 8,
+        "title": "运行所有测试并验证覆盖率",
+        "description": "执行完整测试套件并验证覆盖率",
+        "modification_points": [
+          "运行单元测试: pytest tests/unit/ -v",
+          "运行集成测试: pytest tests/integration/ -v",
+          "运行端到端测试: pytest tests/e2e/ -v",
+          "检查覆盖率: pytest tests/ --cov=src/core/config --cov-report=term"
+        ],
+        "logic_flow": [
+          "执行所有单元测试，确保通过",
+          "执行所有集成测试，确保通过",
+          "执行所有端到端测试，确保通过",
+          "生成覆盖率报告",
+          "验证覆盖率 >=80%",
+          "如果覆盖率不足，返回步骤6补充测试",
+          "生成最终测试报告"
+        ],
+        "depends_on": [6, 7],
+        "output": "测试报告和覆盖率报告"
+      },
+      {
+        "step": 9,
+        "title": "文档审查和完善",
+        "description": "审查所有文档，确保完整性和准确性",
+        "modification_points": [
+          "审查3个配置文档",
+          "审查README更新",
+          "检查代码示例可运行性",
+          "修正错误和不清晰的地方"
+        ],
+        "logic_flow": [
+          "逐个审查文档: USER_GUIDE, API_REFERENCE, BEST_PRACTICES",
+          "检查文档结构: 目录、章节、格式",
+          "验证代码示例: 复制示例代码运行，确保正确",
+          "检查链接: 确保所有链接有效",
+          "检查术语一致性: 统一术语使用",
+          "修正发现的问题",
+          "请他人审查文档"
+        ],
+        "depends_on": [1, 2, 3, 4, 5],
+        "output": "审查报告"
+      }
+    ],
+    "target_files": [
+      "docs/config/USER_GUIDE.md",
+      "docs/config/API_REFERENCE.md",
+      "docs/config/BEST_PRACTICES.md",
+      "README.md",
+      "config.example.json",
+      "tests/unit/",
+      "tests/e2e/test_config_lifecycle.py"
+    ]
+  }
+}

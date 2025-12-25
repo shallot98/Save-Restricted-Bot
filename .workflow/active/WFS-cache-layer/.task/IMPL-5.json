@@ -1,0 +1,234 @@
+{
+  "id": "IMPL-5",
+  "title": "测试与验证",
+  "status": "pending",
+  "context_package_path": null,
+  "meta": {
+    "type": "test-gen",
+    "agent": "@code-developer",
+    "execution_group": "parallel-testing",
+    "test_framework": "pytest",
+    "coverage_target": "80%"
+  },
+  "context": {
+    "requirements": [
+      "编写完整的单元测试套件，覆盖 6 个模块: [interface, unified, decorators, managers, invalidation, batch]",
+      "编写集成测试，验证 4 个场景: [服务层缓存, Web路由缓存, 缓存失效, 性能优化]",
+      "编写端到端测试，验证 2 个完整流程: [笔记CRUD + 缓存, 配置管理 + 缓存]",
+      "实现测试覆盖率报告，目标 >=80%",
+      "编写 1 个性能基准测试: benchmark_cache_performance.py"
+    ],
+    "focus_paths": [
+      "tests/unit/",
+      "tests/integration/",
+      "tests/e2e/"
+    ],
+    "acceptance": [
+      "6 个模块的单元测试已编写: 验证 ls tests/unit/test_cache_*.py | wc -l >= 6",
+      "4 个集成测试场景已覆盖: 验证 grep -E 'def test_' tests/integration/test_cache_*.py | wc -l >= 12",
+      "2 个端到端测试已编写: 验证 ls tests/e2e/test_cache_*.py | wc -l >= 2",
+      "测试覆盖率 >=80%: 验证 pytest tests/ --cov=src/infrastructure/cache --cov-report=term | grep 'TOTAL.*8[0-9]%'",
+      "所有测试通过: 验证 pytest tests/ -v --tb=short 返回 exit code 0"
+    ],
+    "depends_on": ["IMPL-1", "IMPL-2", "IMPL-3", "IMPL-4"],
+    "inherited": {
+      "from": "IMPL-1",
+      "context": [
+        "统一缓存接口 CacheInterface 已实现",
+        "UnifiedCache 类可用",
+        "@cached 装饰器已增强",
+        "3 个专用缓存管理器已创建"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["pytest", "pytest-cov", "pytest-benchmark"],
+      "test_categories": {
+        "unit": "单元测试（隔离测试每个模块）",
+        "integration": "集成测试（测试模块间交互）",
+        "e2e": "端到端测试（测试完整业务流程）",
+        "performance": "性能测试（基准测试和性能回归）"
+      },
+      "coverage_targets": {
+        "cache_interface": "100%（接口定义）",
+        "unified_cache": ">=90%（核心实现）",
+        "decorators": ">=85%（装饰器逻辑）",
+        "managers": ">=80%（业务逻辑）",
+        "invalidation": ">=90%（失效逻辑）",
+        "batch": ">=85%（批量操作）"
+      }
+    },
+    "artifacts": []
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "analyze_test_requirements",
+        "action": "分析测试需求，识别测试场景",
+        "commands": [
+          "bash(find src/infrastructure/cache -name '*.py' -type f | grep -v __pycache__)",
+          "bash(grep -E 'class|def' src/infrastructure/cache/*.py | grep -v '__')"
+        ],
+        "output_to": "test_requirements",
+        "on_error": "fail"
+      },
+      {
+        "step": "check_existing_tests",
+        "action": "检查现有测试，避免重复",
+        "commands": [
+          "bash(find tests -name 'test_cache*.py' -type f 2>/dev/null || echo 'No existing cache tests')"
+        ],
+        "output_to": "existing_tests",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "编写单元测试",
+        "description": "为 6 个缓存模块编写完整的单元测试",
+        "modification_points": [
+          "创建 6 个测试文件: [test_cache_interface.py, test_cache_unified.py, test_cache_decorators.py, test_cache_managers.py, test_cache_invalidation.py, test_cache_batch.py]",
+          "每个文件包含 >=10 个测试用例",
+          "使用 pytest fixtures 管理测试数据"
+        ],
+        "logic_flow": [
+          "创建 tests/unit/test_cache_interface.py: 测试接口定义（抽象方法）",
+          "创建 tests/unit/test_cache_unified.py: 测试 UnifiedCache（get, set, delete, clear, get_or_set, TTL, 线程安全）",
+          "创建 tests/unit/test_cache_decorators.py: 测试 @cached 装饰器（缓存命中/未命中, 键生成, TTL, 自定义实例）",
+          "创建 tests/unit/test_cache_managers.py: 测试 3 个专用管理器（NoteCacheManager, ConfigCacheManager, PeerCacheManager）",
+          "创建 tests/unit/test_cache_invalidation.py: 测试失效策略（单键, 前缀, 模式, 版本号）",
+          "创建 tests/unit/test_cache_batch.py: 测试批量操作（batch_get, batch_set, 性能）",
+          "使用 pytest fixtures: cache_instance, sample_data, mock_service"
+        ],
+        "depends_on": [],
+        "output": "unit_tests"
+      },
+      {
+        "step": 2,
+        "title": "编写集成测试",
+        "description": "编写 4 个集成测试场景",
+        "modification_points": [
+          "创建 4 个测试文件: [test_cache_integration.py, test_cache_web_routes.py, test_cache_consistency.py, test_cache_performance.py]",
+          "每个文件测试一个集成场景",
+          "使用真实的服务层和数据库（测试数据库）"
+        ],
+        "logic_flow": [
+          "创建 tests/integration/test_cache_integration.py: 测试服务层缓存集成（NoteService, WatchService）",
+          "创建 tests/integration/test_cache_web_routes.py: 测试 Web 路由缓存（notes_list, 缓存命中率）",
+          "创建 tests/integration/test_cache_consistency.py: 测试缓存一致性（写操作后缓存失效, 无脏数据）",
+          "创建 tests/integration/test_cache_performance.py: 测试性能改善（响应时间, 批量操作）",
+          "使用测试数据库（SQLite in-memory）",
+          "使用 Flask test client 测试 Web 路由"
+        ],
+        "depends_on": [],
+        "output": "integration_tests"
+      },
+      {
+        "step": 3,
+        "title": "编写端到端测试",
+        "description": "编写 2 个完整业务流程的端到端测试",
+        "modification_points": [
+          "创建 2 个测试文件: [test_cache_note_crud.py, test_cache_config_management.py]",
+          "模拟完整的用户操作流程",
+          "验证缓存在整个流程中的正确性"
+        ],
+        "logic_flow": [
+          "创建 tests/e2e/test_cache_note_crud.py: 测试笔记 CRUD + 缓存（创建笔记 → 列表缓存失效 → 查询笔记 → 缓存命中 → 更新笔记 → 缓存失效 → 删除笔记 → 缓存失效）",
+          "创建 tests/e2e/test_cache_config_management.py: 测试配置管理 + 缓存（加载配置 → 缓存命中 → 更新配置 → 缓存失效 → 重新加载）",
+          "使用真实的应用实例（Flask app）",
+          "验证缓存命中率和数据一致性"
+        ],
+        "depends_on": [],
+        "output": "e2e_tests"
+      },
+      {
+        "step": 4,
+        "title": "编写性能基准测试",
+        "description": "编写性能基准测试，建立性能基线",
+        "modification_points": [
+          "创建 1 个测试文件: tests/performance/benchmark_cache_performance.py",
+          "使用 pytest-benchmark 进行基准测试",
+          "测试 5 个性能指标: [get性能, set性能, batch_get性能, 缓存命中率, 内存使用]"
+        ],
+        "logic_flow": [
+          "导入 pytest-benchmark",
+          "定义 benchmark_get(benchmark): 测试单次 get 操作性能",
+          "定义 benchmark_set(benchmark): 测试单次 set 操作性能",
+          "定义 benchmark_batch_get(benchmark): 测试批量 get 操作性能",
+          "定义 benchmark_hit_rate(benchmark): 测试缓存命中率",
+          "定义 benchmark_memory_usage(benchmark): 测试内存使用",
+          "生成性能报告（JSON 格式）"
+        ],
+        "depends_on": [],
+        "output": "performance_benchmarks"
+      },
+      {
+        "step": 5,
+        "title": "配置测试覆盖率报告",
+        "description": "配置 pytest-cov，生成覆盖率报告",
+        "modification_points": [
+          "修改 1 个文件: pytest.ini 或 pyproject.toml",
+          "配置覆盖率目标: >=80%",
+          "配置覆盖率报告格式: [term, html, xml]"
+        ],
+        "logic_flow": [
+          "在 pytest.ini 中添加 [tool:pytest] 配置",
+          "设置 addopts = --cov=src/infrastructure/cache --cov-report=term --cov-report=html --cov-report=xml",
+          "设置 testpaths = tests",
+          "设置 python_files = test_*.py",
+          "设置 python_classes = Test*",
+          "设置 python_functions = test_*"
+        ],
+        "depends_on": [],
+        "output": "coverage_config"
+      },
+      {
+        "step": 6,
+        "title": "运行所有测试并生成报告",
+        "description": "运行完整的测试套件，生成测试和覆盖率报告",
+        "modification_points": [
+          "创建 1 个脚本: scripts/run_cache_tests.sh",
+          "运行所有测试并生成报告"
+        ],
+        "logic_flow": [
+          "创建 bash 脚本",
+          "运行单元测试: pytest tests/unit/ -v",
+          "运行集成测试: pytest tests/integration/ -v",
+          "运行端到端测试: pytest tests/e2e/ -v",
+          "运行性能测试: pytest tests/performance/ --benchmark-only",
+          "生成覆盖率报告: pytest tests/ --cov=src/infrastructure/cache --cov-report=html",
+          "检查覆盖率: 如果 <80%, 返回错误",
+          "生成测试报告: pytest tests/ --html=reports/test_report.html"
+        ],
+        "depends_on": [1, 2, 3, 4, 5],
+        "output": "test_execution"
+      }
+    ],
+    "target_files": [
+      "tests/unit/test_cache_interface.py",
+      "tests/unit/test_cache_unified.py",
+      "tests/unit/test_cache_decorators.py",
+      "tests/unit/test_cache_managers.py",
+      "tests/unit/test_cache_invalidation.py",
+      "tests/unit/test_cache_batch.py",
+      "tests/integration/test_cache_integration.py",
+      "tests/integration/test_cache_web_routes.py",
+      "tests/integration/test_cache_consistency.py",
+      "tests/integration/test_cache_performance.py",
+      "tests/e2e/test_cache_note_crud.py",
+      "tests/e2e/test_cache_config_management.py",
+      "tests/performance/benchmark_cache_performance.py",
+      "pytest.ini",
+      "scripts/run_cache_tests.sh"
+    ],
+    "reusable_test_tools": [
+      "tests/fixtures/cache_fixtures.py",
+      "tests/helpers/cache_helpers.py"
+    ],
+    "test_commands": {
+      "run_tests": "pytest tests/",
+      "run_coverage": "pytest tests/ --cov=src/infrastructure/cache --cov-report=html",
+      "run_specific": "pytest {test_file} -v"
+    }
+  }
+}

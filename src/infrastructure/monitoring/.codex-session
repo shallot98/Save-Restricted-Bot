@@ -1,0 +1,17 @@
+{
+  "session_id": "ai-1766312941-4078984",
+  "runtime_dir": "/tmp/claude-ai-root/ai-1766312941-4078984/codex",
+  "input_fifo": "/tmp/claude-ai-root/ai-1766312941-4078984/codex/input.fifo",
+  "output_fifo": "/tmp/claude-ai-root/ai-1766312941-4078984/codex/output.fifo",
+  "terminal": "wezterm",
+  "tmux_session": null,
+  "pane_id": "72",
+  "tmux_log": "/tmp/claude-ai-root/ai-1766312941-4078984/codex/bridge_output.log",
+  "work_dir": "/root/Save-Restricted-Bot/src/infrastructure/monitoring",
+  "active": true,
+  "started_at": "2025-12-21 18:29:01",
+  "codex_session_path": "/root/.codex/sessions/2025/12/21/rollout-2025-12-21T18-24-02-019b4070-0754-7401-a5de-84a12e4c9398.jsonl",
+  "codex_session_id": "019b4070-0754-7401-a5de-84a12e4c9398",
+  "codex_start_cmd": "codex resume 019b4070-0754-7401-a5de-84a12e4c9398",
+  "ended_at": "2025-12-21 18:28:59"
+}

@@ -1,0 +1,211 @@
+{
+  "id": "IMPL-4",
+  "title": "性能优化与监控",
+  "status": "pending",
+  "context_package_path": null,
+  "meta": {
+    "type": "feature",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "实现批量操作优化，支持 2 个批量方法: [batch_get（批量获取）, batch_set（批量设置）]",
+      "实现缓存预热机制，启动时加载 3 类热数据: [热门笔记列表, 所有来源列表, 常用配置]",
+      "实现缓存监控统计，提供 5 个指标: [命中率, 缓存大小, 过期数, 平均响应时间, 内存使用]",
+      "创建 1 个监控端点: /api/cache/stats（返回实时缓存统计）",
+      "实现 2 个优化策略: [LRU淘汰（最近最少使用）, 智能预加载（基于访问模式）]"
+    ],
+    "focus_paths": [
+      "src/infrastructure/cache/batch.py",
+      "src/infrastructure/cache/warmup.py",
+      "src/infrastructure/cache/monitoring.py",
+      "web/routes/api.py"
+    ],
+    "acceptance": [
+      "2 个批量方法已实现: 验证 grep -E '(def batch_get|def batch_set)' src/infrastructure/cache/batch.py | wc -l = 2",
+      "3 类热数据预热已实现: 验证 grep -E '(warmup_notes|warmup_sources|warmup_config)' src/infrastructure/cache/warmup.py | wc -l = 3",
+      "5 个监控指标已实现: 验证 grep -E '(hit_rate|cache_size|expired_count|avg_response_time|memory_usage)' src/infrastructure/cache/monitoring.py | wc -l >= 5",
+      "批量操作性能提升 >=50%: 验证 pytest tests/integration/test_batch_performance.py | grep 'improvement.*[5-9][0-9]%'",
+      "缓存预热时间 <=5秒: 验证 pytest tests/integration/test_cache_warmup.py | grep 'warmup_time.*[0-5]\\.[0-9]s'"
+    ],
+    "depends_on": ["IMPL-1", "IMPL-2", "IMPL-3"],
+    "inherited": {
+      "from": "IMPL-1",
+      "context": [
+        "统一缓存接口 CacheInterface 已实现",
+        "UnifiedCache 类可用"
+      ]
+    },
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "Flask", "psutil (内存监控)"],
+      "optimization_targets": {
+        "batch_operations": "批量获取笔记列表（分页场景）",
+        "cache_warmup": "应用启动时预加载热数据",
+        "monitoring": "实时监控缓存性能"
+      },
+      "warmup_data": {
+        "hot_notes": "最近 100 条笔记",
+        "all_sources": "所有来源列表",
+        "common_configs": "常用配置（watch_config, monitoring_sources）"
+      }
+    },
+    "artifacts": []
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "analyze_batch_scenarios",
+        "action": "分析批量操作场景（分页、多用户）",
+        "commands": [
+          "bash(grep -E 'for.*in.*notes|for.*in.*sources' src/application/services/note_service.py web/routes/notes.py)"
+        ],
+        "output_to": "batch_scenarios",
+        "on_error": "skip_optional"
+      },
+      {
+        "step": "identify_hot_data",
+        "action": "识别热数据（高频访问的数据）",
+        "commands": [
+          "bash(grep -E 'get_notes|get_all_sources|get_watch_config' src/application/services/*.py web/routes/*.py | wc -l)"
+        ],
+        "output_to": "hot_data_analysis",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "实现批量操作优化",
+        "description": "创建 BatchCache 类，支持批量获取和设置",
+        "modification_points": [
+          "创建 1 个新文件: src/infrastructure/cache/batch.py",
+          "实现 2 个批量方法: [batch_get, batch_set]",
+          "优化批量操作性能（减少锁竞争）"
+        ],
+        "logic_flow": [
+          "导入 UnifiedCache",
+          "定义 BatchCache 类",
+          "实现 batch_get(keys: List[str]) -> Dict[str, Any]: 批量获取多个键",
+          "实现 batch_set(items: Dict[str, Any], ttl: int): 批量设置多个键",
+          "优化锁策略（使用单次锁获取，批量操作）",
+          "添加批量操作日志"
+        ],
+        "depends_on": [],
+        "output": "batch_cache"
+      },
+      {
+        "step": 2,
+        "title": "实现缓存预热机制",
+        "description": "创建 CacheWarmup 类，启动时预加载热数据",
+        "modification_points": [
+          "创建 1 个新文件: src/infrastructure/cache/warmup.py",
+          "实现 3 个预热方法: [warmup_notes, warmup_sources, warmup_config]",
+          "实现 warmup_all() 方法，异步预热所有数据"
+        ],
+        "logic_flow": [
+          "导入 NoteService, WatchService, threading",
+          "定义 CacheWarmup 类",
+          "实现 warmup_notes(): 预加载最近 100 条笔记",
+          "实现 warmup_sources(): 预加载所有来源列表",
+          "实现 warmup_config(): 预加载常用配置",
+          "实现 warmup_all(): 异步执行所有预热任务（使用线程池）",
+          "添加预热进度日志",
+          "限制预热时间 <=5秒（超时则跳过）"
+        ],
+        "depends_on": [],
+        "output": "cache_warmup"
+      },
+      {
+        "step": 3,
+        "title": "实现缓存监控统计",
+        "description": "创建 CacheMonitor 类，提供实时缓存统计",
+        "modification_points": [
+          "创建 1 个新文件: src/infrastructure/cache/monitoring.py",
+          "实现 5 个统计指标: [hit_rate, cache_size, expired_count, avg_response_time, memory_usage]",
+          "实现 get_stats() 方法，返回所有统计数据"
+        ],
+        "logic_flow": [
+          "导入 UnifiedCache, psutil, time",
+          "定义 CacheMonitor 类",
+          "实现 _track_hit(): 记录缓存命中",
+          "实现 _track_miss(): 记录缓存未命中",
+          "实现 _track_response_time(duration): 记录响应时间",
+          "实现 get_stats() -> Dict: 返回所有统计指标",
+          "计算命中率: hits / (hits + misses)",
+          "计算平均响应时间: sum(response_times) / len(response_times)",
+          "使用 psutil 获取内存使用"
+        ],
+        "depends_on": [],
+        "output": "cache_monitoring"
+      },
+      {
+        "step": 4,
+        "title": "创建监控 API 端点",
+        "description": "在 Web API 中添加缓存统计端点",
+        "modification_points": [
+          "修改 1 个文件: web/routes/api.py",
+          "添加 1 个路由: /api/cache/stats",
+          "返回 JSON 格式的缓存统计"
+        ],
+        "logic_flow": [
+          "导入 CacheMonitor（from src.infrastructure.cache.monitoring import CacheMonitor）",
+          "定义路由 @api_bp.route('/cache/stats', methods=['GET'])",
+          "调用 monitor.get_stats() 获取统计数据",
+          "返回 JSON 响应: jsonify(stats)",
+          "添加权限检查（仅管理员可访问）"
+        ],
+        "depends_on": [3],
+        "output": "monitoring_api"
+      },
+      {
+        "step": 5,
+        "title": "集成预热到应用启动",
+        "description": "在应用启动时自动执行缓存预热",
+        "modification_points": [
+          "修改 1 个文件: app.py 或 main.py",
+          "在应用启动后调用 warmup_all()",
+          "添加预热完成日志"
+        ],
+        "logic_flow": [
+          "导入 CacheWarmup（from src.infrastructure.cache.warmup import CacheWarmup）",
+          "在 app 初始化后（create_app() 或 main()）",
+          "创建 warmup 实例: warmup = CacheWarmup()",
+          "异步执行预热: threading.Thread(target=warmup.warmup_all).start()",
+          "添加日志: logger.info('缓存预热已启动')"
+        ],
+        "depends_on": [2],
+        "output": "warmup_integration"
+      },
+      {
+        "step": 6,
+        "title": "编写性能测试",
+        "description": "编写性能测试验证优化效果",
+        "modification_points": [
+          "创建 2 个测试文件: [tests/integration/test_batch_performance.py, tests/integration/test_cache_warmup.py]",
+          "测试批量操作性能提升",
+          "测试缓存预热时间和效果"
+        ],
+        "logic_flow": [
+          "使用 pytest 框架",
+          "测试批量操作: 对比 batch_get vs 多次 get 的性能",
+          "测试预热效果: 预热后第一次访问应命中缓存",
+          "测试预热时间: 验证 <=5秒",
+          "测试监控统计: 验证所有指标正确",
+          "验证批量操作性能提升 >=50%"
+        ],
+        "depends_on": [1, 2, 3, 4, 5],
+        "output": "performance_tests"
+      }
+    ],
+    "target_files": [
+      "src/infrastructure/cache/batch.py",
+      "src/infrastructure/cache/warmup.py",
+      "src/infrastructure/cache/monitoring.py",
+      "web/routes/api.py",
+      "app.py",
+      "tests/integration/test_batch_performance.py",
+      "tests/integration/test_cache_warmup.py"
+    ]
+  }
+}

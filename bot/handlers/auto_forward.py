@@ -1,18 +1,30 @@
 """
 自动转发处理器模块
 职责：处理频道/群组消息的自动转发
+
+Architecture: Uses new layered architecture
+- src/core/container for service access
+- src/infrastructure/cache for message deduplication
 """
+import queue
 import pyrogram
 from pyrogram import filters
 from bot.utils.logger import get_logger
 from bot.utils import is_message_processed, mark_message_processed, cleanup_old_messages
 from bot.utils.dedup import is_media_group_processed, register_processed_media_group, processed_messages
-from bot.services.peer_cache import cache_peer_if_needed
 from bot.workers import Message
-from config import load_watch_config, get_monitored_sources
+
+# New architecture imports
+from src.core.container import get_watch_service
+from src.infrastructure.cache import get_cache
+
+# Legacy imports (for backward compatibility during migration)
 from constants import MESSAGE_CACHE_CLEANUP_THRESHOLD
 
 logger = get_logger(__name__)
+
+# Use new cache for monitored sources
+_monitored_sources_cache = get_cache()
 
 
 def create_auto_forward_handler(acc, message_queue):
@@ -31,6 +43,16 @@ def create_auto_forward_handler(acc, message_queue):
     def auto_forward(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         """处理频道/群组/私聊消息，包括转发的消息"""
         try:
+            try:
+                from src.infrastructure.monitoring.performance.business_metrics import get_business_metrics
+
+                metrics = get_business_metrics()
+            except Exception:
+                metrics = None
+
+            # 添加调试日志：记录所有接收到的消息
+            logger.info(f"🔔 收到消息: chat_id={message.chat.id if message and message.chat else 'Unknown'}, message_id={message.id if message else 'Unknown'}")
+
             # 验证消息对象和属性
             if not message or not hasattr(message, 'chat') or not message.chat:
                 logger.debug("跳过：消息对象无效或缺少 chat 属性")
@@ -66,8 +88,9 @@ def create_auto_forward_handler(acc, message_queue):
             # 获取源chat ID
             source_chat_id = str(message.chat.id)
 
-            # 早期过滤：检查此源是否被监控
-            monitored_sources = get_monitored_sources()
+            # 早期过滤：检查此源是否被监控（使用 WatchService）
+            watch_service = get_watch_service()
+            monitored_sources = watch_service.get_monitored_sources()
             if source_chat_id not in monitored_sources:
                 # 记录被过滤的消息（调试用）
                 logger.debug(f"⏭️ 消息来自非监控源，已跳过: chat_id={source_chat_id}, message_id={message.id}")
@@ -76,96 +99,162 @@ def create_auto_forward_handler(acc, message_queue):
 
             logger.info(f"🔔 监控源消息: chat_id={source_chat_id}, message_id={message.id}")
 
-            # 缓存源Peer（利用Session文件的原生缓存）
-            cache_peer_if_needed(acc, source_chat_id, "源频道")
-
             # 获取消息文本
             message_text = message.text or message.caption or ""
 
-            # 优化：只在必要时加载媒体组（减少内存占用）
-            # 如果是媒体组且没有文本，尝试从第一条消息获取caption
-            if message.media_group_id and not message_text:
-                try:
-                    media_group = acc.get_media_group(message.chat.id, message.id)
-                    if media_group and len(media_group) > 0:
-                        message_text = media_group[0].text or media_group[0].caption or ""
-                        logger.debug(f"📸 从媒体组第一条消息获取文本: {len(message_text)} 字符")
-                except Exception as e:
-                    logger.debug(f"📸 获取媒体组文本失败: {e}")
+            # 查找所有匹配的监控配置（使用 WatchService）
+            from contextlib import nullcontext
 
-            # 查找所有匹配的监控配置
-            watch_config = load_watch_config()
-            enqueued_count = 0
+            try:
+                from src.infrastructure.monitoring.performance.decorators import performance_context
+            except Exception:
+                performance_context = None
 
-            for user_id, watches in watch_config.items():
-                for watch_key, watch_data in watches.items():
-                    if isinstance(watch_data, dict):
-                        watch_source = str(watch_data.get("source", ""))
-                        dest = watch_data.get("dest")
-                        record_mode = watch_data.get("record_mode", False)
+            monitor_ctx = performance_context("bot.auto_forward.enqueue", tags={"component": "auto_forward"}) if performance_context else nullcontext()
+            with monitor_ctx:
+                tasks_for_source = watch_service.get_tasks_for_source(source_chat_id)
+                enqueued_count = 0
+                enqueued_forward_count = 0
 
-                        # 匹配源
-                        if watch_source != source_chat_id:
+                for entry in tasks_for_source:
+                    if len(entry) == 3:
+                        user_id, watch_key, task = entry
+                    else:
+                        user_id, task = entry
+                        watch_key = source_chat_id
+
+                    if hasattr(task, "to_dict"):
+                        watch_data = task.to_dict()
+                    elif isinstance(task, dict):
+                        watch_data = task
+                    else:
+                        continue
+
+                    dest = watch_data.get("dest")
+                    record_mode = bool(watch_data.get("record_mode", False))
+                    preserve_forward_source = bool(watch_data.get("preserve_forward_source", False))
+
+                    logger.info(f"✅ 匹配到监控任务: user={user_id}, source={source_chat_id}")
+
+                    # 转发模式：由 worker 在处理阶段负责确保 Peer 缓存就绪
+                    dest_chat_id = dest if not record_mode else None
+
+                    # 媒体组去重
+                    if message.media_group_id:
+                        mode_suffix = "record" if record_mode else "forward"
+                        media_group_key = f"{user_id}_{watch_key}_{dest_chat_id}_{mode_suffix}_{message.media_group_id}"
+
+                        if is_media_group_processed(media_group_key):
+                            logger.debug(f"⏭️ 跳过已处理的媒体组: {media_group_key}")
                             continue
 
-                        logger.info(f"✅ 匹配到监控任务: user={user_id}, source={source_chat_id}")
+                        # 注册为已处理
+                        register_processed_media_group(media_group_key)
+                        logger.info(f"📸 首次处理媒体组: {media_group_key}")
 
-                        # 缓存目标Peer（如果是转发模式）
-                        dest_chat_id = dest if not record_mode else None
+                    # 创建消息对象
+                    msg_obj = Message(
+                        user_id=user_id,
+                        watch_key=watch_key,
+                        source_chat_id=source_chat_id,
+                        message_id=message.id,
+                        watch_data=watch_data,
+                        dest_chat_id=dest_chat_id,
+                        message_text=message_text,
+                        message=None,
+                        media_group_key=f"{user_id}_{watch_key}_{message.media_group_id}" if message.media_group_id else None
+                    )
 
-                        if dest_chat_id and dest_chat_id != "me":
-                            # 检查目标是否也是监控源
-                            if str(dest_chat_id) in monitored_sources:
-                                # 目标也是监控源 - 检查是否已经缓存
-                                from bot.utils.peer import is_dest_cached
-                                if is_dest_cached(str(dest_chat_id)):
-                                    logger.debug(f"💡 目标频道 {dest_chat_id} 也是监控源，Peer已缓存")
-                                else:
-                                    # 尝试缓存（即使是监控源，也需要确保能转发）
-                                    logger.info(f"🔄 目标频道 {dest_chat_id} 也是监控源，尝试缓存Peer...")
-                                    cache_peer_if_needed(acc, dest_chat_id, "目标频道")
-                            else:
-                                # 普通目标频道 - 尝试缓存
-                                cache_peer_if_needed(acc, dest_chat_id, "目标频道")
-
-                        # 媒体组去重
-                        if message.media_group_id:
-                            mode_suffix = "record" if record_mode else "forward"
-                            media_group_key = f"{user_id}_{watch_key}_{dest_chat_id}_{mode_suffix}_{message.media_group_id}"
-
-                            if is_media_group_processed(media_group_key):
-                                logger.debug(f"⏭️ 跳过已处理的媒体组: {media_group_key}")
-                                continue
-
-                            # 注册为已处理
-                            register_processed_media_group(media_group_key)
-                            logger.info(f"📸 首次处理媒体组: {media_group_key}")
-
-                        # 创建消息对象
-                        msg_obj = Message(
-                            user_id=user_id,
-                            watch_key=watch_key,
-                            message=message,
-                            watch_data=watch_data,
-                            source_chat_id=source_chat_id,
-                            dest_chat_id=dest_chat_id,
-                            message_text=message_text,
-                            media_group_key=f"{user_id}_{watch_key}_{message.media_group_id}" if message.media_group_id else None
+                    # 入队消息进行处理
+                    try:
+                        message_queue.put_nowait(msg_obj)
+                    except queue.Full:
+                        logger.warning(
+                            f"🚨 队列已满，丢弃消息: user={user_id}, source={source_chat_id}, message_id={message.id}"
                         )
+                        if metrics is not None:
+                            metrics.record_message_processed(
+                                success=False,
+                                category="auto_forward",
+                                error_type="queue_full",
+                            )
+                        continue
 
-                        # 入队消息进行处理
-                        message_queue.put(msg_obj)
-                        enqueued_count += 1
-                        logger.info(f"📬 消息已入队: user={user_id}, source={source_chat_id}, 队列大小={message_queue.qsize()}")
+                    enqueued_count += 1
+                    logger.info(f"📬 消息已入队: user={user_id}, source={source_chat_id}, 队列大小={message_queue.qsize()}")
+                    if not record_mode:
+                        enqueued_forward_count += 1
+                        if metrics is not None:
+                            metrics.record_forward(success=True, preserve_source=preserve_forward_source)
 
-            if enqueued_count > 0:
-                logger.info(f"✅ 本次共入队 {enqueued_count} 条消息")
+                if enqueued_count > 0:
+                    logger.info(f"✅ 本次共入队 {enqueued_count} 条消息")
+                    if metrics is not None:
+                        metrics.record_message_processed(success=True, category="auto_forward", error_type=None)
 
         except (ValueError, KeyError) as e:
             error_msg = str(e)
             if "Peer id invalid" not in error_msg and "ID not found" not in error_msg:
                 logger.error(f"⚠️ auto_forward 错误: {type(e).__name__}: {e}", exc_info=True)
+                try:
+                    from src.infrastructure.monitoring.performance.business_metrics import get_business_metrics
+
+                    get_business_metrics().record_message_processed(
+                        success=False,
+                        category="auto_forward",
+                        error_type=type(e).__name__,
+                    )
+                except Exception as metrics_err:
+                    logger.debug(f"业务指标上报失败（忽略，不影响主流程）: {metrics_err}")
+                try:
+                    from src.infrastructure.monitoring.performance.business_metrics import get_business_metrics
+
+                    get_business_metrics().record_forward(
+                        success=False,
+                        preserve_source=False,
+                        error_type=type(e).__name__,
+                    )
+                except Exception as metrics_err:
+                    logger.debug(f"业务指标上报失败（忽略，不影响主流程）: {metrics_err}")
+                try:
+                    from src.infrastructure.monitoring.errors.tracker import get_error_tracker
+
+                    get_error_tracker().track_error(
+                        error=e,
+                        context={"component": "auto_forward", "error_kind": type(e).__name__},
+                    )
+                except Exception as track_err:
+                    logger.debug(f"错误追踪上报失败（忽略，不影响主流程）: {track_err}")
         except Exception as e:
             logger.error(f"⚠️ auto_forward 意外错误: {type(e).__name__}: {e}", exc_info=True)
+            try:
+                from src.infrastructure.monitoring.performance.business_metrics import get_business_metrics
+
+                get_business_metrics().record_message_processed(
+                    success=False,
+                    category="auto_forward",
+                    error_type=type(e).__name__,
+                )
+            except Exception as metrics_err:
+                logger.debug(f"业务指标上报失败（忽略，不影响主流程）: {metrics_err}")
+            try:
+                from src.infrastructure.monitoring.performance.business_metrics import get_business_metrics
+
+                get_business_metrics().record_forward(
+                    success=False,
+                    preserve_source=False,
+                    error_type=type(e).__name__,
+                )
+            except Exception as metrics_err:
+                logger.debug(f"业务指标上报失败（忽略，不影响主流程）: {metrics_err}")
+            try:
+                from src.infrastructure.monitoring.errors.tracker import get_error_tracker
+
+                get_error_tracker().track_error(
+                    error=e,
+                    context={"component": "auto_forward", "error_kind": type(e).__name__},
+                )
+            except Exception as track_err:
+                logger.debug(f"错误追踪上报失败（忽略，不影响主流程）: {track_err}")
 
     return auto_forward

@@ -1,0 +1,141 @@
+{
+  "symptom": {
+    "description": "笔记文本显示过长，部分笔记的文本内容没有被正确截断或折叠，导致卡片高度不一致，影响页面布局和用户体验。特别是包含长磁力链接的笔记，文本会溢出显示区域。",
+    "error_message": null,
+    "stack_trace": null,
+    "frequency": "intermittent",
+    "user_impact": "用户在浏览笔记列表时，部分笔记卡片显示异常高，长文本和磁力链接未被截断，导致页面滚动体验差，难以快速浏览笔记内容。展开/收起按钮在某些情况下不显示或不工作。"
+  },
+  "root_cause": {
+    "file": "templates/notes.html",
+    "line_range": "316-322",
+    "function": "note card text rendering",
+    "issue": "状态管理问题：1) Tailwind的line-clamp-3类依赖CDN动态加载，可能在DOM渲染时未生效；2) 展开按钮显示逻辑(line 697-707)使用scrollHeight检测，但在Alpine.js初始化和Tailwind样式加载之间存在时序竞争；3) toggleText函数(line 543-554)通过classList操作line-clamp-3，但与Alpine.js的响应式状态管理不协调；4) 长磁力链接(magnet:?xt=...)未被word-break处理，导致文本溢出。",
+    "confidence": 0.85,
+    "introduced_by": "b6c97db (feat: 完整的Telegram笔记系统 - 移动端优化版)",
+    "category": "edge_case"
+  },
+  "affected_files": [
+    {
+      "path": "templates/notes.html",
+      "relevance": 0.95,
+      "rationale": "包含笔记文本渲染的核心模板代码，使用Tailwind line-clamp-3类和Alpine.js状态管理，展开/收起按钮的DOM结构和事件绑定都在此文件",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "static/js/notes.js",
+      "relevance": 0.80,
+      "rationale": "包含MobileUIState状态管理和toggleText函数，负责检测文本高度并显示展开按钮(line 762-770)，但检测时机可能早于Tailwind样式生效",
+      "change_type": "fix_target"
+    },
+    {
+      "path": "static/css/pages/notes.css",
+      "relevance": 0.75,
+      "rationale": "定义.note-text的max-height(120px)和.expanded状态样式(line 287-299)，与Tailwind的line-clamp-3存在样式冲突和优先级问题",
+      "change_type": "needs_update"
+    },
+    {
+      "path": "app.py",
+      "relevance": 0.60,
+      "rationale": "format_text_with_magnet_break函数(line 138-162)在服务端处理磁力链接换行，但未处理长链接的截断问题，与前端状态管理配合不足",
+      "change_type": "needs_update"
+    },
+    {
+      "path": "static/js/pages/notes.js",
+      "relevance": 0.55,
+      "rationale": "包含toggleText的全局函数导出(line 39-50)，但与notes.js中的实现存在重复，可能导致状态不一致",
+      "change_type": "needs_update"
+    }
+  ],
+  "reproduction_steps": [
+    "访问 /notes 页面，等待页面完全加载",
+    "观察包含长文本或磁力链接的笔记卡片",
+    "检查是否有笔记文本超过3行但未显示'展开全文'按钮",
+    "检查是否有磁力链接(magnet:?xt=urn:btih:...)横向溢出卡片边界",
+    "点击'展开全文'按钮，观察是否正确切换line-clamp-3类",
+    "在移动端(宽度<768px)重复上述步骤，检查响应式布局下的文本显示"
+  ],
+  "fix_hints": [
+    {
+      "description": "修复Tailwind line-clamp与自定义CSS的冲突",
+      "approach": "在templates/notes.html中移除line-clamp-3类，改用static/css/pages/notes.css中的.note-text样式(max-height: 120px + overflow: hidden)。同时添加word-break: break-all处理长链接溢出。",
+      "code_example": "<!-- templates/notes.html line 316 -->\n<p id=\"text-{{ note.id }}\" class=\"text-gray-700 dark:text-gray-300 text-sm note-text transition-all duration-200\" style=\"word-break: break-word; overflow-wrap: break-word;\">\n    {{ note.message_text }}\n</p>\n\n/* static/css/pages/notes.css */\n.note-text {\n    max-height: 120px;\n    overflow: hidden;\n    word-break: break-word;\n    overflow-wrap: break-word;\n    position: relative;\n}",
+      "risk": "low"
+    },
+    {
+      "description": "优化展开按钮显示检测时机",
+      "approach": "将scrollHeight检测逻辑从DOMContentLoaded移到Alpine.js的x-init或window.onload，确保在所有样式加载完成后再检测。使用MutationObserver监听DOM变化。",
+      "code_example": "// static/js/notes.js 修改 line 697-707\nwindow.addEventListener('load', function() {\n    // 等待所有资源(包括Tailwind CDN)加载完成\n    setTimeout(function() {\n        document.querySelectorAll('[id^=\"text-\"]').forEach(function(el) {\n            const computedStyle = window.getComputedStyle(el);\n            const maxHeight = parseInt(computedStyle.maxHeight);\n            if (el.scrollHeight > maxHeight + 5) {\n                const noteId = el.id.replace('text-', '');\n                const btnEl = document.getElementById('expand-btn-' + noteId);\n                if (btnEl) {\n                    btnEl.classList.remove('hidden');\n                }\n            }\n        });\n    }, 100);\n});",
+      "risk": "medium"
+    },
+    {
+      "description": "统一状态管理：将toggleText集成到Alpine.js",
+      "approach": "在templates/notes.html中使用Alpine.js的x-data创建笔记级别的状态管理，用@click替代onclick，通过Alpine的响应式系统管理展开/收起状态。",
+      "code_example": "<!-- templates/notes.html -->\n<div x-data=\"{ expanded: false }\" class=\"note-card ...\">\n    <p :class=\"expanded ? 'note-text expanded' : 'note-text'\" \n       id=\"text-{{ note.id }}\">\n        {{ note.message_text }}\n    </p>\n    <button @click=\"expanded = !expanded\" \n            x-show=\"$el.previousElementSibling.scrollHeight > 120\"\n            x-text=\"expanded ? '收起 ▲' : '展开全文 ▼'\"\n            class=\"text-primary-600 text-xs mt-1 hover:underline\">\n    </button>\n</div>",
+      "risk": "medium"
+    },
+    {
+      "description": "添加CSS word-break处理长链接",
+      "approach": "在.note-text样式中添加word-break和overflow-wrap属性，确保长磁力链接能够自动换行而不溢出容器。",
+      "code_example": "/* static/css/pages/notes.css */\n.note-text {\n    color: var(--text-primary);\n    font-size: var(--font-size-sm);\n    line-height: 1.6;\n    margin-bottom: var(--spacing-md);\n    flex: 1;\n    position: relative;\n    max-height: 120px;\n    overflow: hidden;\n    word-break: break-word;\n    overflow-wrap: anywhere;\n    hyphens: auto;\n}",
+      "risk": "low"
+    }
+  ],
+  "dependencies": "Tailwind CSS 3.x (CDN), Alpine.js 3.x (CDN), 浏览器原生Intersection Observer API, CSS line-clamp支持(-webkit-line-clamp)",
+  "constraints": "1) 必须保持与移动端响应式布局的兼容性(宽度<768px); 2) 不能破坏现有的暗色模式切换功能; 3) 需要兼容Safari的-webkit-line-clamp和标准line-clamp; 4) 展开/收起动画需要保持流畅(transition-all duration-200); 5) 磁力链接的可读性和可点击性不能受影响",
+  "related_issues": [
+    {
+      "type": "similar_bug",
+      "reference": "static/css/pages/notes.css:287-299",
+      "description": ".note-text的max-height与Tailwind line-clamp-3存在样式优先级冲突"
+    },
+    {
+      "type": "tech_debt",
+      "reference": "templates/notes.html:697-707",
+      "description": "scrollHeight检测逻辑在DOMContentLoaded中执行，早于Tailwind CDN样式加载完成"
+    },
+    {
+      "type": "related_feature",
+      "reference": "app.py:138-162",
+      "description": "format_text_with_magnet_break在服务端添加<br>标签，但未处理长链接截断"
+    }
+  ],
+  "clarification_needs": [
+    {
+      "question": "是否需要保留Tailwind CDN，还是可以切换到本地构建的Tailwind CSS？",
+      "context": "当前使用Tailwind CDN (https://cdn.tailwindcss.com)，存在加载时序问题。切换到本地构建可以消除CDN延迟，但需要配置构建流程。",
+      "options": [
+        "保留CDN，优化检测时机(使用window.onload + setTimeout)",
+        "切换到本地Tailwind构建(需要npm/postcss配置)",
+        "移除Tailwind line-clamp，完全使用自定义CSS"
+      ]
+    },
+    {
+      "question": "展开/收起功能是否需要支持动画效果？",
+      "context": "当前使用transition-all duration-200实现平滑过渡，但max-height从120px到none的动画效果不理想。可以使用max-height固定值或grid-template-rows实现更好的动画。",
+      "options": [
+        "保留当前动画(transition-all)，接受max-height: none的瞬间展开",
+        "使用固定max-height值(如2000px)实现平滑动画",
+        "移除动画，直接切换显示状态"
+      ]
+    },
+    {
+      "question": "长磁力链接是否需要在前端进行截断显示(如显示前50字符+...+后20字符)？",
+      "context": "当前磁力链接完整显示，可能包含很长的dn参数。可以在前端截断显示，鼠标悬停显示完整内容，或保持完整显示但强制换行。",
+      "options": [
+        "保持完整显示，使用word-break强制换行",
+        "前端截断显示(前50+...+后20)，hover显示完整",
+        "服务端截断message_text中的磁力链接dn参数"
+      ]
+    }
+  ],
+  "_metadata": {
+    "timestamp": "2025-12-13T00:00:00Z",
+    "bug_description": "修复笔记文本显示有的太长了显示不到",
+    "source": "cli-explore-agent",
+    "diagnosis_angle": "state-management",
+    "diagnosis_index": 1,
+    "total_diagnoses": 2,
+    "duration_seconds": 45
+  }
+}

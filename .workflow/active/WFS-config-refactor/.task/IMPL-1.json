@@ -1,0 +1,177 @@
+{
+  "id": "IMPL-1",
+  "title": "设计统一配置模型和接口",
+  "status": "pending",
+  "context_package_path": ".workflow/active/WFS-config-refactor/.process/context-package.json",
+  "meta": {
+    "type": "refactor",
+    "agent": "@code-developer",
+    "execution_group": null
+  },
+  "context": {
+    "requirements": [
+      "创建5个配置模型类: [MainConfig, WatchConfig, WebDAVConfig, ViewerConfig, PathConfig]",
+      "定义1个统一配置管理器接口: ConfigManager协议",
+      "为每个配置模型添加类型注解和文档字符串",
+      "设计配置优先级机制: 环境变量 > 配置文件 > 默认值",
+      "创建1个配置模型设计文档: CONFIG_MODEL_DESIGN.md"
+    ],
+    "focus_paths": [
+      "src/core/config/models.py",
+      "src/core/config/manager.py",
+      "src/core/config/__init__.py",
+      "docs/config/CONFIG_MODEL_DESIGN.md"
+    ],
+    "acceptance": [
+      "5个配置模型类已创建: 验证 ls src/core/config/models.py 包含 MainConfig, WatchConfig, WebDAVConfig, ViewerConfig, PathConfig",
+      "ConfigManager协议已定义: 验证 grep 'class ConfigManager' src/core/config/manager.py",
+      "所有模型包含类型注解: 验证 mypy src/core/config/models.py --strict 通过",
+      "设计文档已创建: 验证 test -f docs/config/CONFIG_MODEL_DESIGN.md",
+      "文档包含配置优先级说明: 验证 grep '环境变量.*配置文件.*默认值' docs/config/CONFIG_MODEL_DESIGN.md"
+    ],
+    "depends_on": [],
+    "inherited": {},
+    "shared_context": {
+      "tech_stack": ["Python 3.x", "Pydantic", "dataclasses"],
+      "design_patterns": ["Protocol (接口定义)", "Pydantic BaseSettings (配置模型)"],
+      "conventions": [
+        "使用Pydantic BaseSettings作为配置模型基类",
+        "使用Protocol定义接口",
+        "配置字段使用Field()定义验证规则和默认值",
+        "遵循PEP 8命名规范"
+      ]
+    },
+    "artifacts": [
+      {
+        "type": "context_analysis",
+        "source": "context-package.json",
+        "path": ".workflow/active/WFS-config-refactor/.process/context-package.json",
+        "priority": "highest",
+        "usage": "现有配置架构分析和问题识别",
+        "contains": "三层架构分析、配置文件清单、使用模式"
+      }
+    ]
+  },
+  "flow_control": {
+    "pre_analysis": [
+      {
+        "step": "load_context_package",
+        "action": "加载上下文包获取现有配置架构信息",
+        "commands": ["Read(.workflow/active/WFS-config-refactor/.process/context-package.json)"],
+        "output_to": "context_package",
+        "on_error": "fail"
+      },
+      {
+        "step": "analyze_existing_settings",
+        "action": "分析现有Settings类的实现模式",
+        "commands": [
+          "Read(src/core/config/settings.py)",
+          "Read(src/compat/config_compat.py)"
+        ],
+        "output_to": "existing_patterns",
+        "on_error": "skip_optional"
+      },
+      {
+        "step": "review_pydantic_patterns",
+        "action": "研究Pydantic BaseSettings最佳实践",
+        "commands": [
+          "bash(rg 'BaseSettings|Field' --type py -n --max-count 10)"
+        ],
+        "output_to": "pydantic_usage",
+        "on_error": "skip_optional"
+      }
+    ],
+    "implementation_approach": [
+      {
+        "step": 1,
+        "title": "创建配置模型文件",
+        "description": "创建models.py文件，定义5个配置模型类",
+        "modification_points": [
+          "创建文件: src/core/config/models.py",
+          "定义5个配置类: MainConfig, WatchConfig, WebDAVConfig, ViewerConfig, PathConfig",
+          "每个类继承自Pydantic BaseSettings",
+          "为每个字段添加类型注解和Field()定义"
+        ],
+        "logic_flow": [
+          "导入Pydantic依赖: from pydantic import BaseSettings, Field",
+          "定义PathConfig: 路径配置，包含data_dir, config_dir, media_dir等",
+          "定义MainConfig: 主配置，包含TOKEN, HASH, ID, STRING, OWNER_ID等",
+          "定义WatchConfig: 监控配置，包含用户监控源映射",
+          "定义WebDAVConfig: WebDAV配置，包含enabled, url, username, password等",
+          "定义ViewerConfig: 查看器配置，包含viewer_url",
+          "为每个字段添加验证规则和默认值",
+          "添加Config内部类配置环境变量前缀和文件路径"
+        ],
+        "depends_on": [],
+        "output": "src/core/config/models.py"
+      },
+      {
+        "step": 2,
+        "title": "定义配置管理器接口",
+        "description": "创建manager.py文件，定义ConfigManager协议",
+        "modification_points": [
+          "创建文件: src/core/config/manager.py",
+          "定义ConfigManager协议，包含7个方法: get, set, reload, save, validate, subscribe, unsubscribe",
+          "为每个方法添加类型注解和文档字符串"
+        ],
+        "logic_flow": [
+          "导入Protocol: from typing import Protocol, Any, Callable",
+          "定义ConfigManager协议",
+          "定义get方法: 获取配置值",
+          "定义set方法: 设置配置值",
+          "定义reload方法: 重新加载配置",
+          "定义save方法: 保存配置到文件",
+          "定义validate方法: 验证配置",
+          "定义subscribe方法: 订阅配置变更",
+          "定义unsubscribe方法: 取消订阅",
+          "添加详细的文档字符串说明每个方法的用途和参数"
+        ],
+        "depends_on": [1],
+        "output": "src/core/config/manager.py"
+      },
+      {
+        "step": 3,
+        "title": "更新配置模块导出",
+        "description": "更新__init__.py，导出新定义的模型和接口",
+        "modification_points": [
+          "修改文件: src/core/config/__init__.py",
+          "添加导出: MainConfig, WatchConfig, WebDAVConfig, ViewerConfig, PathConfig, ConfigManager"
+        ],
+        "logic_flow": [
+          "从models导入5个配置类",
+          "从manager导入ConfigManager协议",
+          "更新__all__列表",
+          "保持settings单例的导出"
+        ],
+        "depends_on": [1, 2],
+        "output": "src/core/config/__init__.py"
+      },
+      {
+        "step": 4,
+        "title": "编写配置模型设计文档",
+        "description": "创建设计文档，说明配置模型的设计思路和使用方法",
+        "modification_points": [
+          "创建目录: docs/config/",
+          "创建文件: docs/config/CONFIG_MODEL_DESIGN.md",
+          "文档包含6个章节: 概述、配置模型、配置管理器接口、配置优先级、使用示例、迁移指南"
+        ],
+        "logic_flow": [
+          "编写概述: 说明配置管理重构的目标和方法",
+          "描述配置模型: 详细说明5个配置类的字段和用途",
+          "描述配置管理器接口: 说明ConfigManager的7个方法",
+          "说明配置优先级: 环境变量 > 配置文件 > 默认值",
+          "提供使用示例: 展示如何使用新配置模型",
+          "编写迁移指南: 说明如何从旧配置迁移到新配置"
+        ],
+        "depends_on": [1, 2, 3],
+        "output": "docs/config/CONFIG_MODEL_DESIGN.md"
+      }
+    ],
+    "target_files": [
+      "src/core/config/models.py",
+      "src/core/config/manager.py",
+      "src/core/config/__init__.py",
+      "docs/config/CONFIG_MODEL_DESIGN.md"
+    ]
+  }
+}
