@@ -12,6 +12,20 @@ import gc
 import resource
 from typing import List, Callable, Any
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+try:
+    PERF_ITER_SCALE = float(os.getenv("PERF_ITER_SCALE", "1"))
+except ValueError:
+    PERF_ITER_SCALE = 1.0
+
+try:
+    PERF_WARMUP_SCALE = float(os.getenv("PERF_WARMUP_SCALE", "1"))
+except ValueError:
+    PERF_WARMUP_SCALE = 1.0
+
 # Helper function to get memory usage
 def get_memory_mb():
     """Get current memory usage in MB"""
@@ -49,7 +63,7 @@ def measure_memory(func: Callable, *args, **kwargs) -> tuple:
 
 def run_benchmark(name: str, func: Callable, iterations: int = 1000, warmup: int = 10):
     """运行性能基准测试
-    
+
     Args:
         name: 测试名称
         func: 要测试的函数
@@ -59,35 +73,35 @@ def run_benchmark(name: str, func: Callable, iterations: int = 1000, warmup: int
     print(f"\n{'='*60}")
     print(f"🔥 {name}")
     print(f"{'='*60}")
-    
-    # Warmup
-    for _ in range(warmup):
+
+    scaled_warmup = max(0, int(warmup * PERF_WARMUP_SCALE))
+    scaled_iterations = max(1, int(iterations * PERF_ITER_SCALE))
+
+    for _ in range(scaled_warmup):
         func()
-    
-    # Benchmark
+
     times = []
-    for _ in range(iterations):
+    for _ in range(scaled_iterations):
         _, exec_time = measure_time(func)
         times.append(exec_time)
-    
-    # Statistics
+
     avg_time = sum(times) / len(times)
     min_time = min(times)
     max_time = max(times)
-    
-    print(f"迭代次数: {iterations}")
+
+    print(f"迭代次数: {scaled_iterations}")
     print(f"平均时间: {avg_time:.4f} ms")
     print(f"最小时间: {min_time:.4f} ms")
     print(f"最大时间: {max_time:.4f} ms")
     print(f"吞吐量:   {1000/avg_time:.2f} ops/sec")
-    
+
     return {
         'name': name,
-        'iterations': iterations,
+        'iterations': scaled_iterations,
         'avg_ms': avg_time,
         'min_ms': min_time,
         'max_ms': max_time,
-        'throughput': 1000/avg_time
+        'throughput': 1000/avg_time,
     }
 
 

@@ -5,7 +5,9 @@ Test main.py syntax and imports without actually starting the bot
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 def test_imports():
     """Test all imports"""
@@ -97,7 +99,7 @@ def test_imports():
     print("\n📦 测试 main.py 语法...")
     try:
         import py_compile
-        py_compile.compile('main.py', doraise=True)
+        py_compile.compile(os.path.join(PROJECT_ROOT, 'main.py'), doraise=True)
         print("   ✅ main.py 语法检查通过")
     except Exception as e:
         errors.append(f"main.py 语法错误: {e}")

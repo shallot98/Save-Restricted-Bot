@@ -8,6 +8,10 @@ import os
 import time
 import threading
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 print("="*60)
 print("🐛 Bug修复测试")
 print("   Bug Fixes Test")
