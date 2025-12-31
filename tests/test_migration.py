@@ -5,7 +5,9 @@ Test migration from main_old.py to new modular structure
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 print("=" * 70)
 print("🧪 测试 main_old.py 迁移")
@@ -14,7 +16,7 @@ print()
 
 # Test 1: Verify main_old.py is deleted
 print("📝 测试 1: 验证 main_old.py 已删除")
-if os.path.exists('main_old.py'):
+if os.path.exists(os.path.join(PROJECT_ROOT, 'main_old.py')):
     print("❌ FAILED: main_old.py 仍然存在")
     sys.exit(1)
 else:
@@ -32,7 +34,8 @@ required_files = [
 
 all_exist = True
 for file_path in required_files:
-    if os.path.exists(file_path):
+    abs_path = os.path.join(PROJECT_ROOT, file_path)
+    if os.path.exists(abs_path):
         print(f"✅ {file_path}")
     else:
         print(f"❌ {file_path} - 不存在")

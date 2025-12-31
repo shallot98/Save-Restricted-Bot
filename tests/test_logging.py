@@ -3,6 +3,13 @@
 日志系统测试脚本
 用于验证日志配置是否正常工作
 """
+import os
+import sys
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from bot.utils.logger import setup_logging, get_logger
 
 # 初始化日志系统

@@ -4,6 +4,12 @@ Test script for peer cache preload and delayed loading mechanism
 """
 import time
 import sys
+import os
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from bot.utils.peer import (
     is_dest_cached, mark_dest_cached, mark_peer_failed, 
     should_retry_peer, get_failed_peers, RETRY_COOLDOWN,
