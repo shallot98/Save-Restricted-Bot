@@ -5,7 +5,7 @@ Test main.py syntax and imports without actually starting the bot
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 def test_imports():
     """Test all imports"""

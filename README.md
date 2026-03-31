@@ -26,6 +26,7 @@ git pull  # Your config and data will be preserved automatically
 - [🚀 快速开始 (Quick Start)](QUICKSTART.md) - 3分钟快速部署
 - [⚙️ 详细设置指南 (Setup Guide)](SETUP_GUIDE.md) - 完整配置教程
 - [📝 使用示例 (Usage Examples)](USAGE_EXAMPLES.md) - 各种使用场景
+- [📊 性能测试 (Performance Testing)](PERFORMANCE_TESTING_SUMMARY.md) - 性能测试套件
 - [🇨🇳 完整中文文档 (Full Chinese Docs)](README.zh-CN.md)
 - [🇬🇧 English Documentation](#english-documentation)
 - [🇨🇳 中文文档](#中文文档)
