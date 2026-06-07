@@ -23,6 +23,8 @@ services:
       - QBT_URL=http://qbittorrent:8080
       - QBT_USERNAME=admin
       - QBT_PASSWORD=admin123
+      - QBT_DOWNLOAD_PATH=/downloads
+      - QBT_DOWNLOAD_CATEGORY=notes
     volumes:
       - ./downloads:/app/downloads
       - ./data:/app/data
@@ -69,6 +71,8 @@ services:
       - QBT_URL=http://qbittorrent:8080
       - QBT_USERNAME=admin
       - QBT_PASSWORD=admin123
+      - QBT_DOWNLOAD_PATH=/downloads
+      - QBT_DOWNLOAD_CATEGORY=notes
     volumes:
       - ./downloads:/app/downloads
       - ./data:/app/data

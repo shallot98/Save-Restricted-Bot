@@ -7,6 +7,7 @@ SQLite 持久化存储（v2）
 from __future__ import annotations
 
 import os
+import json
 import logging
 import sqlite3
 import threading
@@ -19,6 +20,53 @@ from src.infrastructure.monitoring.core.metrics import Metric
 logger = logging.getLogger(__name__)
 
 _sqlite_store2: Optional["SQLiteStore2"] = None
+
+
+def _metrics_recent_query(
+    *,
+    limit: int,
+    name: Optional[str],
+    since_epoch: Optional[float],
+) -> tuple[str, List[Any]]:
+    clauses: List[str] = []
+    params: List[Any] = []
+
+    if name:
+        clauses.append("name = ?")
+        params.append(name)
+    if since_epoch is not None:
+        clauses.append("ts_epoch >= ?")
+        params.append(float(since_epoch))
+
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+        SELECT ts_epoch, name, metric_type, value, tags_json, metadata_json
+        FROM metrics
+        {where}
+        ORDER BY ts_epoch DESC
+        LIMIT ?
+    """
+    params.append(limit)
+    return sql, params
+
+
+def _json_object(value: Any) -> Dict[str, Any]:
+    try:
+        data = json.loads(value or "{}")
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _metric_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
+    return {
+        "ts_epoch": float(row["ts_epoch"]),
+        "name": row["name"],
+        "metric_type": row["metric_type"],
+        "value": float(row["value"]),
+        "tags": _json_object(row["tags_json"]),
+        "metadata": _json_object(row["metadata_json"]),
+    }
 
 
 def _env_int(key: str, default: int) -> int:
@@ -119,54 +167,12 @@ class SQLiteStore2:
         name: Optional[str] = None,
         since_epoch: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
-        import json
-
         limit = max(int(limit), 1)
-        clauses: List[str] = []
-        params: List[Any] = []
-
-        if name:
-            clauses.append("name = ?")
-            params.append(name)
-        if since_epoch is not None:
-            clauses.append("ts_epoch >= ?")
-            params.append(float(since_epoch))
-
-        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
-        sql = f"""
-            SELECT ts_epoch, name, metric_type, value, tags_json, metadata_json
-            FROM metrics
-            {where}
-            ORDER BY ts_epoch DESC
-            LIMIT ?
-        """
-        params.append(limit)
-
+        sql, params = _metrics_recent_query(limit=limit, name=name, since_epoch=since_epoch)
         with self._lock:
             with self._connect() as conn:
                 rows = conn.execute(sql, params).fetchall()
-
-        items: List[Dict[str, Any]] = []
-        for row in rows:
-            try:
-                tags = json.loads(row["tags_json"] or "{}")
-            except Exception:
-                tags = {}
-            try:
-                metadata = json.loads(row["metadata_json"] or "{}")
-            except Exception:
-                metadata = {}
-            items.append(
-                {
-                    "ts_epoch": float(row["ts_epoch"]),
-                    "name": row["name"],
-                    "metric_type": row["metric_type"],
-                    "value": float(row["value"]),
-                    "tags": tags,
-                    "metadata": metadata,
-                }
-            )
-        return items
+        return [_metric_row_to_dict(row) for row in rows]
 
     def cleanup(self, *, retention_days: Optional[int] = None) -> None:
         retention_days = retention_days if retention_days is not None else _env_int("MONITORING_DB_RETENTION_DAYS", 30)

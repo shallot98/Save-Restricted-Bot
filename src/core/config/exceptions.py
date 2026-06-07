@@ -26,7 +26,8 @@ class ConfigValidationError(ValueError):
         field_name: str,
         current_value: Any,
         expected_format: str,
-        message: Optional[str] = None
+        *legacy_message: Optional[str],
+        message: Optional[str] = None,
     ):
         """
         初始化配置验证错误
@@ -37,6 +38,13 @@ class ConfigValidationError(ValueError):
             expected_format: 期望的格式或类型描述
             message: 自定义错误消息（可选）
         """
+        if len(legacy_message) > 1:
+            raise TypeError("ConfigValidationError accepts at most one legacy message argument")
+        if legacy_message and message is not None:
+            raise TypeError("ConfigValidationError received duplicate message values")
+        if legacy_message:
+            message = legacy_message[0]
+
         self.field_name = field_name
         self.current_value = current_value
         self.expected_format = expected_format

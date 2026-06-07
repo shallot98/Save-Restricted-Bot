@@ -7,6 +7,9 @@ Callback handlers package - 回调处理器包
 from .base import CallbackHandler
 from .menu_handler import MenuCallbackHandler
 from .watch_handler import WatchCallbackHandler
+from .script_handler import ScriptCallbackHandler
+from .signin_handler import SigninCallbackHandler
+from .history_copy_handler import HistoryCopyCallbackHandler
 from .filter_handler import FilterCallbackHandler
 from .edit_handler import EditCallbackHandler
 from .mode_handler import ModeCallbackHandler
@@ -15,6 +18,9 @@ __all__ = [
     'CallbackHandler',
     'MenuCallbackHandler',
     'WatchCallbackHandler',
+    'ScriptCallbackHandler',
+    'SigninCallbackHandler',
+    'HistoryCopyCallbackHandler',
     'FilterCallbackHandler',
     'EditCallbackHandler',
     'ModeCallbackHandler',

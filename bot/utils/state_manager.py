@@ -14,9 +14,10 @@
 import time
 import threading
 import logging
-from collections.abc import MutableMapping, Iterator
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
+
+from bot.utils.user_states_proxy import UserStatesProxy
 
 logger = logging.getLogger(__name__)
 
@@ -257,98 +258,5 @@ def get_state_manager() -> UserStateManager:
     return _state_manager
 
 
-# 向后兼容的全局变量代理
-class _UserStatesProxy:
-    """user_states 全局变量的代理类
-
-    提供向后兼容的字典接口，内部使用 UserStateManager
-    """
-
-    class _UserStateDataView(MutableMapping[str, Any]):
-        """单用户状态的可变视图。
-
-        目的：兼容历史写法 `user_states[user_id]["k"] = v`，同时确保：
-        - 线程安全（所有读写持锁）
-        - 任何写操作都会更新 `updated_at`，避免 TTL 清理误删
-        """
-
-        def __init__(self, manager: UserStateManager, user_id: str) -> None:
-            self._manager = manager
-            self._user_id = user_id
-
-        def _get_or_create_state_locked(self) -> UserState:
-            state = self._manager._states.get(self._user_id)
-            if state is None or state.is_expired(self._manager._ttl_seconds):
-                if state is not None:
-                    del self._manager._states[self._user_id]
-                self._manager._enforce_max_states()
-                state = UserState()
-                self._manager._states[self._user_id] = state
-            return state
-
-        def __getitem__(self, key: str) -> Any:
-            with self._manager._lock:
-                self._manager._maybe_cleanup()
-                state = self._get_or_create_state_locked()
-                return state.data[key]
-
-        def __setitem__(self, key: str, value: Any) -> None:
-            with self._manager._lock:
-                self._manager._maybe_cleanup()
-                state = self._get_or_create_state_locked()
-                state.data[key] = value
-                state.updated_at = time.time()
-
-        def __delitem__(self, key: str) -> None:
-            with self._manager._lock:
-                self._manager._maybe_cleanup()
-                state = self._get_or_create_state_locked()
-                del state.data[key]
-                state.updated_at = time.time()
-
-        def __iter__(self) -> Iterator[str]:
-            with self._manager._lock:
-                self._manager._maybe_cleanup()
-                state = self._get_or_create_state_locked()
-                return iter(list(state.data.keys()))
-
-        def __len__(self) -> int:
-            with self._manager._lock:
-                self._manager._maybe_cleanup()
-                state = self._get_or_create_state_locked()
-                return len(state.data)
-
-        def clear(self) -> None:
-            with self._manager._lock:
-                self._manager._maybe_cleanup()
-                state = self._get_or_create_state_locked()
-                state.data.clear()
-                state.updated_at = time.time()
-
-        def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
-            with self._manager._lock:
-                self._manager._maybe_cleanup()
-                state = self._get_or_create_state_locked()
-                state.data.update(*args, **kwargs)
-                state.updated_at = time.time()
-
-    def __getitem__(self, user_id: str) -> MutableMapping[str, Any]:
-        manager = get_state_manager()
-        return self._UserStateDataView(manager, user_id)
-
-    def __setitem__(self, user_id: str, data: Dict[str, Any]) -> None:
-        get_state_manager().set(user_id, data)
-
-    def __delitem__(self, user_id: str) -> None:
-        get_state_manager().clear(user_id)
-
-    def __contains__(self, user_id: str) -> bool:
-        return get_state_manager().exists(user_id)
-
-    def get(self, user_id: str, default: Any = None) -> Any:
-        state = get_state_manager().get(user_id)
-        return state if state else default
-
-
 # 向后兼容的全局变量
-user_states = _UserStatesProxy()
+user_states = UserStatesProxy(get_state_manager, UserState, lambda: time.time())

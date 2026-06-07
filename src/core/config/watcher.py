@@ -45,7 +45,8 @@ class ConfigWatcher(FileSystemEventHandler):
         watch_dir: Path,
         watch_files: Set[str],
         on_change: Callable[[Path], None],
-        debounce_seconds: float = 1.0
+        *legacy_debounce_seconds: float,
+        debounce_seconds: float = 1.0,
     ):
         """
         初始化配置文件监控器
@@ -57,6 +58,13 @@ class ConfigWatcher(FileSystemEventHandler):
             debounce_seconds: 防抖时间（秒），默认1秒
         """
         super().__init__()
+        if len(legacy_debounce_seconds) > 1:
+            raise TypeError("ConfigWatcher accepts at most one legacy debounce_seconds argument")
+        if legacy_debounce_seconds:
+            if debounce_seconds != 1.0:
+                raise TypeError("ConfigWatcher received duplicate debounce_seconds values")
+            debounce_seconds = legacy_debounce_seconds[0]
+
         self.watch_dir = watch_dir
         self.watch_files = watch_files
         self.on_change = on_change

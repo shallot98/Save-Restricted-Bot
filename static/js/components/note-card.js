@@ -12,6 +12,11 @@ document.addEventListener('alpine:init', () => {
         calibrateStatusText: '',
         calibrateElapsedSec: 0,
         _calibrateAbortController: null,
+        downloadStatus: null,
+        downloadProgress: 0,
+        downloadInfoHash: null,
+        _downloadPollTimer: null,
+        _isPollingDownload: false,
         dnCount: config.dnCount || 0,
         mediaPaths: config.mediaPaths || [],
         viewerUrl: config.viewerUrl || '',
@@ -263,6 +268,166 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        getDownloadableMagnets() {
+            return Array.isArray(this.dns) ? this.dns.filter((d) => d && (d.magnet || d.info_hash)) : [];
+        },
+
+        getDownloadButtonText() {
+            const status = this.downloadStatus;
+            if (status === 'pending') return '准备下载...';
+            if (status === 'downloading') {
+                const raw = Number.isFinite(this.downloadProgress) ? this.downloadProgress : 0;
+                const pct = Math.max(0, Math.min(100, Math.floor(raw * 100)));
+                return pct > 0 ? `下载中 ${pct}%` : '下载中...';
+            }
+            if (status === 'done') return '已完成';
+            if (status === 'error') return '下载失败';
+            const count = this.getDownloadableMagnets().length;
+            return count > 1 ? `下载(${count})` : '下载';
+        },
+
+        async download(magnetIndex = null) {
+            const magnets = this.getDownloadableMagnets();
+            if (magnets.length === 0) return;
+            if (magnets.length > 1 && (magnetIndex === null || magnetIndex === undefined)) {
+                this.showDownloadOptions();
+                return;
+            }
+
+            if (this._downloadPollTimer) {
+                clearTimeout(this._downloadPollTimer);
+                this._downloadPollTimer = null;
+            }
+            this._isPollingDownload = false;
+
+            const idx = Number.isFinite(Number(magnetIndex)) ? parseInt(String(magnetIndex), 10) : 0;
+
+            this.downloadStatus = 'pending';
+            this.downloadProgress = 0;
+            this.downloadInfoHash = null;
+
+            try {
+                const response = await NetworkManager.fetchWithRetry(`/api/download/${this.id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ magnet_index: idx })
+                });
+                const data = await response.json();
+
+                if (!response.ok || !data || !data.success) {
+                    throw new Error((data && data.error) || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const infoHash = data.info_hash;
+                if (!infoHash) throw new Error('服务器未返回 info_hash');
+
+                this.downloadInfoHash = String(infoHash);
+                this.downloadStatus = data.status || 'pending';
+                this.downloadProgress = typeof data.progress === 'number' ? data.progress : 0;
+
+                this.pollDownloadStatus();
+            } catch (error) {
+                console.error('添加下载任务失败:', error);
+                this.downloadStatus = 'error';
+                alert('下载任务添加失败: ' + (error && error.message ? error.message : '未知错误'));
+            }
+        },
+
+        pollDownloadStatus() {
+            const infoHash = this.downloadInfoHash;
+            if (!infoHash) return;
+
+            if (this._downloadPollTimer) {
+                clearTimeout(this._downloadPollTimer);
+                this._downloadPollTimer = null;
+            }
+
+            const startAt = Date.now();
+            const pollOnce = async () => {
+                if (!this.downloadInfoHash || this.downloadInfoHash !== infoHash) return;
+                if (Date.now() - startAt > 60 * 60 * 1000) {
+                    this.downloadStatus = 'error';
+                    alert('下载状态查询超时，请稍后手动确认');
+                    return;
+                }
+
+                if (this._isPollingDownload) {
+                    this._downloadPollTimer = setTimeout(pollOnce, 1500);
+                    return;
+                }
+
+                this._isPollingDownload = true;
+                try {
+                    const response = await NetworkManager.fetchWithRetry(`/api/download/status/${encodeURIComponent(infoHash)}`, {
+                        method: 'GET'
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok || !data || !data.success) {
+                        throw new Error((data && data.error) || `HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    this.downloadStatus = data.status || 'pending';
+                    this.downloadProgress = typeof data.progress === 'number' ? data.progress : 0;
+
+                    if (this.downloadStatus === 'done') {
+                        this.downloadProgress = 1;
+                        return;
+                    }
+                    if (this.downloadStatus === 'error') {
+                        alert('下载失败，请检查 qBittorrent 状态');
+                        return;
+                    }
+                } catch (error) {
+                    console.error('查询下载状态失败:', error);
+                    this.downloadStatus = 'error';
+                    alert('查询下载状态失败: ' + (error && error.message ? error.message : '未知错误'));
+                    return;
+                } finally {
+                    this._isPollingDownload = false;
+                }
+
+                this._downloadPollTimer = setTimeout(pollOnce, 1500);
+            };
+
+            pollOnce();
+        },
+
+        showDownloadOptions() {
+            const modal = document.getElementById('watchModal');
+            const optionsList = document.getElementById('watchOptionsList');
+            if (!modal || !optionsList) return;
+
+            const titleEl = modal.querySelector('h3');
+            if (titleEl) titleEl.textContent = '选择要下载的文件';
+
+            const magnets = this.getDownloadableMagnets();
+            optionsList.innerHTML = '';
+
+            magnets.forEach((item, index) => {
+                const dn = item && item.dn ? String(item.dn) : '';
+                const hash = item && item.info_hash ? String(item.info_hash) : '';
+                const label = dn || (hash ? `Hash: ${hash.substring(0, 16)}...` : `磁力链接 ${index + 1}`);
+
+                const option = document.createElement('button');
+                option.type = 'button';
+                option.className = 'w-full text-left block p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition';
+                option.textContent = label;
+                option.addEventListener('click', () => {
+                    if (typeof window.closeWatchModal === 'function') window.closeWatchModal();
+                    else {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                    }
+                    this.download(index);
+                });
+                optionsList.appendChild(option);
+            });
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        },
+
         // Edit note
         edit() {
             if (typeof window.editNote === 'function') {
@@ -283,6 +448,9 @@ document.addEventListener('alpine:init', () => {
             const modal = document.getElementById('watchModal');
             const optionsList = document.getElementById('watchOptionsList');
             if (!modal || !optionsList) return;
+
+            const titleEl = modal.querySelector('h3');
+            if (titleEl) titleEl.textContent = '选择要观看的文件';
 
             const validDns = this.getValidDns();
             optionsList.innerHTML = '';

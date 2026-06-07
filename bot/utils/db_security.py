@@ -4,29 +4,39 @@
 """
 import sqlite3
 import logging
+from dataclasses import dataclass
 from typing import List, Tuple, Any, Optional
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class NoteInsertRequest:
+    user_id: int
+    source_chat_id: str
+    message_text: str
+    media_type: Optional[str] = None
+    media_path: Optional[str] = None
+
+
 class SecureDatabase:
     """安全的数据库访问类"""
-    
+
     def __init__(self, db_path: str):
         """
         初始化数据库连接
-        
+
         Args:
             db_path: 数据库文件路径
         """
         self.db_path = db_path
-    
+
     @contextmanager
     def get_connection(self):
         """
         获取数据库连接的上下文管理器
-        
+
         Yields:
             sqlite3.Connection: 数据库连接对象
         """
@@ -50,15 +60,15 @@ class SecureDatabase:
         finally:
             if conn:
                 conn.close()
-    
+
     def execute_query(self, query: str, params: Tuple = ()) -> List[sqlite3.Row]:
         """
         执行查询并返回结果
-        
+
         Args:
             query: SQL 查询语句（使用 ? 占位符）
             params: 查询参数元组
-            
+
         Returns:
             List[sqlite3.Row]: 查询结果列表
         """
@@ -66,15 +76,15 @@ class SecureDatabase:
             cursor = conn.cursor()
             cursor.execute(query, params)
             return cursor.fetchall()
-    
+
     def execute_update(self, query: str, params: Tuple = ()) -> int:
         """
         执行更新操作
-        
+
         Args:
             query: SQL 更新语句（使用 ? 占位符）
             params: 更新参数元组
-            
+
         Returns:
             int: 受影响的行数
         """
@@ -82,15 +92,15 @@ class SecureDatabase:
             cursor = conn.cursor()
             cursor.execute(query, params)
             return cursor.rowcount
-    
+
     def execute_insert(self, query: str, params: Tuple = ()) -> int:
         """
         执行插入操作
-        
+
         Args:
             query: SQL 插入语句（使用 ? 占位符）
             params: 插入参数元组
-            
+
         Returns:
             int: 新插入行的 ID
         """
@@ -98,15 +108,15 @@ class SecureDatabase:
             cursor = conn.cursor()
             cursor.execute(query, params)
             return cursor.lastrowid
-    
+
     def execute_many(self, query: str, params_list: List[Tuple]) -> int:
         """
         批量执行操作
-        
+
         Args:
             query: SQL 语句（使用 ? 占位符）
             params_list: 参数元组列表
-            
+
         Returns:
             int: 受影响的总行数
         """
@@ -119,115 +129,168 @@ class SecureDatabase:
 # 安全查询示例
 class NotesRepository:
     """笔记数据访问对象（DAO）"""
-    
+
     def __init__(self, db: SecureDatabase):
         self.db = db
-    
+
     def get_notes_by_user(self, user_id: int, limit: int = 50, offset: int = 0) -> List[sqlite3.Row]:
         """
         获取用户的笔记列表（安全的参数化查询）
-        
+
         Args:
             user_id: 用户 ID
             limit: 返回数量限制
             offset: 偏移量
-            
+
         Returns:
             List[sqlite3.Row]: 笔记列表
         """
         query = """
-            SELECT * FROM notes 
-            WHERE user_id = ? 
-            ORDER BY timestamp DESC 
+            SELECT * FROM notes
+            WHERE user_id = ?
+            ORDER BY timestamp DESC
             LIMIT ? OFFSET ?
         """
         return self.db.execute_query(query, (user_id, limit, offset))
-    
+
     def search_notes(self, user_id: int, search_term: str, limit: int = 50) -> List[sqlite3.Row]:
         """
         搜索笔记（安全的 LIKE 查询）
-        
+
         Args:
             user_id: 用户 ID
             search_term: 搜索关键词
             limit: 返回数量限制
-            
+
         Returns:
             List[sqlite3.Row]: 匹配的笔记列表
         """
         query = """
-            SELECT * FROM notes 
-            WHERE user_id = ? AND message_text LIKE ? 
-            ORDER BY timestamp DESC 
+            SELECT * FROM notes
+            WHERE user_id = ? AND message_text LIKE ?
+            ORDER BY timestamp DESC
             LIMIT ?
         """
         # 安全地处理 LIKE 查询
         search_pattern = f"%{search_term}%"
         return self.db.execute_query(query, (user_id, search_pattern, limit))
-    
+
     def get_note_by_id(self, note_id: int, user_id: int) -> Optional[sqlite3.Row]:
         """
         根据 ID 获取笔记（带权限检查）
-        
+
         Args:
             note_id: 笔记 ID
             user_id: 用户 ID
-            
+
         Returns:
             Optional[sqlite3.Row]: 笔记对象或 None
         """
         query = "SELECT * FROM notes WHERE id = ? AND user_id = ?"
         results = self.db.execute_query(query, (note_id, user_id))
         return results[0] if results else None
-    
+
     def update_note(self, note_id: int, user_id: int, message_text: str) -> bool:
         """
         更新笔记内容（带权限检查）
-        
+
         Args:
             note_id: 笔记 ID
             user_id: 用户 ID
             message_text: 新的笔记内容
-            
+
         Returns:
             bool: 是否更新成功
         """
         query = "UPDATE notes SET message_text = ? WHERE id = ? AND user_id = ?"
         rows_affected = self.db.execute_update(query, (message_text, note_id, user_id))
         return rows_affected > 0
-    
+
     def delete_note(self, note_id: int, user_id: int) -> bool:
         """
         删除笔记（带权限检查）
-        
+
         Args:
             note_id: 笔记 ID
             user_id: 用户 ID
-            
+
         Returns:
             bool: 是否删除成功
         """
         query = "DELETE FROM notes WHERE id = ? AND user_id = ?"
         rows_affected = self.db.execute_update(query, (note_id, user_id))
         return rows_affected > 0
-    
-    def insert_note(self, user_id: int, source_chat_id: str, message_text: str, 
-                   media_type: Optional[str] = None, media_path: Optional[str] = None) -> int:
+
+    def insert_note(
+        self,
+        user_id: int | NoteInsertRequest,
+        source_chat_id: Optional[str] = None,
+        message_text: Optional[str] = None,
+        *legacy_args: Optional[str],
+        media_type: Optional[str] = None,
+        media_path: Optional[str] = None,
+    ) -> int:
         """
         插入新笔记
-        
+
         Args:
             user_id: 用户 ID
             source_chat_id: 来源聊天 ID
             message_text: 笔记内容
             media_type: 媒体类型
             media_path: 媒体路径
-            
+
         Returns:
             int: 新插入笔记的 ID
         """
+        request = _note_insert_request(
+            user_id,
+            legacy_args,
+            source_chat_id=source_chat_id,
+            message_text=message_text,
+            media_type=media_type,
+            media_path=media_path,
+        )
         query = """
             INSERT INTO notes (user_id, source_chat_id, message_text, media_type, media_path)
             VALUES (?, ?, ?, ?, ?)
         """
-        return self.db.execute_insert(query, (user_id, source_chat_id, message_text, media_type, media_path))
+        return self.db.execute_insert(
+            query,
+            (
+                request.user_id,
+                request.source_chat_id,
+                request.message_text,
+                request.media_type,
+                request.media_path,
+            ),
+        )
+
+
+def _note_insert_request(
+    user_id: int | NoteInsertRequest,
+    legacy_args: tuple[Optional[str], ...],
+    *,
+    source_chat_id: Optional[str],
+    message_text: Optional[str],
+    media_type: Optional[str],
+    media_path: Optional[str],
+) -> NoteInsertRequest:
+    if isinstance(user_id, NoteInsertRequest):
+        if source_chat_id is not None or message_text is not None or legacy_args:
+            raise TypeError("insert_note received both request and legacy positional fields")
+        if media_type is not None or media_path is not None:
+            raise TypeError("insert_note received both request and legacy keyword fields")
+        return user_id
+
+    if len(legacy_args) > 2:
+        raise TypeError("insert_note accepts at most 5 legacy positional arguments")
+    if legacy_args:
+        if media_type is not None or media_path is not None:
+            raise TypeError("insert_note received duplicate media fields")
+        media_type = legacy_args[0]
+        media_path = legacy_args[1] if len(legacy_args) > 1 else None
+
+    if source_chat_id is None or message_text is None:
+        raise TypeError("insert_note requires source_chat_id and message_text")
+    return NoteInsertRequest(user_id, source_chat_id, message_text, media_type, media_path)

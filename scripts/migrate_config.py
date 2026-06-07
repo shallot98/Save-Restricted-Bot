@@ -25,6 +25,15 @@ from src.core.config import settings
 from src.core.config.loader import ConfigLoader
 
 
+def _config_paths() -> list[Path]:
+    return [
+        settings.paths.config_file,
+        settings.paths.watch_file,
+        settings.paths.webdav_file,
+        settings.paths.viewer_file,
+    ]
+
+
 def check_config_files() -> dict:
     """
     检查配置文件状态
@@ -65,16 +74,8 @@ def backup_configs(backup_dir: Path) -> bool:
 
         print(f"\n💾 备份配置文件到: {backup_path}")
 
-        # 备份所有配置文件
-        config_files = [
-            settings.paths.config_file,
-            settings.paths.watch_file,
-            settings.paths.webdav_file,
-            settings.paths.viewer_file,
-        ]
-
         backed_up = 0
-        for config_file in config_files:
+        for config_file in _config_paths():
             if config_file.exists():
                 dest = backup_path / config_file.name
                 shutil.copy2(config_file, dest)
@@ -126,53 +127,12 @@ def migrate_configs(dry_run: bool = False) -> bool:
 
     try:
         loader = ConfigLoader()
-
-        # 验证所有配置文件
-        print("\n📝 验证配置文件格式:")
-        all_valid = True
-        for file_path in [settings.paths.config_file, settings.paths.watch_file,
-                          settings.paths.webdav_file, settings.paths.viewer_file]:
-            valid, message = validate_config_format(file_path)
-            status_icon = "✅" if valid else "❌"
-            print(f"  {status_icon} {file_path.name}: {message}")
-            if not valid:
-                all_valid = False
-
-        if not all_valid:
+        if not _validate_all_config_formats():
             print("\n❌ 配置文件格式验证失败，请修复后重试")
             return False
 
-        # 加载并验证配置
-        print("\n🔄 加载配置:")
-        print("  ⏳ 加载主配置...")
-        main_config = loader.load_and_validate(
-            settings._main_config.__class__,
-            file_path=settings.paths.config_file,
-            env_prefix=""
-        )
-        print(f"  ✅ 主配置加载成功 (TOKEN: {'已设置' if main_config.TOKEN else '未设置'})")
-
-        print("  ⏳ 加载WebDAV配置...")
-        webdav_config = loader.load_and_validate(
-            settings._webdav_config.__class__,
-            file_path=settings.paths.webdav_file,
-            env_prefix="WEBDAV_"
-        )
-        print(f"  ✅ WebDAV配置加载成功 (enabled: {webdav_config.enabled})")
-
-        print("  ⏳ 加载查看器配置...")
-        viewer_config = loader.load_and_validate(
-            settings._viewer_config.__class__,
-            file_path=settings.paths.viewer_file,
-            env_prefix="VIEWER_"
-        )
-        print(f"  ✅ 查看器配置加载成功")
-
-        if not dry_run:
-            print("\n💾 保存配置:")
-            # 配置已经通过验证，无需额外操作
-            # Settings类会自动使用新的加载机制
-            print("  ✅ 配置已迁移到新管理器")
+        _load_configs_for_migration(loader)
+        _print_save_step(dry_run)
 
         print("\n✅ 配置迁移完成！")
         return True
@@ -184,8 +144,65 @@ def migrate_configs(dry_run: bool = False) -> bool:
         return False
 
 
-def main():
-    """主函数"""
+def _validate_all_config_formats() -> bool:
+    print("\n📝 验证配置文件格式:")
+    all_valid = True
+    for file_path in _config_paths():
+        valid, message = validate_config_format(file_path)
+        status_icon = "✅" if valid else "❌"
+        print(f"  {status_icon} {file_path.name}: {message}")
+        if not valid:
+            all_valid = False
+    return all_valid
+
+
+def _load_configs_for_migration(loader: ConfigLoader) -> None:
+    print("\n🔄 加载配置:")
+    main_config = _load_config_model(
+        loader,
+        label="主配置",
+        config_class=settings._main_config.__class__,
+        file_path=settings.paths.config_file,
+        env_prefix="",
+    )
+    print(f"  ✅ 主配置加载成功 (TOKEN: {'已设置' if main_config.TOKEN else '未设置'})")
+
+    webdav_config = _load_config_model(
+        loader,
+        label="WebDAV配置",
+        config_class=settings._webdav_config.__class__,
+        file_path=settings.paths.webdav_file,
+        env_prefix="WEBDAV_",
+    )
+    print(f"  ✅ WebDAV配置加载成功 (enabled: {webdav_config.enabled})")
+
+    _load_config_model(
+        loader,
+        label="查看器配置",
+        config_class=settings._viewer_config.__class__,
+        file_path=settings.paths.viewer_file,
+        env_prefix="VIEWER_",
+    )
+    print("  ✅ 查看器配置加载成功")
+
+
+def _load_config_model(loader: ConfigLoader, *, label: str, config_class, file_path: Path, env_prefix: str):
+    print(f"  ⏳ 加载{label}...")
+    return loader.load_and_validate(
+        config_class,
+        file_path=file_path,
+        env_prefix=env_prefix
+    )
+
+
+def _print_save_step(dry_run: bool) -> None:
+    if dry_run:
+        return
+    print("\n💾 保存配置:")
+    print("  ✅ 配置已迁移到新管理器")
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="配置迁移脚本 - 迁移配置到新的配置管理系统"
     )
@@ -205,27 +222,49 @@ def main():
         action='store_true',
         help='跳过备份步骤'
     )
+    return parser
+
+
+def main():
+    """主函数"""
+    parser = build_parser()
 
     args = parser.parse_args()
 
-    print("=" * 60)
-    print("配置迁移脚本")
-    print("=" * 60)
+    _print_header()
 
     # 检查配置文件
     check_config_files()
 
     # 备份配置（除非是dry-run或明确跳过）
-    if not args.dry_run and not args.no_backup:
-        if not backup_configs(args.backup_dir):
-            print("\n⚠️  备份失败，是否继续？(y/N): ", end='')
-            if input().lower() != 'y':
-                print("❌ 迁移已取消")
-                return 1
+    if not _confirm_backup_if_needed(args):
+        return 1
 
     # 执行迁移
     success = migrate_configs(dry_run=args.dry_run)
+    return _exit_code_for_result(success, args)
 
+
+def _print_header() -> None:
+    print("=" * 60)
+    print("配置迁移脚本")
+    print("=" * 60)
+
+
+def _confirm_backup_if_needed(args) -> bool:
+    if args.dry_run or args.no_backup:
+        return True
+    if backup_configs(args.backup_dir):
+        return True
+
+    print("\n⚠️  备份失败，是否继续？(y/N): ", end='')
+    if input().lower() == 'y':
+        return True
+    print("❌ 迁移已取消")
+    return False
+
+
+def _exit_code_for_result(success: bool, args) -> int:
     if success:
         if args.dry_run:
             print("\n✅ 预览完成，配置文件格式正确")

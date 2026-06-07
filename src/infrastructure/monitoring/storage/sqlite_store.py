@@ -10,12 +10,23 @@ import os
 import sqlite3
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Optional
 
 from src.core.config import settings
 from src.infrastructure.monitoring.core.metrics import Metric
 
 _sqlite_store: Optional["SQLiteStore"] = None
+
+
+@dataclass(frozen=True)
+class ErrorRecord:
+    fingerprint: str
+    error_type: str
+    message: str
+    stacktrace: str
+    context: Dict[str, Any]
+    at_epoch: Optional[float] = None
 
 
 def _env_int(key: str, default: int) -> int:
@@ -142,17 +153,13 @@ class SQLiteStore:
 
     def insert_error(
         self,
-        *,
-        fingerprint: str,
-        error_type: str,
-        message: str,
-        stacktrace: str,
-        context: Dict[str, Any],
-        at_epoch: Optional[float] = None,
+        record: ErrorRecord | None = None,
+        **legacy_fields: Any,
     ) -> None:
         import json
 
-        ts_epoch = time.time() if at_epoch is None else float(at_epoch)
+        record = _error_record(record, legacy_fields)
+        ts_epoch = time.time() if record.at_epoch is None else float(record.at_epoch)
         with self._lock:
             with self._connect() as conn:
                 conn.execute(
@@ -162,11 +169,11 @@ class SQLiteStore:
                     """,
                     (
                         ts_epoch,
-                        fingerprint,
-                        error_type,
-                        message[:500],
-                        stacktrace[:2000],
-                        json.dumps(context, ensure_ascii=False, default=str),
+                        record.fingerprint,
+                        record.error_type,
+                        record.message[:500],
+                        record.stacktrace[:2000],
+                        json.dumps(record.context, ensure_ascii=False, default=str),
                     ),
                 )
 
@@ -187,3 +194,10 @@ def get_sqlite_store() -> SQLiteStore:
         _sqlite_store = SQLiteStore()
     return _sqlite_store
 
+
+def _error_record(record: ErrorRecord | None, legacy_fields: dict[str, Any]) -> ErrorRecord:
+    if record is not None:
+        if legacy_fields:
+            raise TypeError("insert_error received both record object and legacy fields")
+        return record
+    return ErrorRecord(**legacy_fields)

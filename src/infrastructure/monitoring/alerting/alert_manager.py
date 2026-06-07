@@ -47,7 +47,7 @@ def _env_str(key: str, default: str = "") -> str:
     return default if value is None else value.strip()
 
 
-def _fingerprint(level: str, title: str, message: str, details: Dict[str, Any]) -> str:
+def _fingerprint(level: str, title: str, message: str, *, details: Dict[str, Any]) -> str:
     payload = {
         "level": level,
         "title": title,
@@ -97,7 +97,7 @@ class AlertManager:
 
         details = details or {}
         alert = Alert(level=level, title=title, message=message, details=details)
-        fp = _fingerprint(alert.level, alert.title, alert.message, alert.details)
+        fp = _fingerprint(alert.level, alert.title, alert.message, details=alert.details)
 
         now = time.time()
         if self._is_suppressed(now_epoch=now, fingerprint=fp):
@@ -153,14 +153,14 @@ class AlertManager:
             chat_id = _env_str("ALERT_TELEGRAM_CHAT_ID", "")
 
             # 兼容：允许复用项目配置的 TOKEN / OWNER_ID
-                if (not token) or (not chat_id):
-                    try:
-                        from src.core.config import settings  # noqa: WPS433
+            if (not token) or (not chat_id):
+                try:
+                    from src.core.config import settings  # noqa: WPS433
 
-                        token = token or str(settings.get("TOKEN", "")).strip()
-                        chat_id = chat_id or str(settings.get("OWNER_ID", "")).strip()
-                    except Exception as e:
-                        logger.debug("读取项目配置以启用 Telegram 告警失败，已忽略: %s", e, exc_info=True)
+                    token = token or str(settings.get("TOKEN", "")).strip()
+                    chat_id = chat_id or str(settings.get("OWNER_ID", "")).strip()
+                except Exception as e:
+                    logger.debug("读取项目配置以启用 Telegram 告警失败，已忽略: %s", e, exc_info=True)
 
             if token and chat_id:
                 channels.append(TelegramChannel(bot_token=token, chat_id=chat_id))

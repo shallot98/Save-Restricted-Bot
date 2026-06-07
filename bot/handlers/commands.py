@@ -11,51 +11,97 @@ import logging
 
 # New architecture imports
 from src.core.container import get_watch_service
+from bot.services.history_copy_task_manager import get_history_copy_task_manager
+from bot.services.pt_pay_manager import get_pt_pay_monitor_manager
+from bot.services.signin_manager import get_scheduled_signin_manager
 
 logger = logging.getLogger(__name__)
 
 
 def register_command_handlers(bot, acc):
     """Register all command handlers"""
-    
+
     @bot.on_message(filters.command(["start"]))
     def send_start(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📋 监控管理", callback_data="menu_watch")],
-            [InlineKeyboardButton("❓ 帮助说明", callback_data="menu_help")],
-            [InlineKeyboardButton("🌐 源代码", url="https://github.com/bipinkrish/Save-Restricted-Bot")]
-        ])
-        
-        welcome_text = f"👋 你好 **{message.from_user.mention}**！\n\n"
-        welcome_text += "我是受限内容保存机器人，可以帮你：\n\n"
-        welcome_text += "📥 **转发消息** - 直接发送 Telegram 链接\n"
-        welcome_text += "👁 **监控频道/群组** - 自动转发新消息\n"
-        welcome_text += "🔍 **智能过滤** - 关键词、正则表达式过滤\n"
-        welcome_text += "🎯 **提取模式** - 提取特定内容转发\n\n"
-        welcome_text += "点击下方按钮开始使用 👇"
-        
-        bot.send_message(message.chat.id, welcome_text, reply_markup=keyboard, reply_to_message_id=message.id)
-    
+        bot.send_message(
+            message.chat.id,
+            _welcome_text(message),
+            reply_markup=_start_keyboard(),
+            reply_to_message_id=message.id,
+        )
+
     @bot.on_message(filters.command(["help"]))
     def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📋 监控管理", callback_data="menu_watch")],
-            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]
-        ])
-        
-        help_text = """**📖 使用帮助**
+        bot.send_message(
+            message.chat.id,
+            _help_text(),
+            reply_markup=_help_keyboard(),
+            reply_to_message_id=message.id,
+        )
+
+    @bot.on_message(filters.command(["watch"]))
+    def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+        if acc is None:
+            bot.send_message(
+                message.chat.id,
+                "**❌ 需要配置 String Session 才能使用监控功能**",
+                reply_markup=_main_menu_keyboard(),
+                reply_to_message_id=message.id,
+            )
+            return
+
+        show_watch_menu(message.chat.id, message.id)
+
+
+def _start_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 脚本管理", callback_data="menu_script")],
+        [InlineKeyboardButton("❓ 帮助说明", callback_data="menu_help")],
+        [InlineKeyboardButton("🌐 源代码", url="https://github.com/bipinkrish/Save-Restricted-Bot")],
+    ])
+
+
+def _welcome_text(message) -> str:
+    text = f"👋 你好 **{message.from_user.mention}**！\n\n"
+    text += "我是受限内容保存机器人，可以帮你：\n\n"
+    text += "📥 **转发消息** - 直接发送 Telegram 链接\n"
+    text += "🤖 **脚本模式** - 管理 PT 联动、定时签到和历史复制任务\n\n"
+    text += "点击下方按钮开始使用 👇"
+    return text
+
+
+def _help_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 脚本管理", callback_data="menu_script")],
+        [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")],
+    ])
+
+
+def _main_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]])
+
+
+def _help_text() -> str:
+    return """**📖 使用帮助**
 
 **📥 转发消息**
 直接发送 Telegram 消息链接即可转发内容
 
-**📋 监控功能**
-• 点击"监控管理"按钮设置自动转发
-• 支持监控频道和群组
-• 支持关键词过滤（白名单/黑名单）
-• 支持正则表达式过滤
-• 支持提取模式（正则提取特定内容）
-• 可选择是否保留转发来源
-• 可随时编辑监控设置
+**🤖 脚本联动**
+• 监控指定群聊中至少两行 `PT-xx`
+• 自动按顺序向目标对象发送 `/pay`
+• 命中“成功”关键字后自动停止
+• 支持在菜单中手动启停
+
+**🕒 定时签到**
+• 向指定群聊/频道定时发送固定消息
+• 支持自定义消息内容和发送间隔
+• 适合给群内用户（如“司机人”）周期发送签到提醒
+
+**📚 历史复制**
+• 按来源 chat 历史顺序复制到目标群聊/频道
+• 支持全部历史或最近 N 条
+• 内置断点续传与风控保护
 
 **🔗 链接格式**
 
@@ -73,22 +119,9 @@ def register_command_handlers(bot, acc):
 
 **💡 提示**
 • 私有频道需要配置 String Session
-• 可以使用"me"作为目标保存到收藏夹
-• 关键词过滤不区分大小写
-• 正则表达式支持完整的 Python re 语法
-• 提取模式会将匹配的内容单独发送
+• 转发功能保持不变，直接发送 Telegram 链接即可
 • 所有操作都可通过按钮完成，无需记忆复杂命令
 """
-        bot.send_message(message.chat.id, help_text, reply_markup=keyboard, reply_to_message_id=message.id)
-    
-    @bot.on_message(filters.command(["watch"]))
-    def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
-        if acc is None:
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]])
-            bot.send_message(message.chat.id, "**❌ 需要配置 String Session 才能使用监控功能**", reply_markup=keyboard, reply_to_message_id=message.id)
-            return
-        
-        show_watch_menu(message.chat.id, message.id)
 
 
 def show_watch_menu(chat_id, reply_to_message_id=None):
@@ -100,21 +133,54 @@ def show_watch_menu(chat_id, reply_to_message_id=None):
     watch_service = get_watch_service()
     watch_config = watch_service.get_all_configs_dict()
     user_id = str(chat_id)
-    
+
     watch_count = len(watch_config.get(user_id, {}))
-    
+
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ 添加监控", callback_data="watch_add_start")],
         [InlineKeyboardButton(f"📋 查看列表 ({watch_count})", callback_data="watch_list")],
         [InlineKeyboardButton("🗑 删除监控", callback_data="watch_remove_start")],
+        [InlineKeyboardButton("🤖 脚本管理", callback_data="menu_script")],
         [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]
     ])
-    
+
     text = "**📋 监控管理**\n\n"
     text += "选择操作：\n\n"
     text += "➕ **添加监控** - 设置新的自动转发任务\n"
     text += "📋 **查看列表** - 查看所有监控任务\n"
     text += "🗑 **删除监控** - 移除现有监控任务\n\n"
     text += f"当前监控任务数：**{watch_count}** 个"
-    
+
+    bot.send_message(chat_id, text, reply_markup=keyboard, reply_to_message_id=reply_to_message_id)
+
+
+def show_script_menu(chat_id, reply_to_message_id=None):
+    """Show script type overview menu."""
+    from bot.handlers import get_bot_instance
+    bot = get_bot_instance()
+
+    user_id = str(chat_id)
+    pt_manager = get_pt_pay_monitor_manager()
+    signin_manager = get_scheduled_signin_manager()
+    history_copy_manager = get_history_copy_task_manager()
+    pt_total = pt_manager.count_user_tasks(user_id)
+    pt_enabled = pt_manager.count_enabled_user_tasks(user_id)
+    signin_total = signin_manager.count_user_tasks(user_id)
+    signin_enabled = signin_manager.count_enabled_user_tasks(user_id)
+    history_total = history_copy_manager.count_user_tasks(user_id)
+    history_running = history_copy_manager.count_running_user_tasks(user_id)
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"🤖 PT 联动脚本 ({pt_enabled}/{pt_total} 运行中)", callback_data="menu_script_pt")],
+        [InlineKeyboardButton(f"🕒 定时签到脚本 ({signin_enabled}/{signin_total} 运行中)", callback_data="menu_script_signin")],
+        [InlineKeyboardButton(f"📚 历史复制 ({history_running}/{history_total} 运行中)", callback_data="menu_script_history_copy")],
+        [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")],
+    ])
+
+    text = "**🤖 脚本管理**\n\n"
+    text += "先选择脚本类型，再进入对应页面添加或管理脚本。\n\n"
+    text += f"PT 脚本：**{pt_total}** 个，其中运行中 **{pt_enabled}** 个\n"
+    text += f"签到脚本：**{signin_total}** 个，其中运行中 **{signin_enabled}** 个\n"
+    text += f"历史复制：**{history_total}** 个，其中运行中 **{history_running}** 个"
+
     bot.send_message(chat_id, text, reply_markup=keyboard, reply_to_message_id=reply_to_message_id)

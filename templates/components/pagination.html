@@ -1,12 +1,21 @@
 {# 分页组件 - Jinja2 宏 #}
 {# 使用方式: {% from "components/pagination.html" import render_pagination %} #}
-{# 调用: {{ render_pagination(current_page, total_pages, selected_source) }} #}
+{# 调用: {{ render_pagination(current_page, total_pages, selected_source, search_query, date_from, date_to, favorite_only) }} #}
 
-{% macro render_pagination(current_page, total_pages, selected_source='') %}
+{% macro render_pagination(current_page, total_pages, selected_source='', search_query='', date_from='', date_to='', favorite_only=false) %}
 {% if total_pages > 1 %}
+{# 构建查询参数字符串 #}
+{% set params = [] %}
+{% if selected_source %}{% set _ = params.append('source=' ~ selected_source) %}{% endif %}
+{% if search_query %}{% set _ = params.append('search=' ~ search_query|urlencode) %}{% endif %}
+{% if date_from %}{% set _ = params.append('date_from=' ~ date_from) %}{% endif %}
+{% if date_to %}{% set _ = params.append('date_to=' ~ date_to) %}{% endif %}
+{% if favorite_only %}{% set _ = params.append('favorite=1') %}{% endif %}
+{% set extra_params = '&' ~ params|join('&') if params else '' %}
+
 <div class="flex justify-center items-center space-x-2">
     {% if current_page > 1 %}
-    <a href="?page={{ current_page - 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}"
+    <a href="?page={{ current_page - 1 }}{{ extra_params }}"
        class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-gray-700 dark:text-gray-300">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
@@ -20,7 +29,7 @@
     </span>
 
     {% if current_page < total_pages %}
-    <a href="?page={{ current_page + 1 }}{% if selected_source %}&source={{ selected_source }}{% endif %}"
+    <a href="?page={{ current_page + 1 }}{{ extra_params }}"
        class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-gray-700 dark:text-gray-300">
         下一页
         <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

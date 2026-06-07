@@ -10,74 +10,14 @@ import logging
 import threading
 import fnmatch
 from typing import TypeVar, Optional, Dict, Any, Callable, List
-from dataclasses import dataclass
 
 from .interface import CacheInterface, CacheEventListener, InvalidationStrategy
+from .unified_models import CacheEntry, CacheStats
+from .unified_options import UnifiedCacheOptions, unified_cache_options
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
-
-
-@dataclass
-class CacheEntry:
-    """Cache entry with expiration and metadata"""
-    value: Any
-    expires_at: float
-    created_at: float
-    access_count: int = 0
-
-    @property
-    def is_expired(self) -> bool:
-        return time.time() > self.expires_at
-
-
-class CacheStats:
-    """Cache statistics tracker"""
-
-    def __init__(self):
-        self._hits = 0
-        self._misses = 0
-        self._sets = 0
-        self._deletes = 0
-        self._lock = threading.Lock()
-
-    def record_hit(self) -> None:
-        with self._lock:
-            self._hits += 1
-
-    def record_miss(self) -> None:
-        with self._lock:
-            self._misses += 1
-
-    def record_set(self) -> None:
-        with self._lock:
-            self._sets += 1
-
-    def record_delete(self) -> None:
-        with self._lock:
-            self._deletes += 1
-
-    @property
-    def hit_rate(self) -> float:
-        total = self._hits + self._misses
-        return self._hits / total if total > 0 else 0.0
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "hits": self._hits,
-            "misses": self._misses,
-            "sets": self._sets,
-            "deletes": self._deletes,
-            "hit_rate": round(self.hit_rate * 100, 2),
-        }
-
-    def reset(self) -> None:
-        with self._lock:
-            self._hits = 0
-            self._misses = 0
-            self._sets = 0
-            self._deletes = 0
 
 
 class UnifiedCache(CacheInterface[T]):
@@ -93,11 +33,13 @@ class UnifiedCache(CacheInterface[T]):
 
     def __init__(
         self,
-        default_ttl: float = 300.0,
-        max_size: int = 10000,
-        cleanup_interval: float = 60.0,
-        invalidation_strategy: InvalidationStrategy = InvalidationStrategy.TIME_BASED,
-        name: str = "default"
+        options: UnifiedCacheOptions | float | None = None,
+        *legacy_args: Any,
+        default_ttl: Optional[float] = None,
+        max_size: Optional[int] = None,
+        cleanup_interval: Optional[float] = None,
+        invalidation_strategy: Optional[InvalidationStrategy] = None,
+        name: Optional[str] = None,
     ) -> None:
         """
         Initialize unified cache
@@ -109,21 +51,30 @@ class UnifiedCache(CacheInterface[T]):
             invalidation_strategy: Cache invalidation strategy
             name: Cache instance name (for logging)
         """
+        options = unified_cache_options(
+            options,
+            legacy_args,
+            default_ttl=default_ttl,
+            max_size=max_size,
+            cleanup_interval=cleanup_interval,
+            invalidation_strategy=invalidation_strategy,
+            name=name,
+        )
         self._cache: Dict[str, CacheEntry] = {}
-        self._default_ttl = default_ttl
-        self._max_size = max_size
+        self._default_ttl = options.default_ttl
+        self._max_size = options.max_size
         self._lock = threading.RLock()
         self._last_cleanup = time.time()
-        self._cleanup_interval = cleanup_interval
-        self._invalidation_strategy = invalidation_strategy
-        self._name = name
+        self._cleanup_interval = options.cleanup_interval
+        self._invalidation_strategy = options.invalidation_strategy
+        self._name = options.name
         self._stats = CacheStats()
         self._listeners: List[CacheEventListener] = []
 
         logger.info(
-            f"UnifiedCache '{name}' initialized: "
-            f"ttl={default_ttl}s, max_size={max_size}, "
-            f"strategy={invalidation_strategy.value}"
+            f"UnifiedCache '{options.name}' initialized: "
+            f"ttl={options.default_ttl}s, max_size={options.max_size}, "
+            f"strategy={options.invalidation_strategy.value}"
         )
 
     def get(self, key: str) -> Optional[T]:
@@ -329,37 +280,7 @@ class UnifiedCache(CacheInterface[T]):
         logger.debug(f"Cache '{self._name}': evicted LRU key '{lru_key}'")
 
 
-# Global unified cache instance
-_unified_cache: Optional[UnifiedCache] = None
-_cache_lock = threading.Lock()
-
-
-def get_unified_cache(
-    default_ttl: float = 300.0,
-    max_size: int = 10000,
-    name: str = "global"
-) -> UnifiedCache:
-    """
-    Get global unified cache instance (singleton)
-
-    Args:
-        default_ttl: Default TTL in seconds (only used on first call)
-        max_size: Maximum cache size (only used on first call)
-        name: Cache name (only used on first call)
-
-    Returns:
-        Global UnifiedCache instance
-    """
-    global _unified_cache
-    if _unified_cache is None:
-        with _cache_lock:
-            if _unified_cache is None:
-                _unified_cache = UnifiedCache(
-                    default_ttl=default_ttl,
-                    max_size=max_size,
-                    name=name
-                )
-    return _unified_cache
+from .unified_factory import get_unified_cache
 
 
 __all__ = [

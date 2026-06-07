@@ -5,6 +5,7 @@
 import os
 import time
 import logging
+import json
 from datetime import datetime, timedelta
 from typing import List, Tuple
 import sqlite3
@@ -12,6 +13,38 @@ from config import MEDIA_DIR
 from database import DATABASE_FILE
 
 logger = logging.getLogger(__name__)
+
+
+def _enable_db_tracer(conn):
+    try:
+        from src.infrastructure.monitoring.performance.db_tracer import get_db_tracer
+
+        return get_db_tracer().enable(conn)
+    except Exception as e:
+        logger.debug("db_tracer 启用失败，已忽略: %s", e, exc_info=True)
+        return conn
+
+
+def _fetch_media_paths(cursor) -> set:
+    cursor.execute("SELECT media_path FROM notes WHERE media_path IS NOT NULL")
+    return {row[0] for row in cursor.fetchall() if row[0]}
+
+
+def _fetch_media_path_arrays(cursor) -> set:
+    cursor.execute("SELECT media_paths FROM notes WHERE media_paths IS NOT NULL")
+    paths = set()
+    for row in cursor.fetchall():
+        paths.update(_parse_media_path_array(row[0]))
+    return paths
+
+
+def _parse_media_path_array(raw_value) -> list:
+    if not raw_value:
+        return []
+    try:
+        return json.loads(raw_value)
+    except json.JSONDecodeError:
+        return []
 
 
 class MediaCleaner:
@@ -59,31 +92,10 @@ class MediaCleaner:
         
         try:
             conn = sqlite3.connect(self.db_file)
-            try:
-                from src.infrastructure.monitoring.performance.db_tracer import get_db_tracer
-
-                conn = get_db_tracer().enable(conn)
-            except Exception as e:
-                logger.debug("db_tracer 启用失败，已忽略: %s", e, exc_info=True)
+            conn = _enable_db_tracer(conn)
             cursor = conn.cursor()
-            
-            # 查询 media_path
-            cursor.execute("SELECT media_path FROM notes WHERE media_path IS NOT NULL")
-            for row in cursor.fetchall():
-                if row[0]:
-                    referenced_files.add(row[0])
-            
-            # 查询 media_paths (JSON 数组)
-            cursor.execute("SELECT media_paths FROM notes WHERE media_paths IS NOT NULL")
-            for row in cursor.fetchall():
-                if row[0]:
-                    import json
-                    try:
-                        paths = json.loads(row[0])
-                        referenced_files.update(paths)
-                    except json.JSONDecodeError:
-                        pass
-            
+            referenced_files.update(_fetch_media_paths(cursor))
+            referenced_files.update(_fetch_media_path_arrays(cursor))
             conn.close()
             
         except Exception as e:

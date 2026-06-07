@@ -6,9 +6,6 @@ JSON file-based implementation of WatchRepository interface.
 """
 
 import json
-import os
-import shutil
-import tempfile
 import threading
 import logging
 from pathlib import Path
@@ -17,6 +14,13 @@ from typing import Optional, List, Set, Dict, Any, Tuple
 from src.domain.entities.watch import WatchTask, WatchConfig
 from src.domain.repositories.watch_repository import WatchRepository
 from src.core.config import settings
+from src.infrastructure.persistence.repositories.json_watch_repository_helpers import (
+    atomic_write_json,
+    build_source_index,
+    canonicalize_watch_key,
+    parse_user_config,
+    resolve_watch_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,18 +64,7 @@ class JSONWatchRepository(WatchRepository):
             self._rebuild_source_index()
             return
 
-        cache: Dict[str, WatchConfig] = {}
-        for user_id, user_data in (data or {}).items():
-            if not isinstance(user_data, dict):
-                logger.warning(f"Invalid watch config entry: user={user_id}")
-                continue
-            try:
-                cache[user_id] = WatchConfig.from_dict(user_id, user_data)
-            except Exception as e:
-                logger.warning(f"Failed to parse watch config: user={user_id}, err={e}")
-                continue
-
-        self._cache = cache
+        self._cache = self._parse_config_data(data)
         self._rebuild_source_index()
 
     def _sync_from_settings(self, force: bool = False) -> None:
@@ -83,21 +76,23 @@ class JSONWatchRepository(WatchRepository):
         if not force and current_revision == self._settings_revision:
             return
 
-        data = settings.watch_config
+        self._cache = self._parse_config_data(settings.watch_config)
+        self._settings_revision = current_revision
+        self._rebuild_source_index()
+
+    @staticmethod
+    def _parse_config_data(data: Dict[str, Any]) -> Dict[str, WatchConfig]:
         cache: Dict[str, WatchConfig] = {}
         for user_id, user_data in (data or {}).items():
             if not isinstance(user_data, dict):
                 logger.warning(f"Invalid watch config entry: user={user_id}")
                 continue
-            try:
-                cache[user_id] = WatchConfig.from_dict(str(user_id), user_data)
-            except Exception as e:
-                logger.warning(f"Failed to parse watch config: user={user_id}, err={e}")
+            config = parse_user_config(str(user_id), user_data)
+            if config is None:
+                logger.warning(f"Failed to parse watch config: user={user_id}")
                 continue
-
-        self._cache = cache
-        self._settings_revision = current_revision
-        self._rebuild_source_index()
+            cache[str(user_id)] = config
+        return cache
 
     def _ensure_fresh(self) -> None:
         """Ensure cache is in sync with Settings."""
@@ -105,86 +100,7 @@ class JSONWatchRepository(WatchRepository):
 
     def _rebuild_source_index(self) -> None:
         """Rebuild source -> tasks index for fast lookups."""
-        index: Dict[str, List[Tuple[str, str, WatchTask]]] = {}
-        for user_id, config in self._cache.items():
-            for watch_key, task in config.tasks.items():
-                source_id = str(task.source) if task.source is not None else ""
-                if not source_id:
-                    continue
-                index.setdefault(source_id, []).append((user_id, watch_key, task))
-        self._source_index = index
-
-    @staticmethod
-    def _resolve_watch_key(config: WatchConfig, watch_key: str) -> Optional[str]:
-        """Resolve a watch_key, allowing backward compatible lookups by source_id.
-
-        If `watch_key` exists in the config, returns it directly.
-        Otherwise, if `watch_key` looks like a plain source_id (no '|') and there is
-        exactly one task whose `task.source` matches it, returns that task's key.
-        """
-        if not watch_key:
-            return None
-
-        if watch_key in config.tasks:
-            return watch_key
-
-        if "|" in watch_key:
-            return None
-
-        matches = [
-            key
-            for key, task in config.tasks.items()
-            if str(getattr(task, "source", "") or "") == str(watch_key)
-        ]
-        if len(matches) == 1:
-            return matches[0]
-        return None
-
-    @staticmethod
-    def _canonicalize_watch_key(watch_key: str, task: WatchTask) -> str:
-        """Canonicalize watch keys to avoid ambiguous "key=source" semantics."""
-        if watch_key and "|" in watch_key:
-            return watch_key
-
-        source_id = str(getattr(task, "source", "") or watch_key or "").strip()
-        dest_id = getattr(task, "dest", None)
-        record_mode = bool(getattr(task, "record_mode", False))
-
-        if record_mode:
-            return f"{source_id}|record"
-        if dest_id is not None:
-            return f"{source_id}|{dest_id}"
-        return source_id or watch_key
-
-    def _atomic_write_json(self, path: Path, data: Dict[str, Any]) -> None:
-        """Atomically write JSON to disk to avoid config corruption."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        temp_fd, temp_path = tempfile.mkstemp(
-            dir=str(path.parent),
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-        )
-
-        try:
-            with os.fdopen(temp_fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4, ensure_ascii=False)
-                f.flush()
-                os.fsync(f.fileno())
-
-            if path.exists():
-                backup_path = path.with_suffix(path.suffix + ".bak")
-                try:
-                    shutil.copy2(path, backup_path)
-                except OSError:
-                    pass
-
-            os.replace(temp_path, path)
-        finally:
-            try:
-                os.unlink(temp_path)
-            except FileNotFoundError:
-                pass
+        self._source_index = build_source_index(self._cache)
 
     def _save_cache(self) -> None:
         """Persist cache and rebuild derived indices."""
@@ -194,7 +110,7 @@ class JSONWatchRepository(WatchRepository):
             settings.save_watch_config(data, auto_reload=True)
             self._settings_revision = settings.watch_config_revision
         else:
-            self._atomic_write_json(self._config_path, data)
+            atomic_write_json(self._config_path, data)
 
         self._rebuild_source_index()
         logger.debug(f"Watch config saved: {len(self._cache)} users")
@@ -221,18 +137,7 @@ class JSONWatchRepository(WatchRepository):
     def save_config_dict(self, config_dict: Dict[str, Any]) -> None:
         """Save all watch configurations from raw dict in a single write."""
         with self._lock:
-            cache: Dict[str, WatchConfig] = {}
-            for user_id, user_data in (config_dict or {}).items():
-                if not isinstance(user_data, dict):
-                    logger.warning(f"Invalid watch config entry: user={user_id}")
-                    continue
-                try:
-                    cache[str(user_id)] = WatchConfig.from_dict(str(user_id), user_data)
-                except Exception as e:
-                    logger.warning(f"Failed to parse watch config: user={user_id}, err={e}")
-                    continue
-
-            self._cache = cache
+            self._cache = self._parse_config_data(config_dict)
             self._save_cache()
 
     def delete_user_config(self, user_id: str) -> bool:
@@ -253,7 +158,7 @@ class JSONWatchRepository(WatchRepository):
             if not config:
                 return None
 
-            resolved_key = self._resolve_watch_key(config, watch_key)
+            resolved_key = resolve_watch_key(config, watch_key)
             if resolved_key is None:
                 return None
 
@@ -266,7 +171,7 @@ class JSONWatchRepository(WatchRepository):
             if user_id not in self._cache:
                 self._cache[user_id] = WatchConfig(user_id=user_id)
 
-            canonical_key = self._canonicalize_watch_key(watch_key, task)
+            canonical_key = canonicalize_watch_key(watch_key, task)
             self._cache[user_id].add_task(canonical_key, task)
             self._save_cache()
 
@@ -278,7 +183,7 @@ class JSONWatchRepository(WatchRepository):
             if not config:
                 return False
 
-            resolved_key = self._resolve_watch_key(config, watch_key)
+            resolved_key = resolve_watch_key(config, watch_key)
             if resolved_key is None:
                 return False
 
@@ -294,13 +199,12 @@ class JSONWatchRepository(WatchRepository):
         """Get all monitored source chat IDs"""
         with self._lock:
             self._ensure_fresh()
-            sources = set()
-            for config in self._cache.values():
-                for task in config.tasks.values():
-                    # Extract source from task, not from key
-                    if task.source and task.source != "me":
-                        sources.add(str(task.source))
-            return sources
+            return {
+                str(task.source)
+                for config in self._cache.values()
+                for task in config.tasks.values()
+                if task.source and task.source != "me"
+            }
 
     def get_tasks_for_source(self, source_id: str) -> List[tuple]:
         """Get all tasks monitoring a specific source.

@@ -14,6 +14,9 @@ import re as re_module
 import pytest
 
 import database
+from src.application.services.note_service import NoteService
+from src.infrastructure.persistence.repositories import note_repository as note_repository_module
+from src.infrastructure.persistence.repositories.note_repository import SQLiteNoteRepository
 
 
 def _create_notes_schema(conn: sqlite3.Connection) -> None:
@@ -69,9 +72,20 @@ def test_update_note_with_calibrated_dns_merges_concurrent_updates(
         finally:
             connection.close()
 
-    monkeypatch.setattr(database, "get_db_connection", _fake_db_connection, raising=True)
+    monkeypatch.setattr(
+        note_repository_module,
+        "get_db_connection",
+        _fake_db_connection,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        database,
+        "get_note_service",
+        lambda: NoteService(SQLiteNoteRepository()),
+        raising=True,
+    )
 
-    original_sub = database.re.sub
+    original_sub = note_repository_module.re.sub
     barrier = threading.Barrier(2)
     call_lock = threading.Lock()
     call_count = {"n": 0}
@@ -92,7 +106,7 @@ def test_update_note_with_calibrated_dns_merges_concurrent_updates(
                 barrier.wait(timeout=5)
             return original_sub(*args, **kwargs)
 
-    monkeypatch.setattr(database, "re", _ReProxy, raising=True)
+    monkeypatch.setattr(note_repository_module, "re", _ReProxy, raising=True)
 
     result_a = {
         "info_hash": "AAA",

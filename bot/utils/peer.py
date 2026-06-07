@@ -106,7 +106,7 @@ def get_failed_peers() -> Dict[str, float]:
         return failed_peers.copy()
 
 
-def cache_peer(client, peer_id: str, peer_type: str = "peer", force: bool = False) -> bool:
+def cache_peer(client, peer_id: str, peer_type: str = "peer", *, force: bool = False) -> bool:
     """Cache a peer by getting its info
     
     Args:

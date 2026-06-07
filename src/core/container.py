@@ -18,6 +18,10 @@ from src.application.services import (
     NoteService,
     WatchService,
     CalibrationService,
+    WatchSetupService,
+    QBittorrentService,
+    CalibrationWorkflowService,
+    MessageWorkerService,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,6 +57,10 @@ class ServiceContainer:
         self._note_service: Optional[NoteService] = None
         self._watch_service: Optional[WatchService] = None
         self._calibration_service: Optional[CalibrationService] = None
+        self._watch_setup_service: Optional[WatchSetupService] = None
+        self._qbittorrent_service: Optional[QBittorrentService] = None
+        self._calibration_workflow_service: Optional[CalibrationWorkflowService] = None
+        self._message_worker_service: Optional[MessageWorkerService] = None
 
         self._initialized = True
         logger.debug("ServiceContainer initialized")
@@ -113,6 +121,37 @@ class ServiceContainer:
             )
         return self._calibration_service
 
+    @property
+    def watch_setup_service(self) -> WatchSetupService:
+        """Get watch setup orchestration service instance"""
+        if self._watch_setup_service is None:
+            self._watch_setup_service = WatchSetupService(self.watch_service)
+        return self._watch_setup_service
+
+    @property
+    def qbittorrent_service(self) -> QBittorrentService:
+        """Get qBittorrent orchestration service instance"""
+        if self._qbittorrent_service is None:
+            self._qbittorrent_service = QBittorrentService()
+        return self._qbittorrent_service
+
+    @property
+    def calibration_workflow_service(self) -> CalibrationWorkflowService:
+        """Get manual calibration workflow service instance"""
+        if self._calibration_workflow_service is None:
+            self._calibration_workflow_service = CalibrationWorkflowService(
+                self.note_service,
+                self.calibration_service,
+            )
+        return self._calibration_workflow_service
+
+    @property
+    def message_worker_service(self) -> MessageWorkerService:
+        """Get message worker orchestration helper instance"""
+        if self._message_worker_service is None:
+            self._message_worker_service = MessageWorkerService(self.note_service)
+        return self._message_worker_service
+
     # ==================== Lifecycle ====================
 
     def reset(self) -> None:
@@ -124,6 +163,10 @@ class ServiceContainer:
         self._note_service = None
         self._watch_service = None
         self._calibration_service = None
+        self._watch_setup_service = None
+        self._qbittorrent_service = None
+        self._calibration_workflow_service = None
+        self._message_worker_service = None
         logger.debug("ServiceContainer reset")
 
 
@@ -158,3 +201,23 @@ def get_watch_service() -> WatchService:
 def get_calibration_service() -> CalibrationService:
     """Get calibration service from container"""
     return get_container().calibration_service
+
+
+def get_watch_setup_service() -> WatchSetupService:
+    """Get watch setup service from container"""
+    return get_container().watch_setup_service
+
+
+def get_qbittorrent_service() -> QBittorrentService:
+    """Get qBittorrent service from container"""
+    return get_container().qbittorrent_service
+
+
+def get_calibration_workflow_service() -> CalibrationWorkflowService:
+    """Get manual calibration workflow service from container"""
+    return get_container().calibration_workflow_service
+
+
+def get_message_worker_service() -> MessageWorkerService:
+    """Get message worker helper service from container"""
+    return get_container().message_worker_service

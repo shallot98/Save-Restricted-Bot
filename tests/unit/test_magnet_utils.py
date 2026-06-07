@@ -304,3 +304,33 @@ class TestBackwardCompatibility:
         # 第一个磁力链接应该使用filename字段
         assert dns_list[0]['dn'] == 'calibrated_name.mp4'
         assert dns_list[0]['info_hash'] == 'ABC123'
+
+    def test_extract_all_dns_from_note_uses_magnet_link(self):
+        """message_text 无磁力链接时，应回退使用 magnet_link 字段"""
+        from bot.utils.magnet_utils import extract_all_dns_from_note
+
+        note = {
+            'message_text': '',
+            'magnet_link': 'magnet:?xt=urn:btih:ABC123&dn=test.mp4',
+            'filename': 'calibrated_name.mp4'
+        }
+
+        dns_list = extract_all_dns_from_note(note)
+
+        assert len(dns_list) == 1
+        assert dns_list[0]['info_hash'] == 'ABC123'
+        # filename 应优先于 magnet_link 的 dn 参数
+        assert dns_list[0]['dn'] == 'calibrated_name.mp4'
+
+    def test_extract_all_dns_from_note_deduplicates_magnet_link(self):
+        """message_text 与 magnet_link 同时存在时，应按 info_hash 去重"""
+        from bot.utils.magnet_utils import extract_all_dns_from_note
+
+        note = {
+            'message_text': 'magnet:?xt=urn:btih:ABC123&dn=test.mp4',
+            'magnet_link': 'magnet:?xt=urn:btih:ABC123&dn=test.mp4',
+        }
+
+        dns_list = extract_all_dns_from_note(note)
+        assert len(dns_list) == 1
+        assert dns_list[0]['info_hash'] == 'ABC123'

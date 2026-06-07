@@ -11,7 +11,11 @@ from typing import Optional, List, Set
 from src.domain.entities.watch import WatchTask, WatchConfig
 from src.domain.repositories.watch_repository import WatchRepository
 from src.domain.services.filter_service import FilterService
-from src.core.exceptions import NotFoundError, ValidationError
+from src.core.exceptions import NotFoundError
+from src.application.services.watch_task_requests import (
+    WatchTaskCreateRequest,
+    watch_task_create_request,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,47 +85,26 @@ class WatchService:
 
     def add_watch_task(
         self,
-        user_id: str,
-        source_id: str,
-        dest_id: Optional[str] = None,
-        whitelist: Optional[List[str]] = None,
-        blacklist: Optional[List[str]] = None,
-        whitelist_regex: Optional[List[str]] = None,
-        blacklist_regex: Optional[List[str]] = None,
-        forward_mode: str = "full",
-        record_mode: bool = False
+        request: WatchTaskCreateRequest | str | None = None,
+        *legacy_args,
+        **legacy_kwargs,
     ) -> WatchTask:
-        """
-        Add or update a watch task
-
-        Args:
-            user_id: User identifier
-            source_id: Source chat ID
-            dest_id: Destination chat ID
-            whitelist: Keyword whitelist
-            blacklist: Keyword blacklist
-            whitelist_regex: Regex whitelist
-            blacklist_regex: Regex blacklist
-            forward_mode: "full" or "extract"
-            record_mode: Only record, don't forward
-
-        Returns:
-            Created/updated task
-        """
+        """Add or update a watch task."""
+        request = watch_task_create_request(request, legacy_args, legacy_kwargs)
         task = WatchTask(
-            source=source_id,
-            dest=dest_id,
-            whitelist=whitelist or [],
-            blacklist=blacklist or [],
-            whitelist_regex=whitelist_regex or [],
-            blacklist_regex=blacklist_regex or [],
-            forward_mode=forward_mode,
-            record_mode=record_mode,
+            source=request.source_id,
+            dest=request.dest_id,
+            whitelist=request.whitelist or [],
+            blacklist=request.blacklist or [],
+            whitelist_regex=request.whitelist_regex or [],
+            blacklist_regex=request.blacklist_regex or [],
+            forward_mode=request.forward_mode,
+            record_mode=request.record_mode,
         )
 
-        watch_key = self._make_watch_key(source_id, dest_id, record_mode)
-        self._repository.add_task(user_id, watch_key, task)
-        logger.info(f"Watch task added: user={user_id}, key={watch_key}")
+        watch_key = self._make_watch_key(request.source_id, request.dest_id, request.record_mode)
+        self._repository.add_task(request.user_id, watch_key, task)
+        logger.info(f"Watch task added: user={request.user_id}, key={watch_key}")
 
         return task
 

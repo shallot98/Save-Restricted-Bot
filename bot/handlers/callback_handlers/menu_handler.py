@@ -10,84 +10,36 @@ Architecture: Uses new layered architecture
 from pyrogram import Client
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-from .base import CallbackHandler
+from .base import CallbackContext, CallbackHandler
 
 # New architecture imports
 from src.core.container import get_watch_service
+from bot.services.history_copy_task_manager import get_history_copy_task_manager
+from bot.services.pt_pay_manager import get_pt_pay_monitor_manager
+from bot.services.signin_manager import get_scheduled_signin_manager
 
 
-class MenuCallbackHandler(CallbackHandler):
-    """菜单回调处理器"""
-
-    def can_handle(self, data: str) -> bool:
-        """判断是否为菜单回调"""
-        return data.startswith("menu_")
-
-    def handle(self, client: Client, callback_query: CallbackQuery) -> None:
-        """处理菜单回调"""
-        params = self.get_common_params(callback_query)
-        data = params['data']
-        chat_id = params['chat_id']
-        message_id = params['message_id']
-        user_id = params['user_id']
-
-        if data == "menu_main":
-            self._handle_main_menu(callback_query, chat_id, message_id)
-        elif data == "menu_help":
-            self._handle_help_menu(callback_query, chat_id, message_id)
-        elif data == "menu_watch":
-            self._handle_watch_menu(callback_query, chat_id, message_id, user_id)
-
-    def _handle_main_menu(self, callback_query: CallbackQuery, chat_id: int, message_id: int) -> None:
-        """处理主菜单"""
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📋 监控管理", callback_data="menu_watch")],
-            [InlineKeyboardButton("❓ 帮助说明", callback_data="menu_help")],
-            [InlineKeyboardButton("🌐 源代码", url="https://github.com/bipinkrish/Save-Restricted-Bot")]
-        ])
-
-        welcome_text = f"👋 你好 **{callback_query.from_user.mention}**！\n\n"
-        welcome_text += "我是受限内容保存机器人，可以帮你：\n\n"
-        welcome_text += "📥 **转发消息** - 直接发送 Telegram 链接\n"
-        welcome_text += "👁 **监控频道/群组** - 自动转发新消息\n"
-        welcome_text += "🔍 **智能过滤** - 关键词、正则表达式过滤\n"
-        welcome_text += "🎯 **提取模式** - 提取特定内容转发\n\n"
-        welcome_text += "点击下方按钮开始使用 👇"
-
-        self.bot.edit_message_text(chat_id, message_id, welcome_text, reply_markup=keyboard)
-        self.answer_and_log(callback_query)
-
-    def _handle_help_menu(self, callback_query: CallbackQuery, chat_id: int, message_id: int) -> None:
-        """处理帮助菜单"""
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📋 监控管理", callback_data="menu_watch")],
-            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]
-        ])
-
-        help_text = """**📖 使用帮助**
+_HELP_TEXT = """**📖 使用帮助**
 
 **📥 转发消息**
 直接发送 Telegram 消息链接即可转发内容
 
-**📋 监控功能**
-• 点击"监控管理"按钮设置自动转发或记录
-• 支持监控频道、群组和收藏夹
-• 输入 `me` 可监控自己的收藏夹
-• 支持关键词过滤（白名单/黑名单）
-• 支持正则表达式过滤
-• 支持提取模式（正则提取特定内容）
-• 可选择是否保留转发来源
-• 📝 支持记录模式（保存到网页笔记）
-• 可随时编辑监控设置
+**🤖 脚本联动**
+• 可监控指定群聊/频道的新消息
+• 当一条消息中按行出现至少两个 `PT-xx` 时，会按顺序提取
+• 自动向目标对象发送 `/pay PT-xx`
+• 当 Bot 回复包含“成功”关键字时立即停止后续尝试
+• 支持在菜单中启停和删除脚本
 
-**📝 记录模式**
-• 将监控内容保存到网页而非转发
-• 记录文字、图片和视频封面
-• 包含时间戳信息
-• 过滤规则和提取模式仍然生效
-• 通过 Web 界面查看记录（端口 5000）
-• 默认登录账号：admin/admin
-• 搜索功能支持高亮显示
+**🕒 定时签到**
+• 可按固定间隔向指定群聊/频道发送自定义文本
+• 支持修改消息内容和发送间隔
+• 适合周期发送签到提醒或固定通知
+
+**📚 历史复制**
+• 可把来源群聊/频道的历史消息复制到目标群聊/频道
+• 支持全部历史或最近 N 条
+• 内置断点续传、发送节流和自动冷却
 
 **🔗 链接格式**
 
@@ -105,32 +57,86 @@ class MenuCallbackHandler(CallbackHandler):
 
 **💡 提示**
 • 私有频道需要配置 String Session
-• 可以使用 `me` 监控收藏夹或作为目标
-• 关键词过滤不区分大小写
-• 正则表达式支持完整的 Python re 语法
-• 提取模式会将匹配的内容单独发送
+• 转发功能保持不变，直接发送 Telegram 链接即可
 • 所有操作都可通过按钮完成，无需记忆复杂命令
 • 机器人重启后会自动加载所有配置
 """
-        self.bot.edit_message_text(chat_id, message_id, help_text, reply_markup=keyboard)
-        self.answer_and_log(callback_query)
 
-    def _handle_watch_menu(self, callback_query: CallbackQuery, chat_id: int, message_id: int, user_id: str) -> None:
+
+def _help_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 脚本管理", callback_data="menu_script")],
+        [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")],
+    ])
+
+
+class MenuCallbackHandler(CallbackHandler):
+    """菜单回调处理器"""
+
+    def can_handle(self, data: str) -> bool:
+        """判断是否为菜单回调"""
+        return data.startswith("menu_")
+
+    def handle(self, client: Client, callback_query: CallbackQuery) -> None:
+        """处理菜单回调"""
+        context = self.get_common_context(client, callback_query)
+        self.dispatch_context(
+            context,
+            {
+                "menu_main": self._handle_main_menu,
+                "menu_help": self._handle_help_menu,
+                "menu_watch": self._handle_watch_menu,
+                "menu_script": self._handle_script_menu,
+                "menu_script_pt": self._handle_pt_script_menu,
+                "menu_script_signin": self._handle_signin_script_menu,
+                "menu_script_history_copy": self._handle_history_copy_menu,
+            },
+        )
+
+    def _handle_main_menu(self, context: CallbackContext) -> None:
+        """处理主菜单"""
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🤖 脚本管理", callback_data="menu_script")],
+            [InlineKeyboardButton("❓ 帮助说明", callback_data="menu_help")],
+            [InlineKeyboardButton("🌐 源代码", url="https://github.com/bipinkrish/Save-Restricted-Bot")]
+        ])
+
+        welcome_text = f"👋 你好 **{context.callback_query.from_user.mention}**！\n\n"
+        welcome_text += "我是受限内容保存机器人，可以帮你：\n\n"
+        welcome_text += "📥 **转发消息** - 直接发送 Telegram 链接\n"
+        welcome_text += "🤖 **脚本模式** - 管理 PT 联动、定时签到和历史复制任务\n\n"
+        welcome_text += "点击下方按钮开始使用 👇"
+
+        self.bot.edit_message_text(context.chat_id, context.message_id, welcome_text, reply_markup=keyboard)
+        self.answer_and_log(context.callback_query)
+
+    def _handle_help_menu(self, context: CallbackContext) -> None:
+        """处理帮助菜单"""
+        self.bot.edit_message_text(
+            context.chat_id,
+            context.message_id,
+            _HELP_TEXT,
+            reply_markup=_help_menu_keyboard(),
+        )
+        self.answer_and_log(context.callback_query)
+
+    def _handle_watch_menu(self, context: CallbackContext) -> None:
         """处理监控管理菜单"""
         if self.acc is None:
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]])
-            self.bot.edit_message_text(chat_id, message_id, "**❌ 需要配置 String Session 才能使用监控功能**", reply_markup=keyboard)
-            self.answer_and_log(callback_query, "❌ 需要配置 String Session", show_alert=True)
+            self.bot.edit_message_text(context.chat_id, context.message_id, "**❌ 需要配置 String Session 才能使用监控功能**", reply_markup=keyboard)
+            self.answer_and_log(context.callback_query, "❌ 需要配置 String Session", show_alert=True)
             return
 
         watch_service = get_watch_service()
         watch_config = watch_service.get_all_configs_dict()
-        watch_count = len(watch_config.get(user_id, {}))
+        watch_count = len(watch_config.get(context.user_id, {}))
 
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("➕ 添加监控", callback_data="watch_add_start")],
             [InlineKeyboardButton(f"📋 查看列表 ({watch_count})", callback_data="watch_list")],
             [InlineKeyboardButton("🗑 删除监控", callback_data="watch_remove_start")],
+            [InlineKeyboardButton("🤖 脚本管理", callback_data="menu_script")],
             [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]
         ])
 
@@ -141,5 +147,113 @@ class MenuCallbackHandler(CallbackHandler):
         text += "🗑 **删除监控** - 移除现有监控任务\n\n"
         text += f"当前监控任务数：**{watch_count}** 个"
 
-        self.bot.edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
-        self.answer_and_log(callback_query)
+        self.bot.edit_message_text(context.chat_id, context.message_id, text, reply_markup=keyboard)
+        self.answer_and_log(context.callback_query)
+
+    def _handle_script_menu(self, context: CallbackContext) -> None:
+        if self.acc is None:
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")]])
+            self.bot.edit_message_text(context.chat_id, context.message_id, "**❌ 需要配置 String Session 才能使用脚本管理**", reply_markup=keyboard)
+            self.answer_and_log(context.callback_query, "❌ 需要配置 String Session", show_alert=True)
+            return
+
+        pt_manager = get_pt_pay_monitor_manager()
+        signin_manager = get_scheduled_signin_manager()
+        history_copy_manager = get_history_copy_task_manager()
+        pt_tasks = pt_manager.list_user_tasks(context.user_id)
+        signin_tasks = signin_manager.list_user_tasks(context.user_id)
+        pt_total = pt_manager.count_user_tasks(context.user_id)
+        pt_enabled = pt_manager.count_enabled_user_tasks(context.user_id)
+        signin_total = signin_manager.count_user_tasks(context.user_id)
+        signin_enabled = signin_manager.count_enabled_user_tasks(context.user_id)
+        history_total = history_copy_manager.count_user_tasks(context.user_id)
+        history_running = history_copy_manager.count_running_user_tasks(context.user_id)
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(_build_pt_overview_label(pt_total, pt_enabled), callback_data="menu_script_pt")],
+            [InlineKeyboardButton(_build_signin_overview_label(signin_total, signin_enabled), callback_data="menu_script_signin")],
+            [InlineKeyboardButton(_build_history_copy_overview_label(history_total, history_running), callback_data="menu_script_history_copy")],
+            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_main")],
+        ])
+
+        text = "**🤖 脚本管理**\n\n"
+        text += "先选择脚本类型，再进入对应页面添加或管理脚本。\n\n"
+        text += f"PT 脚本：**{pt_total}** 个，其中运行中 **{pt_enabled}** 个\n"
+        text += f"签到脚本：**{signin_total}** 个，其中运行中 **{signin_enabled}** 个\n"
+        text += f"历史复制：**{history_total}** 个，其中运行中 **{history_running}** 个\n\n"
+        if pt_tasks or signin_tasks or history_total:
+            text += "点进任一脚本类型后，可以继续添加脚本，或进入管理页查看、启停和删除已有脚本。"
+        else:
+            text += "当前还没有脚本，先选择类型后再添加。"
+        self.bot.edit_message_text(context.chat_id, context.message_id, text, reply_markup=keyboard)
+        self.answer_and_log(context.callback_query)
+
+    def _handle_pt_script_menu(self, context: CallbackContext) -> None:
+        manager = get_pt_pay_monitor_manager()
+        total = manager.count_user_tasks(context.user_id)
+        enabled = manager.count_enabled_user_tasks(context.user_id)
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ 添加 PT 脚本", callback_data="script_add_start")],
+            [InlineKeyboardButton(f"📋 管理 PT 脚本 ({total})", callback_data="script_list")],
+            [InlineKeyboardButton("🔙 返回脚本管理", callback_data="menu_script")],
+        ])
+
+        text = "**🤖 PT 联动脚本**\n\n"
+        text += "这里管理 PT 联动脚本。\n\n"
+        text += "• 添加脚本：新建 PT 自动联动\n"
+        text += "• 管理脚本：查看详情、启停、设置延时、删除\n\n"
+        text += f"当前共 **{total}** 个脚本，其中运行中 **{enabled}** 个"
+        self.bot.edit_message_text(context.chat_id, context.message_id, text, reply_markup=keyboard)
+        self.answer_and_log(context.callback_query)
+
+    def _handle_history_copy_menu(self, context: CallbackContext) -> None:
+        manager = get_history_copy_task_manager()
+        total = manager.count_user_tasks(context.user_id)
+        running = manager.count_running_user_tasks(context.user_id)
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ 新建历史复制", callback_data="history_copy_add_start")],
+            [InlineKeyboardButton(f"📋 历史复制任务 ({total})", callback_data="history_copy_list")],
+            [InlineKeyboardButton("🔙 返回脚本管理", callback_data="menu_script")],
+        ])
+
+        text = "**📚 历史复制**\n\n"
+        text += "这里管理一次性的历史复制任务。\n\n"
+        text += "• 新建历史复制：选择来源、目标和复制范围后后台执行\n"
+        text += "• 历史复制任务：查看运行状态、结果和错误信息\n"
+        text += "• 同一时间只允许一个历史复制任务运行，以降低账号风险\n\n"
+        text += f"当前共 **{total}** 个任务，其中运行中 **{running}** 个"
+        self.bot.edit_message_text(context.chat_id, context.message_id, text, reply_markup=keyboard)
+        self.answer_and_log(context.callback_query)
+
+    def _handle_signin_script_menu(self, context: CallbackContext) -> None:
+        manager = get_scheduled_signin_manager()
+        total = manager.count_user_tasks(context.user_id)
+        enabled = manager.count_enabled_user_tasks(context.user_id)
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ 添加签到脚本", callback_data="signin_add_start")],
+            [InlineKeyboardButton(f"📋 管理签到脚本 ({total})", callback_data="signin_list")],
+            [InlineKeyboardButton("🔙 返回脚本管理", callback_data="menu_script")],
+        ])
+
+        text = "**🕒 定时签到脚本**\n\n"
+        text += "这里管理定时签到脚本。\n\n"
+        text += "• 添加脚本：新建定时发送任务\n"
+        text += "• 管理脚本：查看详情、启停、修改消息和间隔、删除\n\n"
+        text += f"当前共 **{total}** 个脚本，其中运行中 **{enabled}** 个"
+        self.bot.edit_message_text(context.chat_id, context.message_id, text, reply_markup=keyboard)
+        self.answer_and_log(context.callback_query)
+
+
+def _build_pt_overview_label(total: int, enabled: int) -> str:
+    return f"🤖 PT 联动脚本 ({enabled}/{total} 运行中)"
+
+
+def _build_signin_overview_label(total: int, enabled: int) -> str:
+    return f"🕒 定时签到脚本 ({enabled}/{total} 运行中)"
+
+
+def _build_history_copy_overview_label(total: int, running: int) -> str:
+    return f"📚 历史复制 ({running}/{total} 运行中)"

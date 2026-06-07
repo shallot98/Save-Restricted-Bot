@@ -13,6 +13,9 @@ from .callback_handlers import (
     CallbackHandler,
     MenuCallbackHandler,
     WatchCallbackHandler,
+    ScriptCallbackHandler,
+    SigninCallbackHandler,
+    HistoryCopyCallbackHandler,
     FilterCallbackHandler,
     EditCallbackHandler,
     ModeCallbackHandler
@@ -29,10 +32,18 @@ class CallbackRegistry:
         """初始化注册表"""
         self.handlers: List[CallbackHandler] = []
         self._initialized = False
+        self._bound_bot = None
+        self._bound_acc = None
 
-    def initialize(self) -> None:
+    def _should_reinitialize(self, bot, acc) -> bool:
+        """当 Bot/Acc 实例变化时强制重建处理器，避免持有旧实例。"""
+        if not self._initialized:
+            return True
+        return bot is not self._bound_bot or acc is not self._bound_acc
+
+    def initialize(self, force: bool = False) -> None:
         """初始化所有处理器"""
-        if self._initialized:
+        if self._initialized and not force:
             return
 
         bot = get_bot_instance()
@@ -42,12 +53,17 @@ class CallbackRegistry:
         self.handlers = [
             MenuCallbackHandler(bot, acc),
             WatchCallbackHandler(bot, acc),
+            ScriptCallbackHandler(bot, acc),
+            SigninCallbackHandler(bot, acc),
+            HistoryCopyCallbackHandler(bot, acc),
             FilterCallbackHandler(bot, acc),
             EditCallbackHandler(bot, acc),
             ModeCallbackHandler(bot, acc),
         ]
 
         self._initialized = True
+        self._bound_bot = bot
+        self._bound_acc = acc
 
     def find_handler(self, data: str) -> Optional[CallbackHandler]:
         """
@@ -75,8 +91,10 @@ class CallbackRegistry:
         Returns:
             bool: 是否成功处理
         """
-        if not self._initialized:
-            self.initialize()
+        current_bot = get_bot_instance()
+        current_acc = get_acc_instance()
+        if self._should_reinitialize(current_bot, current_acc):
+            self.initialize(force=True)
 
         data = callback_query.data
         handler = self.find_handler(data)

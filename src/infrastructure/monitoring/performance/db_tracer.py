@@ -45,7 +45,7 @@ def _classify_query(query: str) -> str:
     return head[0].lower()
 
 
-def _try_send_alert(level: str, title: str, message: str, details: Dict[str, Any]) -> None:
+def _try_send_alert(level: str, title: str, message: str, *, details: Dict[str, Any]) -> None:
     try:
         from src.infrastructure.monitoring.alerting.alert_manager import get_alert_manager  # noqa: WPS433
 
@@ -185,4 +185,3 @@ def get_db_tracer() -> DatabaseTracer:
     if _db_tracer is None:
         _db_tracer = DatabaseTracer()
     return _db_tracer
-

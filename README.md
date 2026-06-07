@@ -12,7 +12,7 @@
 - `data/` - All user data (database, media files, configs)
 - `*.session` - Session files
 
-📖 **Details**: See [DATA_PROTECTION.md](DATA_PROTECTION.md)
+📖 **Details**: See [DATA_PROTECTION.md](docs/guides/DATA_PROTECTION.md)
 
 🔄 **Safe code update**:
 ```bash
@@ -23,9 +23,9 @@ git pull  # Your config and data will be preserved automatically
 
 ## 📖 文档导航 | Documentation
 
-- [🚀 快速开始 (Quick Start)](QUICKSTART.md) - 3分钟快速部署
-- [⚙️ 详细设置指南 (Setup Guide)](SETUP_GUIDE.md) - 完整配置教程
-- [📝 使用示例 (Usage Examples)](USAGE_EXAMPLES.md) - 各种使用场景
+- [🚀 快速开始 (Quick Start)](docs/guides/QUICKSTART.md) - 3分钟快速部署
+- [⚙️ 详细设置指南 (Setup Guide)](docs/guides/SETUP_GUIDE.md) - 完整配置教程
+- [📝 使用示例 (Usage Examples)](docs/guides/USAGE_EXAMPLES.md) - 各种使用场景
 - [🇨🇳 完整中文文档 (Full Chinese Docs)](README.zh-CN.md)
 - [🇬🇧 English Documentation](#english-documentation)
 - [🇨🇳 中文文档](#中文文档)
@@ -49,7 +49,7 @@ The script will:
 - ✅ Automatically login to Telegram and generate Session String
 - ✅ Save all configuration to `.env` and `config.json`
 
-📖 [See detailed setup guide](SETUP_GUIDE.md)
+📖 [See detailed setup guide](docs/guides/SETUP_GUIDE.md)
 
 ### Features
 
@@ -195,7 +195,7 @@ Or deploy with Docker Compose:
 docker-compose up -d
 ```
 
-📖 [See detailed setup guide](SETUP_GUIDE.md)
+📖 [See detailed setup guide](docs/guides/SETUP_GUIDE.md)
 
 #### Method 1: Using Docker (Manual Configuration)
 
@@ -309,7 +309,7 @@ python setup.py
 - ✅ 自动登录 Telegram 并生成 Session String
 - ✅ 保存所有配置到 `.env` 和 `config.json`
 
-📖 [查看详细设置指南](SETUP_GUIDE.md)
+📖 [查看详细设置指南](docs/guides/SETUP_GUIDE.md)
 
 ### 功能特性
 
@@ -448,7 +448,7 @@ python main.py
 docker-compose up -d
 ```
 
-📖 [查看详细设置指南](SETUP_GUIDE.md)
+📖 [查看详细设置指南](docs/guides/SETUP_GUIDE.md)
 
 #### 方法一：使用 Docker 部署（手动配置）
 

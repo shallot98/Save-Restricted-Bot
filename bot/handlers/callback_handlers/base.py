@@ -6,11 +6,26 @@ Base callback handler - 回调处理器基类
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Optional
 from pyrogram import Client
 from pyrogram.types import CallbackQuery
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class CallbackContext:
+    client: Client
+    callback_query: CallbackQuery
+    data: str
+    chat_id: int
+    message_id: int
+    user_id: str
+
+
+CallbackRoute = Callable[[CallbackContext], None]
 
 
 class CallbackHandler(ABC):
@@ -68,6 +83,35 @@ class CallbackHandler(ABC):
             'user_id': str(callback_query.from_user.id),
             'callback_query': callback_query
         }
+
+    def get_common_context(self, client: Client, callback_query: CallbackQuery) -> CallbackContext:
+        """Build the shared callback context used by internal handlers."""
+        return CallbackContext(
+            client=client,
+            callback_query=callback_query,
+            data=callback_query.data,
+            chat_id=callback_query.message.chat.id,
+            message_id=callback_query.message.id,
+            user_id=str(callback_query.from_user.id),
+        )
+
+    def dispatch_context(
+        self,
+        context: CallbackContext,
+        exact: Mapping[str, CallbackRoute] | None = None,
+        prefixes: Sequence[tuple[str, CallbackRoute]] = (),
+    ) -> bool:
+        """Dispatch a callback context by exact callback data or prefix."""
+        if exact and context.data in exact:
+            exact[context.data](context)
+            return True
+
+        for prefix, handler in prefixes:
+            if context.data.startswith(prefix):
+                handler(context)
+                return True
+
+        return False
 
     def answer_and_log(self, callback_query: CallbackQuery, text: str = "", show_alert: bool = False) -> None:
         """

@@ -8,12 +8,14 @@ Schema migrations and initialization.
 import sqlite3
 import logging
 import os
-import json
 import bcrypt
-from pathlib import Path
-from typing import List, Callable
 
 from src.infrastructure.persistence.sqlite.connection import get_db_connection
+from src.infrastructure.persistence.sqlite.notes_fts_migrations import create_or_rebuild_notes_fts
+from src.infrastructure.persistence.sqlite.watch_task_migrations import (
+    apply_watch_task_schema_updates,
+    migrate_watch_config_from_json,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -162,191 +164,13 @@ def _create_watch_tables(cursor: sqlite3.Cursor) -> None:
 
 
 def _apply_watch_tasks_migrations(cursor: sqlite3.Cursor) -> None:
-    """Apply schema updates for watch_tasks table.
-
-    Currently:
-    - Add explicit watch_id column (best-effort, backfill existing rows)
-    - Create unique index for watch_id lookups
-    """
-    try:
-        cursor.execute("PRAGMA table_info(watch_tasks)")
-        existing_columns = {col[1] for col in cursor.fetchall()}
-    except sqlite3.Error as e:
-        logger.warning(f"Skip watch_tasks migrations (table unavailable): {e}")
-        return
-
-    if "watch_id" not in existing_columns:
-        try:
-            cursor.execute("ALTER TABLE watch_tasks ADD COLUMN watch_id TEXT")
-            logger.info("Added column: watch_tasks.watch_id")
-        except sqlite3.Error as e:
-            logger.warning(f"Failed to add watch_tasks.watch_id: {e}")
-            return
-
-    try:
-        cursor.execute(
-            "SELECT watch_id FROM watch_tasks WHERE watch_id IS NOT NULL AND TRIM(watch_id) != ''"
-        )
-        existing_ids = {str(row[0]) for row in cursor.fetchall()}
-
-        cursor.execute(
-            "SELECT user_id, watch_key FROM watch_tasks WHERE watch_id IS NULL OR TRIM(watch_id) = ''"
-        )
-        missing_rows = cursor.fetchall()
-    except sqlite3.Error as e:
-        logger.warning(f"Skip watch_id backfill (query failed): {e}")
-        return
-
-    if missing_rows:
-        import uuid
-
-        for row in missing_rows:
-            user_id = str(row[0])
-            watch_key = str(row[1])
-
-            # Generate a short stable ID; collisions are extremely unlikely, but guard anyway.
-            while True:
-                watch_id = uuid.uuid4().hex
-                if watch_id not in existing_ids:
-                    existing_ids.add(watch_id)
-                    break
-
-            try:
-                cursor.execute(
-                    "UPDATE watch_tasks SET watch_id = ? WHERE user_id = ? AND watch_key = ?",
-                    (watch_id, user_id, watch_key),
-                )
-            except sqlite3.Error as e:
-                logger.warning(f"Failed to backfill watch_id for {user_id}:{watch_key}: {e}")
-
-        logger.info(f"Backfilled watch_id for watch_tasks rows: {len(missing_rows)}")
-
-    try:
-        cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_tasks_watch_id ON watch_tasks(watch_id)"
-        )
-    except sqlite3.Error as e:
-        logger.warning(f"Failed to create idx_watch_tasks_watch_id: {e}")
+    """Apply schema updates for watch_tasks table."""
+    apply_watch_task_schema_updates(cursor)
 
 
 def _maybe_migrate_watch_config_from_json(cursor: sqlite3.Cursor) -> None:
     """Best-effort migration from legacy watch_config.json into watch_tasks."""
-    try:
-        cursor.execute("SELECT 1 FROM watch_tasks LIMIT 1")
-        if cursor.fetchone() is not None:
-            return
-    except sqlite3.Error as e:
-        logger.warning(f"Skip watch config migration (watch_tasks unavailable): {e}")
-        return
-
-    try:
-        from src.core.config import settings
-    except Exception as e:
-        logger.warning(f"Skip watch config migration (settings unavailable): {e}")
-        return
-
-    watch_file: Path = settings.paths.watch_file
-    if not watch_file.exists():
-        return
-
-    try:
-        raw = json.loads(watch_file.read_text(encoding="utf-8"))
-    except Exception as e:
-        logger.warning(f"Skip watch config migration (invalid json): {e}")
-        return
-
-    if not isinstance(raw, dict) or not raw:
-        return
-
-    rows = []
-    for user_id, user_data in raw.items():
-        if not isinstance(user_data, dict):
-            continue
-        for watch_key, watch_data in user_data.items():
-            source_id = ""
-            dest_id = None
-            record_mode = 0
-            whitelist = []
-            blacklist = []
-            whitelist_regex = []
-            blacklist_regex = []
-            preserve_forward_source = 0
-            forward_mode = "full"
-            extract_patterns = []
-
-            if isinstance(watch_data, dict):
-                source_id = str(watch_data.get("source") or "").strip()
-                if not source_id:
-                    source_id = str(str(watch_key).split("|")[0] if "|" in str(watch_key) else watch_key).strip()
-                dest_id = watch_data.get("dest")
-                record_mode = 1 if bool(watch_data.get("record_mode", False)) else 0
-                whitelist = watch_data.get("whitelist", []) or []
-                blacklist = watch_data.get("blacklist", []) or []
-                whitelist_regex = watch_data.get("whitelist_regex", []) or []
-                blacklist_regex = watch_data.get("blacklist_regex", []) or []
-                preserve_forward_source = 1 if bool(watch_data.get("preserve_forward_source", False)) else 0
-                forward_mode = str(watch_data.get("forward_mode", "full") or "full")
-                extract_patterns = watch_data.get("extract_patterns", []) or []
-            else:
-                source_id = str(str(watch_key).split("|")[0] if "|" in str(watch_key) else watch_key).strip()
-                dest_id = watch_data
-                record_mode = 0
-
-            canonical_key = str(watch_key)
-            if "|" not in canonical_key:
-                if record_mode:
-                    canonical_key = f"{source_id}|record"
-                elif dest_id is not None:
-                    canonical_key = f"{source_id}|{dest_id}"
-                else:
-                    canonical_key = source_id or canonical_key
-
-            if not source_id:
-                continue
-
-            rows.append(
-                (
-                    str(user_id),
-                    canonical_key,
-                    source_id,
-                    None if dest_id is None else str(dest_id),
-                    record_mode,
-                    json.dumps(list(whitelist), ensure_ascii=False),
-                    json.dumps(list(blacklist), ensure_ascii=False),
-                    json.dumps(list(whitelist_regex), ensure_ascii=False),
-                    json.dumps(list(blacklist_regex), ensure_ascii=False),
-                    preserve_forward_source,
-                    forward_mode,
-                    json.dumps(list(extract_patterns), ensure_ascii=False),
-                )
-            )
-
-    if not rows:
-        return
-
-    try:
-        cursor.executemany(
-            """
-            INSERT INTO watch_tasks (
-                user_id,
-                watch_key,
-                source_id,
-                dest_id,
-                record_mode,
-                whitelist_json,
-                blacklist_json,
-                whitelist_regex_json,
-                blacklist_regex_json,
-                preserve_forward_source,
-                forward_mode,
-                extract_patterns_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            rows,
-        )
-        logger.info(f"Migrated watch config from json: users={len(raw)} tasks={len(rows)}")
-    except sqlite3.Error as e:
-        logger.warning(f"Failed to migrate watch config from json: {e}")
+    migrate_watch_config_from_json(cursor)
 
 
 def _apply_column_migrations(cursor: sqlite3.Cursor) -> None:
@@ -371,75 +195,8 @@ def _apply_column_migrations(cursor: sqlite3.Cursor) -> None:
 
 
 def _create_notes_fts(cursor: sqlite3.Cursor) -> None:
-    """Create and (optionally) rebuild notes FTS index.
-
-    Notes:
-    - Uses SQLite FTS5 if available.
-    - If FTS5 is not available in the runtime sqlite, migrations continue without failing.
-    """
-    cursor.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='notes_fts' LIMIT 1"
-    )
-    has_fts = cursor.fetchone() is not None
-
-    try:
-        cursor.execute(
-            """
-            CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-                message_text,
-                source_name,
-                content='notes',
-                content_rowid='id',
-                tokenize='unicode61'
-            )
-            """
-        )
-    except sqlite3.OperationalError as e:
-        logger.warning(f"SQLite FTS5 unavailable, skip notes_fts: {e}")
-        return
-
-    # Keep external content FTS table in sync.
-    cursor.execute(
-        """
-        CREATE TRIGGER IF NOT EXISTS notes_fts_ai
-        AFTER INSERT ON notes
-        BEGIN
-            INSERT INTO notes_fts(rowid, message_text, source_name)
-            VALUES (new.id, new.message_text, new.source_name);
-        END
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TRIGGER IF NOT EXISTS notes_fts_ad
-        AFTER DELETE ON notes
-        BEGIN
-            INSERT INTO notes_fts(notes_fts, rowid, message_text, source_name)
-            VALUES('delete', old.id, old.message_text, old.source_name);
-        END
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TRIGGER IF NOT EXISTS notes_fts_au
-        AFTER UPDATE OF message_text, source_name ON notes
-        BEGIN
-            INSERT INTO notes_fts(notes_fts, rowid, message_text, source_name)
-            VALUES('delete', old.id, old.message_text, old.source_name);
-            INSERT INTO notes_fts(rowid, message_text, source_name)
-            VALUES (new.id, new.message_text, new.source_name);
-        END
-        """
-    )
-
-    if not has_fts:
-        try:
-            cursor.execute("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')")
-        except sqlite3.OperationalError as e:
-            logger.warning(f"Failed to rebuild notes_fts: {e}")
-            return
-
-        logger.info("notes_fts created and rebuilt")
+    """Create and repair notes_fts with dedicated migration helpers."""
+    create_or_rebuild_notes_fts(cursor)
 
 
 def _create_indexes(cursor: sqlite3.Cursor) -> None:

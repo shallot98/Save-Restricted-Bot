@@ -158,14 +158,51 @@
 	                <span x-text="getCalibrateButtonText()">校准</span>
 	            </button>
 
-	            <button x-show="isCalibrating"
-	                    @click="cancelCalibration()"
-	                    type="button"
-	                    class="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs rounded-lg transition">
-	                取消
-	            </button>
+            <button x-show="isCalibrating"
+                    @click="cancelCalibration()"
+                    type="button"
+                    class="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs rounded-lg transition">
+                取消
+            </button>
 
-	            <template x-if="getValidDns().length === 1">
+            <template x-if="getDownloadableMagnets().length === 1">
+                <button @click="download(0)"
+                        type="button"
+                        :disabled="downloadStatus === 'pending' || downloadStatus === 'downloading'"
+                        class="px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white text-xs rounded-lg transition flex items-center justify-center gap-1">
+                    <svg x-show="downloadStatus === null" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l-4-4m4 4l4-4M6 21h12"></path>
+                    </svg>
+                    <span x-show="downloadStatus === 'pending' || downloadStatus === 'downloading'" class="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+                    <svg x-show="downloadStatus === 'done'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <svg x-show="downloadStatus === 'error'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86l-8.02 14A2 2 0 004.02 21h15.96a2 2 0 001.73-3.14l-8.02-14a2 2 0 00-3.4 0z"></path>
+                    </svg>
+                    <span x-text="getDownloadButtonText()">下载</span>
+                </button>
+            </template>
+            <template x-if="getDownloadableMagnets().length > 1">
+                <button @click="showDownloadOptions()"
+                        type="button"
+                        :disabled="downloadStatus === 'pending' || downloadStatus === 'downloading'"
+                        class="px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white text-xs rounded-lg transition flex items-center justify-center gap-1">
+                    <svg x-show="downloadStatus === null" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l-4-4m4 4l4-4M6 21h12"></path>
+                    </svg>
+                    <span x-show="downloadStatus === 'pending' || downloadStatus === 'downloading'" class="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+                    <svg x-show="downloadStatus === 'done'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <svg x-show="downloadStatus === 'error'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86l-8.02 14A2 2 0 004.02 21h15.96a2 2 0 001.73-3.14l-8.02-14a2 2 0 00-3.4 0z"></path>
+                    </svg>
+                    <span x-text="getDownloadButtonText()">下载</span>
+                </button>
+            </template>
+
+            <template x-if="getValidDns().length === 1">
 	                <a :href="getWatchHref(getValidDns()[0].dn)" target="_blank"
 	                   class="flex-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg text-center transition">
 	                    观看

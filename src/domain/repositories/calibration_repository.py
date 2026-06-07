@@ -93,7 +93,8 @@ class CalibrationRepository(ABC):
         task_id: int,
         status: CalibrationStatus,
         error_message: Optional[str] = None,
-        next_attempt: Optional[datetime] = None
+        *legacy_next_attempt: Optional[datetime],
+        next_attempt: Optional[datetime] = None,
     ) -> bool:
         """
         Update task status

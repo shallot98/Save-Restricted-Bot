@@ -156,7 +156,8 @@ class NoteRepository(ABC):
         user_id: int,
         source_chat_id: str,
         message_text: Optional[str],
-        media_group_id: Optional[str] = None
+        *legacy_media_group_id: Optional[str],
+        media_group_id: Optional[str] = None,
     ) -> bool:
         """
         Check if note is a duplicate

@@ -11,76 +11,21 @@ Centralized configuration management with:
 - Configuration validation
 """
 
-import os
-import json
 import logging
+import os
 import threading
-import tempfile
-import shutil
-from pathlib import Path
 from typing import Any, Dict, Optional, Set, Callable
-from dataclasses import dataclass, field
 
 from .loader import ConfigLoader
 from .models import MainConfig, WatchConfig, WebDAVConfig, ViewerConfig
-from .exceptions import ConfigLoadError, ConfigSaveError
-from .hot_reload import HotReloadManager
-from .notifier import ConfigChangeCallback
+from .settings_hot_reload import SettingsHotReloadMixin
+from .settings_paths import PathConfig
+from .settings_persistence import SettingsPersistenceMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PathConfig:
-    """Path configuration for data directories"""
-
-    base_dir: Path = field(default_factory=lambda: Path(__file__).parent.parent.parent.parent)
-
-    @property
-    def data_dir(self) -> Path:
-        """Data directory path"""
-        env_dir = os.environ.get('DATA_DIR')
-        if env_dir:
-            return Path(env_dir)
-        return self.base_dir / 'data'
-
-    @property
-    def config_dir(self) -> Path:
-        """Configuration directory path"""
-        return self.data_dir / 'config'
-
-    @property
-    def media_dir(self) -> Path:
-        """Media storage directory path"""
-        return self.data_dir / 'media'
-
-    @property
-    def config_file(self) -> Path:
-        """Main config file path"""
-        return self.config_dir / 'config.json'
-
-    @property
-    def watch_file(self) -> Path:
-        """Watch config file path"""
-        return self.config_dir / 'watch_config.json'
-
-    @property
-    def webdav_file(self) -> Path:
-        """WebDAV config file path"""
-        return self.config_dir / 'webdav_config.json'
-
-    @property
-    def viewer_file(self) -> Path:
-        """Viewer config file path"""
-        return self.config_dir / 'viewer_config.json'
-
-    def ensure_directories(self) -> None:
-        """Ensure all required directories exist"""
-        self.config_dir.mkdir(parents=True, exist_ok=True)
-        self.media_dir.mkdir(parents=True, exist_ok=True)
-
-
-class Settings:
+class Settings(SettingsPersistenceMixin, SettingsHotReloadMixin):
     """
     Centralized settings management
 
@@ -177,106 +122,6 @@ class Settings:
             self._watch_config = WatchConfig()
             self._webdav_config = WebDAVConfig()
             self._viewer_config = ViewerConfig()
-
-    def _load_json_config(self, path: Path, default: Dict[str, Any]) -> Dict[str, Any]:
-        """Load JSON configuration from file"""
-        if path.exists():
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, OSError) as e:
-                logger.warning(f"Failed to load config from {path}: {e}")
-
-        # Save default config
-        self._save_json_config(path, default)
-        return default
-
-    def _save_json_config(self, path: Path, config: Dict[str, Any]) -> None:
-        """Save configuration to JSON file (legacy method)"""
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=4, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-
-    def _persist_config(self, path: Path, config: Dict[str, Any]) -> None:
-        """
-        原子写入配置文件
-
-        使用临时文件 + 重命名实现原子写入，确保配置文件不会损坏。
-
-        Args:
-            path: 配置文件路径
-            config: 配置字典
-
-        Raises:
-            ConfigSaveError: 保存失败
-        """
-        try:
-            # 确保目录存在
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-            # 创建临时文件（在同一目录下，确保在同一文件系统）
-            temp_fd, temp_path = tempfile.mkstemp(
-                dir=path.parent,
-                prefix=f".{path.name}.",
-                suffix=".tmp"
-            )
-
-            try:
-                # 写入临时文件
-                with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
-                    json.dump(config, f, indent=4, ensure_ascii=False)
-                    f.flush()
-                    os.fsync(f.fileno())
-
-                # 如果原文件存在，创建备份
-                if path.exists():
-                    backup_path = path.with_suffix(path.suffix + '.bak')
-                    shutil.copy2(path, backup_path)
-                    logger.debug(f"配置文件已备份: {backup_path}")
-
-                # 原子替换（在同一文件系统上，rename是原子操作）
-                os.replace(temp_path, path)
-                logger.debug(f"配置已保存: {path}")
-
-            except Exception as e:
-                # 清理临时文件
-                if os.path.exists(temp_path):
-                    os.unlink(temp_path)
-                raise e
-
-        except Exception as e:
-            logger.error(f"配置持久化失败: {path}, 错误: {e}")
-            raise ConfigSaveError(str(path), str(e))
-
-    @staticmethod
-    def _get_env_config() -> Dict[str, Any]:
-        """Get configuration from environment variables"""
-        config = {}
-        for key in ["TOKEN", "HASH", "ID", "STRING", "OWNER_ID"]:
-            value = os.environ.get(key)
-            if value:
-                config[key] = value
-        return config
-
-    @staticmethod
-    def _default_webdav_config() -> Dict[str, Any]:
-        """Default WebDAV configuration"""
-        return {
-            "enabled": False,
-            "url": "",
-            "username": "",
-            "password": "",
-            "base_path": "/telegram_media",
-            "keep_local_copy": False
-        }
-
-    @staticmethod
-    def _default_viewer_config() -> Dict[str, Any]:
-        """Default viewer configuration"""
-        return {
-            "viewer_url": "https://example.com/watch?dn="
-        }
 
     # ==================== Config Access ====================
 
@@ -404,133 +249,6 @@ class Settings:
             logger.info(f"Saving viewer config to: {self._paths.viewer_file}")
             self._viewer_config = ViewerConfig(**config)
             self._persist_config(self._paths.viewer_file, config)
-
-    # ==================== Hot Reload ====================
-
-    def enable_hot_reload(self) -> None:
-        """
-        启用配置热重载
-
-        启动文件监控，当配置文件变更时自动重新加载。
-
-        Example:
-            >>> settings.enable_hot_reload()
-            >>> # 配置文件变更时会自动重载
-        """
-        with self._rw_lock:
-            if self._hot_reload_manager is not None and self._hot_reload_manager.is_running():
-                logger.warning("热重载已经启用")
-                return
-
-            # 创建热重载管理器
-            self._hot_reload_manager = HotReloadManager(
-                config_dir=self._paths.config_dir,
-                reload_callback=self._handle_config_reload
-            )
-
-            # 启动热重载
-            self._hot_reload_manager.start()
-            logger.info("配置热重载已启用")
-
-    def disable_hot_reload(self) -> None:
-        """
-        禁用配置热重载
-
-        停止文件监控。
-
-        Example:
-            >>> settings.disable_hot_reload()
-        """
-        with self._rw_lock:
-            if self._hot_reload_manager is not None:
-                self._hot_reload_manager.stop()
-                self._hot_reload_manager = None
-                logger.info("配置热重载已禁用")
-
-    def subscribe(self, callback: ConfigChangeCallback) -> str:
-        """
-        订阅配置变更通知
-
-        Args:
-            callback: 回调函数，签名为 (config_type, old_value, new_value) -> None
-
-        Returns:
-            str: 订阅ID，用于取消订阅
-
-        Example:
-            >>> def on_config_change(config_type, old, new):
-            ...     print(f"配置 {config_type} 已变更")
-            >>> sub_id = settings.subscribe(on_config_change)
-        """
-        # 确保热重载管理器已创建
-        if self._hot_reload_manager is None:
-            self._hot_reload_manager = HotReloadManager(
-                config_dir=self._paths.config_dir,
-                reload_callback=self._handle_config_reload
-            )
-
-        return self._hot_reload_manager.notifier.subscribe(callback)
-
-    def unsubscribe(self, subscription_id: str) -> bool:
-        """
-        取消订阅配置变更通知
-
-        Args:
-            subscription_id: 订阅ID（由subscribe方法返回）
-
-        Returns:
-            bool: 是否成功取消订阅
-
-        Example:
-            >>> settings.unsubscribe(sub_id)
-            True
-        """
-        if self._hot_reload_manager is not None:
-            return self._hot_reload_manager.notifier.unsubscribe(subscription_id)
-        return False
-
-    def _handle_config_reload(self, file_path: Path) -> None:
-        """
-        处理配置重载
-
-        Args:
-            file_path: 变更的配置文件路径
-        """
-        with self._rw_lock:
-            logger.info(f"重新加载配置: {file_path.name}")
-
-            try:
-                # 根据文件名重新加载对应的配置
-                if file_path.name == "config.json":
-                    self._main_config = self._loader.load_and_validate(
-                        MainConfig,
-                        file_path=file_path,
-                        env_prefix=""
-                    )
-                elif file_path.name == "watch_config.json":
-                    watch_data = self._loader.load_from_file(file_path, default={})
-                    self._watch_config = WatchConfig(sources=watch_data)
-                    self._watch_config_revision += 1
-                    self._rebuild_monitored_sources()
-                elif file_path.name == "webdav_config.json":
-                    self._webdav_config = self._loader.load_and_validate(
-                        WebDAVConfig,
-                        file_path=file_path,
-                        env_prefix="WEBDAV_"
-                    )
-                elif file_path.name == "viewer_config.json":
-                    self._viewer_config = self._loader.load_and_validate(
-                        ViewerConfig,
-                        file_path=file_path,
-                        env_prefix="VIEWER_"
-                    )
-
-                logger.info(f"配置 {file_path.name} 重载成功")
-
-            except Exception as e:
-                logger.error(f"配置重载失败: {e}")
-                raise
-
 
 # Global singleton instance
 settings = Settings()

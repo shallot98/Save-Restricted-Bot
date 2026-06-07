@@ -48,7 +48,7 @@ def _safe_stacktrace(error: BaseException, *, max_length: int) -> str:
         return ""
 
 
-def _try_send_alert(level: str, title: str, message: str, details: Dict[str, Any]) -> None:
+def _try_send_alert(level: str, title: str, message: str, *, details: Dict[str, Any]) -> None:
     try:
         from src.infrastructure.monitoring.alerting.alert_manager import get_alert_manager  # noqa: WPS433
 
@@ -140,4 +140,3 @@ def get_error_tracker() -> ErrorTracker:
     if _error_tracker is None:
         _error_tracker = ErrorTracker()
     return _error_tracker
-

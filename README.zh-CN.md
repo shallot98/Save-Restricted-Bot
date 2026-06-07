@@ -13,7 +13,7 @@
 - `data/` - 所有用户数据（数据库和媒体文件）
 - `*.session` - Session文件
 
-📖 **详细说明**：请查看 [DATA_PROTECTION.md](DATA_PROTECTION.md)
+📖 **详细说明**：请查看 [DATA_PROTECTION.md](docs/guides/DATA_PROTECTION.md)
 
 🔄 **更新代码时的操作**：
 ```bash

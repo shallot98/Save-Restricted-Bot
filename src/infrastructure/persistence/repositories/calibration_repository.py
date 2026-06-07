@@ -115,9 +115,17 @@ class SQLiteCalibrationRepository(CalibrationRepository):
         task_id: int,
         status: CalibrationStatus,
         error_message: Optional[str] = None,
-        next_attempt: Optional[datetime] = None
+        *legacy_next_attempt: Optional[datetime],
+        next_attempt: Optional[datetime] = None,
     ) -> bool:
         """Update task status"""
+        if len(legacy_next_attempt) > 1:
+            raise TypeError("update_status accepts at most one legacy next_attempt argument")
+        if legacy_next_attempt:
+            if next_attempt is not None:
+                raise TypeError("update_status received duplicate next_attempt values")
+            next_attempt = legacy_next_attempt[0]
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
             now = format_db_datetime(datetime.now(CHINA_TZ))

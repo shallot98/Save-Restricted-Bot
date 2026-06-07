@@ -10,6 +10,7 @@ import logging
 import queue
 import threading
 import time
+from dataclasses import dataclass
 from typing import Iterable, Optional, Protocol
 
 from .aggregator import MetricAggregator
@@ -22,33 +23,41 @@ class MetricPersistStore(Protocol):
     def insert_metrics(self, metrics: Iterable[Metric]) -> None: ...
 
 
+@dataclass(frozen=True)
+class MetricCollectorOptions:
+    enabled: bool = True
+    batch_size: int = 200
+    flush_interval_seconds: float = 1.0
+    max_queue_size: int = 10_000
+    persist_store: Optional[MetricPersistStore] = None
+    persist_interval_seconds: float = 5.0
+    persist_batch_size: int = 1000
+    max_persist_batches: int = 2_000
+
+
 class MetricCollector:
     """指标收集器（异步批量）"""
 
     def __init__(
         self,
         aggregator: MetricAggregator,
-        *,
-        enabled: bool = True,
-        batch_size: int = 200,
-        flush_interval_seconds: float = 1.0,
-        max_queue_size: int = 10_000,
-        persist_store: Optional[MetricPersistStore] = None,
-        persist_interval_seconds: float = 5.0,
-        persist_batch_size: int = 1000,
-        max_persist_batches: int = 2_000,
+        options: MetricCollectorOptions | None = None,
+        **legacy_options,
     ) -> None:
+        options = _metric_collector_options(options, legacy_options)
         self._aggregator = aggregator
-        self._enabled = enabled
-        self._batch_size = max(batch_size, 1)
-        self._flush_interval_seconds = max(flush_interval_seconds, 0.01)
-        self._queue: "queue.Queue[Metric]" = queue.Queue(maxsize=max_queue_size)
+        self._enabled = options.enabled
+        self._batch_size = max(options.batch_size, 1)
+        self._flush_interval_seconds = max(options.flush_interval_seconds, 0.01)
+        self._queue: "queue.Queue[Metric]" = queue.Queue(maxsize=options.max_queue_size)
         self._stop_event = threading.Event()
         self._worker: Optional[threading.Thread] = None
-        self._persist_store = persist_store
-        self._persist_interval_seconds = max(float(persist_interval_seconds), 0.5)
-        self._persist_batch_size = max(int(persist_batch_size), 1)
-        self._persist_queue: "queue.Queue[list[Metric]]" = queue.Queue(maxsize=max(int(max_persist_batches), 1))
+        self._persist_store = options.persist_store
+        self._persist_interval_seconds = max(float(options.persist_interval_seconds), 0.5)
+        self._persist_batch_size = max(int(options.persist_batch_size), 1)
+        self._persist_queue: "queue.Queue[list[Metric]]" = queue.Queue(
+            maxsize=max(int(options.max_persist_batches), 1)
+        )
         self._persist_worker: Optional[threading.Thread] = None
 
         if self._enabled:
@@ -192,3 +201,27 @@ class MetricCollector:
                 self._persist_store.insert_metrics(buffer)
             except Exception:
                 logger.exception("指标退出持久化失败（已忽略）")
+
+
+def _metric_collector_options(
+    options: MetricCollectorOptions | None,
+    legacy_options: dict,
+) -> MetricCollectorOptions:
+    if options is not None:
+        if legacy_options:
+            raise TypeError("MetricCollector received both options and legacy fields")
+        return options
+    resolved = MetricCollectorOptions(
+        enabled=legacy_options.pop("enabled", True),
+        batch_size=legacy_options.pop("batch_size", 200),
+        flush_interval_seconds=legacy_options.pop("flush_interval_seconds", 1.0),
+        max_queue_size=legacy_options.pop("max_queue_size", 10_000),
+        persist_store=legacy_options.pop("persist_store", None),
+        persist_interval_seconds=legacy_options.pop("persist_interval_seconds", 5.0),
+        persist_batch_size=legacy_options.pop("persist_batch_size", 1000),
+        max_persist_batches=legacy_options.pop("max_persist_batches", 2_000),
+    )
+    if legacy_options:
+        unknown = ", ".join(sorted(legacy_options))
+        raise TypeError(f"MetricCollector got unexpected keyword argument(s): {unknown}")
+    return resolved

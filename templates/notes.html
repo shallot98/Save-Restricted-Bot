@@ -279,7 +279,7 @@
             overflow: auto !important;
             text-align: center;
         }
-        
+
         .zoom-view-image {
             max-width: none !important;
             max-height: none !important;
@@ -299,10 +299,10 @@
         window.toggleImageZoom = function(imgId) {
             const img = document.getElementById(imgId);
             if (!img) return;
-            
+
             // 获取滚动容器 (对于gallery是父div, 对于modal是modal本身)
             const container = img.parentElement;
-            
+
             if (container.classList.contains('zoom-view-container')) {
                 // 缩小 (还原)
                 container.classList.remove('zoom-view-container');
@@ -434,7 +434,7 @@
         <!-- 主内容区 -->
         <main class="flex-1 overflow-y-auto">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                
+
                 <!-- 页面标题 (与 Dashboard 保持一致) -->
                 <div class="mb-6">
                     <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -498,7 +498,7 @@
 
                 <!-- 分页 -->
                 {% from "components/pagination.html" import render_pagination %}
-                {{ render_pagination(current_page, total_pages, selected_source) }}
+                {{ render_pagination(current_page, total_pages, selected_source, search_query, date_from, date_to, favorite_only) }}
                 {% else %}
                 <!-- 空状态 -->
                 <div class="text-center py-12">
@@ -529,10 +529,10 @@
 		    <script nonce="{{ csp_nonce() }}">
 			        function notesApp(initialState) {
 	                    const resolvedInitial = (initialState && typeof initialState === 'object') ? initialState : {};
-                        
+
                         // 防御性编程：防止 head 脚本执行失败导致对象未定义
                         const theme = window.ThemeManager || {
-                            readPreference: function() { 
+                            readPreference: function() {
                                 return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
                             },
                             apply: function(isDark) {
@@ -546,15 +546,14 @@
                             readOpen: function() { return false; },
                             writeOpen: function() { }
                         };
-	
+
 			            return {
 			                sidebarOpen: (resolvedInitial.sidebarOpen === true),
 			                showMobileSearch: false,
 			                darkMode: (typeof resolvedInitial.darkMode === 'boolean') ? resolvedInitial.darkMode : theme.readPreference(),
 			                searchQuery: '',
 			                filterFavorite: false,
-			                searchTimeout: null,
-	
+
 		                init() {
                             try {
 	                            theme.apply(this.darkMode, false);
@@ -574,13 +573,11 @@
 	                        theme.apply(this.darkMode, true);
 		                },
 
-                debounceSearch() {
-                    clearTimeout(this.searchTimeout);
-                    this.searchTimeout = setTimeout(() => {
-                        if (this.searchQuery.length > 0) {
-                            window.location.href = '/notes?search=' + encodeURIComponent(this.searchQuery);
-                        }
-                    }, 800);
+                // 点击搜索按钮或按 Enter 键时执行搜索
+                executeSearch() {
+                    if (this.searchQuery.trim().length > 0) {
+                        window.location.href = '/notes?search=' + encodeURIComponent(this.searchQuery.trim());
+                    }
                 }
             }
         }

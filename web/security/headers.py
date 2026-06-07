@@ -68,6 +68,57 @@ def _build_csp(
     )
 
 
+def _set_default_security_headers(response) -> None:
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    )
+
+
+def _set_csp_header(
+    response,
+    *,
+    resolved_csp: Optional[str],
+    use_script_nonce: bool,
+    allow_unsafe_inline: bool,
+    default_allow_unsafe_eval: bool,
+) -> None:
+    if resolved_csp:
+        response.headers.setdefault("Content-Security-Policy", resolved_csp)
+        return
+
+    nonce = _get_csp_nonce() if use_script_nonce else None
+    allow_unsafe_eval = bool(getattr(g, _CSP_ALLOW_UNSAFE_EVAL_G_KEY, default_allow_unsafe_eval))
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        _build_csp(
+            nonce=nonce,
+            allow_unsafe_inline=allow_unsafe_inline,
+            allow_unsafe_eval=allow_unsafe_eval,
+        ),
+    )
+
+
+def _disable_html_cache(response) -> None:
+    if response.mimetype != "text/html":
+        return
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
+
+def _set_hsts_header(response, *, enable_hsts: bool) -> None:
+    if not enable_hsts or not request.is_secure:
+        return
+    response.headers.setdefault(
+        "Strict-Transport-Security",
+        "max-age=31536000; includeSubDomains",
+    )
+
+
 def init_security_headers(app: Flask, csp: Optional[str] = None) -> None:
     """为所有响应追加基础安全头。"""
 
@@ -82,40 +133,14 @@ def init_security_headers(app: Flask, csp: Optional[str] = None) -> None:
 
     @app.after_request
     def _set_security_headers(response):
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers.setdefault(
-            "Permissions-Policy",
-            "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+        _set_default_security_headers(response)
+        _set_csp_header(
+            response,
+            resolved_csp=resolved_csp,
+            use_script_nonce=use_script_nonce,
+            allow_unsafe_inline=allow_unsafe_inline,
+            default_allow_unsafe_eval=default_allow_unsafe_eval,
         )
-
-        if resolved_csp:
-            response.headers.setdefault("Content-Security-Policy", resolved_csp)
-        else:
-            nonce = _get_csp_nonce() if use_script_nonce else None
-            allow_unsafe_eval = getattr(g, _CSP_ALLOW_UNSAFE_EVAL_G_KEY, default_allow_unsafe_eval)
-            allow_unsafe_eval = bool(allow_unsafe_eval)
-            response.headers.setdefault(
-                "Content-Security-Policy",
-                _build_csp(
-                    nonce=nonce,
-                    allow_unsafe_inline=allow_unsafe_inline,
-                    allow_unsafe_eval=allow_unsafe_eval,
-                ),
-            )
-
-        # HTML 页面默认不缓存（避免敏感页面被浏览器/代理缓存）。
-        if response.mimetype == "text/html":
-            response.headers["Cache-Control"] = "no-store"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-
-        # 仅在 HTTPS 场景下启用 HSTS，避免本地 http 开发被“锁死”。
-        if enable_hsts and request.is_secure:
-            response.headers.setdefault(
-                "Strict-Transport-Security",
-                "max-age=31536000; includeSubDomains",
-            )
-
+        _disable_html_cache(response)
+        _set_hsts_header(response, enable_hsts=enable_hsts)
         return response

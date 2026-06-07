@@ -40,6 +40,19 @@ class _DummyAcc:
         return [_DummyFetchedMessage(caption=self._media_group_caption)]
 
 
+@dataclass
+class _DummyChat:
+    id: int
+
+
+@dataclass
+class _DummyMessage:
+    chat: _DummyChat
+    media_group_id: Optional[str] = None
+    text: Optional[str] = None
+    caption: Optional[str] = None
+
+
 class TestMessageWorkerRetry:
     def test_ensure_message_loaded_fetches_when_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(MessageWorker, "_init_storage_manager", lambda self: None)
@@ -136,3 +149,53 @@ class TestMessageWorkerRetry:
         _, _, requeued = worker._delayed[0]
         assert requeued.retry_count == 1
         assert requeued.message is None
+
+    def test_handle_forward_mode_stops_on_cycle(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(MessageWorker, "_init_storage_manager", lambda self: None)
+        worker = MessageWorker(queue.Queue(), _DummyAcc())
+        ensure_calls = {"count": 0}
+
+        def _ensure_peer_cached(_self, _dest: str) -> bool:
+            ensure_calls["count"] += 1
+            return True
+
+        monkeypatch.setattr(MessageWorker, "_ensure_peer_cached", _ensure_peer_cached, raising=True)
+
+        result = worker._handle_forward_mode(
+            message=_DummyMessage(chat=_DummyChat(id=-100123)),
+            dest_chat_id="-100123",
+            message_text="hello",
+            forward_mode="full",
+            extract_patterns=[],
+            preserve_forward_source=False,
+            record_mode=False,
+            chain_context={"depth": 1, "max_hops": 6, "visited": {"-100123"}},
+        )
+
+        assert result == "success"
+        assert ensure_calls["count"] == 0
+
+    def test_handle_forward_mode_stops_on_max_hops(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(MessageWorker, "_init_storage_manager", lambda self: None)
+        worker = MessageWorker(queue.Queue(), _DummyAcc())
+        ensure_calls = {"count": 0}
+
+        def _ensure_peer_cached(_self, _dest: str) -> bool:
+            ensure_calls["count"] += 1
+            return True
+
+        monkeypatch.setattr(MessageWorker, "_ensure_peer_cached", _ensure_peer_cached, raising=True)
+
+        result = worker._handle_forward_mode(
+            message=_DummyMessage(chat=_DummyChat(id=-100123)),
+            dest_chat_id="-100999",
+            message_text="hello",
+            forward_mode="full",
+            extract_patterns=[],
+            preserve_forward_source=False,
+            record_mode=False,
+            chain_context={"depth": 6, "max_hops": 6, "visited": {"-100123"}},
+        )
+
+        assert result == "success"
+        assert ensure_calls["count"] == 0

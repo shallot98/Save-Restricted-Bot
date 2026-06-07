@@ -14,8 +14,11 @@ from zoneinfo import ZoneInfo
 from contextlib import contextmanager
 from typing import Optional, Dict, Any, List
 
+from database_note_requests import legacy_note_query
+from database_notes import LegacyNoteQuery
 from src.core.config import settings
 from src.core.constants import AppConstants
+from src.compat.database_media_cleanup import cleanup_media_files, collect_note_media_files
 
 logger = logging.getLogger(__name__)
 
@@ -103,100 +106,65 @@ def _parse_media_paths(note: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_notes(
-    user_id: Optional[int] = None,
-    source_chat_id: Optional[str] = None,
-    search_query: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    favorite_only: bool = False,
-    limit: int = 50,
-    offset: int = 0
+    query: LegacyNoteQuery | Any = None,
+    *legacy_args,
+    **legacy_kwargs,
 ) -> List[Dict[str, Any]]:
     """Get notes list with filters"""
+    query_options = legacy_note_query(query, legacy_args, legacy_kwargs)
     with get_db_connection() as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        conditions: List[str] = []
-        params: List[Any] = []
+        where_clause, params = _notes_where_clause(query_options)
+        sql = f'SELECT * FROM notes WHERE {where_clause} ORDER BY timestamp DESC LIMIT ? OFFSET ?'
+        params.extend([query_options.limit, query_options.offset])
 
-        if user_id is not None:
-            conditions.append('user_id = ?')
-            params.append(user_id)
-
-        if source_chat_id is not None:
-            conditions.append('source_chat_id = ?')
-            params.append(source_chat_id)
-
-        if favorite_only:
-            conditions.append('is_favorite = 1')
-
-        if date_from:
-            conditions.append("timestamp >= ?")
-            params.append(f"{date_from} 00:00:00")
-
-        if date_to:
-            conditions.append("timestamp <= ?")
-            params.append(f"{date_to} 23:59:59")
-
-        if search_query:
-            conditions.append('(message_text LIKE ? OR source_name LIKE ?)')
-            search_pattern = f'%{search_query}%'
-            params.extend([search_pattern, search_pattern])
-
-        where_clause = ' AND '.join(conditions) if conditions else '1=1'
-        query = f'SELECT * FROM notes WHERE {where_clause} ORDER BY timestamp DESC LIMIT ? OFFSET ?'
-        params.extend([limit, offset])
-
-        cursor.execute(query, params)
+        cursor.execute(sql, params)
         notes = [_parse_media_paths(dict(row)) for row in cursor.fetchall()]
         return notes
 
 
 def get_note_count(
-    user_id: Optional[int] = None,
-    source_chat_id: Optional[str] = None,
-    search_query: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    favorite_only: bool = False
+    query: LegacyNoteQuery | Any = None,
+    *legacy_args,
+    **legacy_kwargs,
 ) -> int:
     """Get notes count with filters"""
+    query_options = legacy_note_query(query, legacy_args, legacy_kwargs)
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        where_clause, params = _notes_where_clause(query_options)
+        sql = f'SELECT COUNT(*) FROM notes WHERE {where_clause}'
 
-        conditions: List[str] = []
-        params: List[Any] = []
-
-        if user_id is not None:
-            conditions.append('user_id = ?')
-            params.append(user_id)
-
-        if source_chat_id is not None:
-            conditions.append('source_chat_id = ?')
-            params.append(source_chat_id)
-
-        if favorite_only:
-            conditions.append('is_favorite = 1')
-
-        if date_from:
-            conditions.append("timestamp >= ?")
-            params.append(f"{date_from} 00:00:00")
-
-        if date_to:
-            conditions.append("timestamp <= ?")
-            params.append(f"{date_to} 23:59:59")
-
-        if search_query:
-            conditions.append('(message_text LIKE ? OR source_name LIKE ?)')
-            search_pattern = f'%{search_query}%'
-            params.extend([search_pattern, search_pattern])
-
-        where_clause = ' AND '.join(conditions) if conditions else '1=1'
-        query = f'SELECT COUNT(*) FROM notes WHERE {where_clause}'
-
-        cursor.execute(query, params)
+        cursor.execute(sql, params)
         return cursor.fetchone()[0]
+
+
+def _notes_where_clause(query: LegacyNoteQuery) -> tuple[str, List[Any]]:
+    conditions: List[str] = []
+    params: List[Any] = []
+
+    if query.user_id is not None:
+        conditions.append('user_id = ?')
+        params.append(query.user_id)
+    if query.source_chat_id is not None:
+        conditions.append('source_chat_id = ?')
+        params.append(query.source_chat_id)
+    if query.favorite_only:
+        conditions.append('is_favorite = 1')
+    if query.date_from:
+        conditions.append("timestamp >= ?")
+        params.append(f"{query.date_from} 00:00:00")
+    if query.date_to:
+        conditions.append("timestamp <= ?")
+        params.append(f"{query.date_to} 23:59:59")
+    if query.search_query:
+        conditions.append('(message_text LIKE ? OR source_name LIKE ?)')
+        search_pattern = f'%{query.search_query}%'
+        params.extend([search_pattern, search_pattern])
+
+    return ' AND '.join(conditions) if conditions else '1=1', params
 
 
 def get_note_by_id(note_id: int) -> Optional[Dict[str, Any]]:
@@ -233,55 +201,12 @@ def delete_note(note_id: int) -> bool:
     """Delete note by ID"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-
-        # Get note info for media cleanup
-        cursor.execute('SELECT media_path, media_paths FROM notes WHERE id = ?', (note_id,))
-        result = cursor.fetchone()
-
-        media_files = set()
-        if result:
-            single_path, media_paths_json = result
-            if single_path:
-                media_files.add(single_path)
-            if media_paths_json:
-                try:
-                    media_files.update(path for path in json.loads(media_paths_json) if path)
-                except (json.JSONDecodeError, TypeError):
-                    pass
-
-        # Delete database record
+        media_files = collect_note_media_files(cursor, note_id)
         cursor.execute('DELETE FROM notes WHERE id = ?', (note_id,))
         affected = cursor.rowcount
 
     if media_files:
-        try:
-            from bot.storage.webdav_client import StorageManager, WebDAVClient
-
-            webdav_config = settings.webdav_config
-            webdav_client = None
-
-            if webdav_config.get("enabled", False):
-                url = (webdav_config.get("url") or "").strip()
-                username = (webdav_config.get("username") or "").strip()
-                password = (webdav_config.get("password") or "").strip()
-                base_path = webdav_config.get("base_path") or "/telegram_media"
-
-                if url and username and password:
-                    try:
-                        webdav_client = WebDAVClient(url, username, password, base_path)
-                    except Exception as e:
-                        logger.warning(f"WebDAV storage init failed, fallback to local: {e}")
-
-            storage_manager = StorageManager(str(settings.paths.media_dir), webdav_client)
-
-            for media_path in media_files:
-                try:
-                    if not storage_manager.delete_file(media_path):
-                        logger.warning(f"Failed to delete media file: {media_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete media file: {media_path}, err={e}")
-        except Exception as e:
-            logger.warning(f"Failed to init storage manager for media cleanup: {e}")
+        cleanup_media_files(media_files, settings=settings, logger=logger)
 
     return affected > 0
 

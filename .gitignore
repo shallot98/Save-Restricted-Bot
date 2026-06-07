@@ -32,6 +32,9 @@ wheels/
 *.egg
 MANIFEST
 
+# Node
+node_modules/
+
 # 虚拟环境
 venv/
 ENV/
@@ -53,8 +56,22 @@ logs/
 # 临时文件
 *.tmp
 *.bak
+*.backup
+*.backup.*
 *.old
+*-old.*
+*_old.*
+*_backup.*
 .cache/
+
+# Local analysis caches
+.architec/
+.hippocampus/
+
+# Local agent sessions
+.claude-session
+.codex-session
+.gemini-session
 
 # 测试
 .pytest_cache/

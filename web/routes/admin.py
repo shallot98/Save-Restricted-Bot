@@ -10,7 +10,7 @@ Architecture: Uses new layered architecture
 """
 import logging
 import threading
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, current_app
+from flask import Blueprint, render_template, request, current_app
 
 # New architecture imports
 from src.core.container import get_calibration_service, get_note_service
@@ -22,7 +22,19 @@ from config import (
     load_viewer_config, save_viewer_config
 )
 from bot.storage.webdav_client import WebDAVClient
-from web.auth import login_required, api_login_required
+from web.auth import login_required
+from web.routes.admin_helpers import (
+    PasswordChangeDeps,
+    WebDAVSaveDeps,
+    build_admin_context,
+    change_password,
+    read_password_change_form,
+    read_viewer_config,
+    read_webdav_config,
+    save_webdav_settings,
+    validate_viewer_config,
+    validate_webdav_config,
+)
 from web.utils.storage import init_storage_manager
 
 logger = logging.getLogger(__name__)
@@ -35,55 +47,21 @@ admin_bp = Blueprint('admin', __name__)
 def admin():
     """管理后台主页 - 仪表盘"""
     from flask import session
-    
-    # 获取统计数据
+
     note_service = get_note_service()
     calibration_service = get_calibration_service()
-    
-    # 获取笔记总数
-    try:
-        notes_result = note_service.get_notes(user_id=None, page_size=1)
-        total_notes = notes_result.total
-        sources = note_service.get_all_sources()
-        total_sources = len(sources)
-    except Exception as e:
-        logger.error(f"获取笔记统计失败: {e}")
-        total_notes = 0
-        total_sources = 0
-
-    # 获取校准任务统计
-    try:
-        calib_stats = calibration_service.get_stats()
-    except Exception as e:
-        logger.error(f"获取校准统计失败: {e}")
-        calib_stats = {'total': 0, 'by_status': {}}
-
-    context = {
-        'total_count': total_notes,
-        'total_sources': total_sources,
-        'calib_stats': calib_stats,
-        'sources': sources if 'sources' in locals() else [],
-        'must_change_password': bool(session.get("must_change_password")),
-    }
+    context = build_admin_context(
+        note_service,
+        calibration_service,
+        must_change_password=bool(session.get("must_change_password")),
+    )
 
     if request.method == 'POST':
-        current_password = request.form.get('current_password')
-        new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
+        change = read_password_change_form(request.form, session['username'])
+        error = change_password(change, PasswordChangeDeps(verify_user, update_password))
+        if error:
+            return render_template('admin.html', error=error, **context)
 
-        # 验证当前密码
-        if not verify_user(session['username'], current_password):
-            return render_template('admin.html', error='当前密码不正确', **context)
-
-        # 验证新密码
-        if len(new_password) < 6:
-            return render_template('admin.html', error='新密码长度至少为 6 个字符', **context)
-
-        if new_password != confirm_password:
-            return render_template('admin.html', error='两次输入的新密码不一致', **context)
-
-        # 更新密码
-        update_password(session['username'], new_password)
         session.pop("must_change_password", None)
         context["must_change_password"] = False
         return render_template('admin.html', success='密码更新成功', **context)
@@ -97,46 +75,13 @@ def admin_webdav():
     """WebDAV 配置管理"""
     if request.method == 'POST':
         try:
-            # 获取表单数据
-            enabled = request.form.get('enabled') == 'on'
-            url = request.form.get('url', '').strip()
-            username = request.form.get('webdav_username', '').strip()
-            password = request.form.get('webdav_password', '').strip()
-            base_path = request.form.get('base_path', '/telegram_media').strip()
-            keep_local_copy = request.form.get('keep_local_copy') == 'on'
+            config = read_webdav_config(request.form)
+            error = validate_webdav_config(config, WebDAVClient)
+            if error:
+                return render_template('admin_webdav.html', config=config, error=error)
 
-            # 构建配置
-            config = {
-                'enabled': enabled,
-                'url': url,
-                'username': username,
-                'password': password,
-                'base_path': base_path,
-                'keep_local_copy': keep_local_copy
-            }
-
-            # 如果启用了 WebDAV，测试连接
-            if enabled and url and username and password:
-                try:
-                    test_client = WebDAVClient(url, username, password, base_path)
-                    if not test_client.test_connection():
-                        return render_template(
-                            'admin_webdav.html',
-                            config=config,
-                            error='WebDAV 连接测试失败，请检查配置'
-                        )
-                except Exception as e:
-                    return render_template(
-                        'admin_webdav.html',
-                        config=config,
-                        error=f'WebDAV 连接失败: {str(e)}'
-                    )
-
-            # 保存配置
-            save_webdav_config(config)
-
-            # 重新初始化存储管理器
-            current_app.storage_manager = init_storage_manager()
+            deps = WebDAVSaveDeps(save_webdav_config, init_storage_manager, current_app)
+            save_webdav_settings(config, deps)
 
             return render_template(
                 'admin_webdav.html',
@@ -163,24 +108,11 @@ def admin_viewer():
     """观看网站配置管理"""
     if request.method == 'POST':
         try:
-            viewer_url = request.form.get('viewer_url', '').strip()
+            config = read_viewer_config(request.form)
+            error = validate_viewer_config(config)
+            if error:
+                return render_template('admin_viewer.html', config=config, error=error)
 
-            # 验证 URL 格式
-            if not viewer_url:
-                return render_template(
-                    'admin_viewer.html',
-                    config={'viewer_url': viewer_url},
-                    error='观看网站URL不能为空'
-                )
-
-            if not (viewer_url.startswith('http://') or viewer_url.startswith('https://')):
-                return render_template(
-                    'admin_viewer.html',
-                    config={'viewer_url': viewer_url},
-                    error='URL必须以 http:// 或 https:// 开头'
-                )
-
-            config = {'viewer_url': viewer_url}
             save_viewer_config(config)
 
             return render_template(

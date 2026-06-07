@@ -15,6 +15,67 @@ API_HASH = os.environ.get('HASH', '')
 SESSION_STRING = os.environ.get('STRING', '')
 BOT_USERNAME = os.environ.get('CALIBRATE_BOT_USERNAME', 'x_2dland_bot')
 
+
+def _is_valid_filename(filename: str, original_text: str = '') -> bool:
+    """验证文件名是否有效
+
+    Args:
+        filename: 待验证的文件名
+        original_text: 原始回复文本（用于日志）
+
+    Returns:
+        是否是有效的文件名
+    """
+    if not filename:
+        return False
+
+    # 去除首尾空格
+    filename = filename.strip()
+
+    # 文件名不能为空或只是标点符号
+    if not filename or filename in [',', '，', '.', '。', ':', '：']:
+        return False
+
+    # 文件名长度应该合理（至少1个字符）
+    if len(filename) < 1:
+        return False
+
+    # 文件名不应该以逗号开头（这是解析错误的标志）
+    if filename.startswith(',') or filename.startswith('，'):
+        return False
+
+    # 文件名不应该包含路径标记（这是解析错误的标志）
+    invalid_patterns = [
+        '到 /Downloads',
+        '/Downloads',
+        '到 /',
+    ]
+    for pattern in invalid_patterns:
+        if pattern in filename:
+            return False
+
+    # 文件名不应该只是hash值（32或40个十六进制字符）
+    # 这表示机器人未能获取到真正的文件名
+    import re
+    if re.match(r'^[a-fA-F0-9]{32,40}$', filename):
+        return False
+
+    # 文件名不应该看起来像是错误消息
+    error_indicators = [
+        '失败',
+        '错误',
+        '超时',
+        'error',
+        'failed',
+        'timeout',
+    ]
+    filename_lower = filename.lower()
+    for indicator in error_indicators:
+        if indicator in filename_lower:
+            return False
+
+    return True
+
 def calibrate_via_bot(info_hash: str, timeout: int = 60) -> str:
     """通过Telegram机器人获取种子文件名
 
@@ -94,19 +155,33 @@ def calibrate_via_bot(info_hash: str, timeout: int = 60) -> str:
 
                                     # 查找第一个逗号位置
                                     comma_pos = after_colon.find(',')
-                                    if comma_pos > 0:
+                                    if comma_pos >= 0:
                                         # 提取冒号到第一个逗号之间的内容
                                         filename = after_colon[:comma_pos].strip()
+
+                                        # 验证文件名是否有效
+                                        if not _is_valid_filename(filename, text):
+                                            raise ValueError(f"机器人返回的文件名无效，原始回复: {text}")
+
                                         return filename
                                     else:
                                         # 如果没有逗号，返回冒号后的全部内容
-                                        return after_colon.strip()
+                                        candidate = after_colon.strip()
+                                        if _is_valid_filename(candidate, text):
+                                            return candidate
+                                        raise ValueError(f"机器人返回的文件名无效，原始回复: {text}")
 
                                 # 如果没有冒号，返回整行内容
-                                return first_line.strip()
+                                candidate = first_line.strip()
+                                if _is_valid_filename(candidate, text):
+                                    return candidate
+                                raise ValueError(f"机器人返回的文件名无效，原始回复: {text}")
 
                             # 否则直接返回文本（可能就是文件名）
-                            return text
+                            # 但需要验证是否是有效的文件名
+                            if _is_valid_filename(text, text):
+                                return text
+                            raise ValueError(f"机器人返回的文件名无效，原始回复: {text}")
 
                 # 等待一段时间再检查
                 time.sleep(2)

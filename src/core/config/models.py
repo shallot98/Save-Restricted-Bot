@@ -139,6 +139,14 @@ class WatchConfig(BaseModel):
         description="用户ID到监控源的映射 {user_id: {source_id: source_config}}"
     )
 
+    @property
+    def user_sources(self) -> Dict[str, Dict[str, Any]]:
+        return self.sources
+
+    @user_sources.setter
+    def user_sources(self, value: Dict[str, Dict[str, Any]]) -> None:
+        self.sources = value
+
     def get_user_sources(self, user_id: str) -> Dict[str, Any]:
         """获取指定用户的监控源"""
         return self.sources.get(user_id, {})
@@ -149,17 +157,12 @@ class WatchConfig(BaseModel):
 
     def get_all_source_ids(self) -> set:
         """获取所有监控源ID"""
-        source_ids = set()
-        for user_sources in self.sources.values():
-            if isinstance(user_sources, dict):
-                for source_key in user_sources.keys():
-                    # 提取source_id（格式：source_id|dest_id 或 source_id|record）
-                    if '|' in source_key:
-                        source_id = source_key.split('|')[0]
-                    else:
-                        source_id = source_key
-                    source_ids.add(source_id)
-        return source_ids
+        return {
+            source_key.split('|')[0] if '|' in source_key else source_key
+            for user_sources in self.sources.values()
+            if isinstance(user_sources, dict)
+            for source_key in user_sources.keys()
+        }
 
     model_config = SettingsConfigDict(
         validate_assignment=True,

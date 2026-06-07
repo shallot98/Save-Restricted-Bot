@@ -9,6 +9,7 @@ Architecture: Uses new layered architecture
 """
 import math
 import logging
+from dataclasses import dataclass
 from urllib.parse import quote
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 
@@ -30,6 +31,16 @@ notes_bp = Blueprint('notes', __name__)
 NOTES_PER_PAGE = AppConstants.NOTES_PER_PAGE
 
 
+@dataclass(frozen=True)
+class NotesListFilters:
+    page: int
+    source_filter: str | None
+    search_query: str | None
+    date_from: str | None
+    date_to: str | None
+    favorite_only: bool
+
+
 @notes_bp.route('/notes')
 @login_required
 def notes_list():
@@ -40,55 +51,81 @@ def notes_list():
     Uses NoteService from new architecture for data access.
     """
     note_service = get_note_service()
-
-    # 获取分页和过滤参数
-    page = request.args.get('page', 1, type=int)
-    source_filter = request.args.get('source', None)
-    search_query = request.args.get('search', None)
-    date_from = request.args.get('date_from', None)
-    date_to = request.args.get('date_to', None)
-    favorite_only = request.args.get('favorite', None) == '1'
-
-    # 使用 NoteService 获取分页笔记
-    result = note_service.get_notes(
-        user_id=None,  # 不按用户过滤
-        source_chat_id=source_filter,
-        search_query=search_query,
-        date_from=date_from,
-        date_to=date_to,
-        favorite_only=favorite_only,
-        page=page,
-        page_size=NOTES_PER_PAGE
-    )
-
-    # 将 DTO 转换为字典以便模板使用
-    notes_data = [_dto_to_dict(note) for note in result.items]
-
-    # 获取观看网站配置
-    viewer_config = load_viewer_config()
-    viewer_url = viewer_config.get('viewer_url', '')
-
-    # 为每条笔记添加所有磁力链接和观看链接
-    for note in notes_data:
-        _process_note_magnets(note, viewer_url)
-
-    # 使用 NoteService 获取所有来源列表
+    filters = _read_notes_list_filters()
+    result = _query_notes(note_service, filters)
+    viewer_url = _load_viewer_url()
+    notes_data = _prepare_notes_for_template(result.items, viewer_url)
     sources = note_service.get_all_sources()
 
     return render_template(
         'notes.html',
-        notes=notes_data,
-        sources=sources,
-        total_count=result.total,
-        current_page=result.page,
-        total_pages=result.total_pages,
-        selected_source=source_filter,
-        search_query=search_query,
-        date_from=date_from,
-        date_to=date_to,
-        favorite_only=favorite_only,
-        viewer_url=viewer_url
+        **_build_notes_template_context(
+            notes_data=notes_data,
+            sources=sources,
+            result=result,
+            filters=filters,
+            viewer_url=viewer_url,
+        ),
     )
+
+
+def _read_notes_list_filters() -> NotesListFilters:
+    return NotesListFilters(
+        page=request.args.get('page', 1, type=int),
+        source_filter=request.args.get('source', None),
+        search_query=request.args.get('search', None),
+        date_from=request.args.get('date_from', None),
+        date_to=request.args.get('date_to', None),
+        favorite_only=request.args.get('favorite', None) == '1',
+    )
+
+
+def _query_notes(note_service, filters: NotesListFilters):
+    return note_service.get_notes(
+        user_id=None,  # 不按用户过滤
+        source_chat_id=filters.source_filter,
+        search_query=filters.search_query,
+        date_from=filters.date_from,
+        date_to=filters.date_to,
+        favorite_only=filters.favorite_only,
+        page=filters.page,
+        page_size=NOTES_PER_PAGE
+    )
+
+
+def _prepare_notes_for_template(note_items, viewer_url: str) -> list[dict]:
+    notes_data = [_dto_to_dict(note) for note in note_items]
+    for note in notes_data:
+        _process_note_magnets(note, viewer_url)
+    return notes_data
+
+
+def _load_viewer_url() -> str:
+    viewer_config = load_viewer_config()
+    return viewer_config.get('viewer_url', '')
+
+
+def _build_notes_template_context(
+    *,
+    notes_data: list[dict],
+    sources,
+    result,
+    filters: NotesListFilters,
+    viewer_url: str,
+) -> dict:
+    return {
+        'notes': notes_data,
+        'sources': sources,
+        'total_count': result.total,
+        'current_page': result.page,
+        'total_pages': result.total_pages,
+        'selected_source': filters.source_filter,
+        'search_query': filters.search_query,
+        'date_from': filters.date_from,
+        'date_to': filters.date_to,
+        'favorite_only': filters.favorite_only,
+        'viewer_url': viewer_url,
+    }
 
 
 def _dto_to_dict(note_dto) -> dict:

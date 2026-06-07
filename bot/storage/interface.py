@@ -85,7 +85,18 @@ class LocalStorageBackend(StorageBackend):
 class WebDAVStorageBackend(StorageBackend):
     """WebDAV存储后端"""
 
-    def __init__(self, url: str, username: str, password: str, base_path: str = "/"):
+    def __init__(
+        self,
+        url: str,
+        username: str,
+        password: str,
+        *legacy_args,
+        base_path: str = "/",
+    ):
+        if legacy_args:
+            if len(legacy_args) > 1 or base_path != "/":
+                raise TypeError("WebDAVStorageBackend received conflicting base_path arguments")
+            base_path = legacy_args[0]
         from bot.storage.webdav_client import WebDAVClient
         self.client = WebDAVClient(url, username, password, base_path)
         self.url = url

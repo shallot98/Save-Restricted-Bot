@@ -22,7 +22,8 @@ class WebDAVStorageBackend(StorageBackend):
         url: str,
         username: str,
         password: str,
-        base_path: str = "/telegram_media"
+        *legacy_base_path: str,
+        base_path: str = "/telegram_media",
     ):
         """
         Initialize WebDAV storage
@@ -33,7 +34,14 @@ class WebDAVStorageBackend(StorageBackend):
             password: Password
             base_path: Base path for storage
         """
-        self.client = WebDAVClient(url, username, password, base_path)
+        if len(legacy_base_path) > 1:
+            raise TypeError("WebDAVStorageBackend accepts at most one legacy base_path argument")
+        if legacy_base_path:
+            if base_path != "/telegram_media":
+                raise TypeError("WebDAVStorageBackend received duplicate base_path values")
+            base_path = legacy_base_path[0]
+
+        self.client = WebDAVClient(url, username, password, base_path=base_path)
         self.url = url
         self.base_path = base_path
 

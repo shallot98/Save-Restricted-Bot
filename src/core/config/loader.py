@@ -14,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 
 from .models import MainConfig, WatchConfig, WebDAVConfig, ViewerConfig, PathConfig
 from .exceptions import ConfigLoadError, ConfigValidationError
+from .loader_options import load_validate_options
 
 logger = logging.getLogger(__name__)
 
@@ -199,47 +200,31 @@ class ConfigLoader:
     def load_and_validate(
         self,
         config_class: Type[T],
+        *legacy_args: Any,
         file_path: Optional[Path] = None,
         env_prefix: str = "",
-        default_config: Optional[Dict[str, Any]] = None
+        default_config: Optional[Dict[str, Any]] = None,
     ) -> T:
-        """
-        加载、合并并验证配置（一站式方法）
-
-        Args:
-            config_class: Pydantic配置模型类
-            file_path: 配置文件路径（可选）
-            env_prefix: 环境变量前缀（可选）
-            default_config: 默认配置（可选）
-
-        Returns:
-            配置模型实例
-
-        Example:
-            >>> loader = ConfigLoader()
-            >>> config = loader.load_and_validate(
-            ...     MainConfig,
-            ...     file_path=Path("config.json"),
-            ...     env_prefix="",
-            ...     default_config={}
-            ... )
-        """
-        # 加载环境变量配置
+        """加载、合并并验证配置。"""
+        file_path, env_prefix, default_config = load_validate_options(
+            legacy_args,
+            file_path=file_path,
+            env_prefix=env_prefix,
+            default_config=default_config,
+        )
         env_config = self.load_from_env(prefix=env_prefix)
-
-        # 加载文件配置
-        file_config = {}
-        if file_path:
-            try:
-                file_config = self.load_from_file(file_path, default={})
-            except ConfigLoadError as e:
-                logger.warning(f"配置文件加载失败，使用默认值: {e}")
-
-        # 合并配置
+        file_config = self._load_optional_file_config(file_path)
         merged_config = self.merge_configs(env_config, file_config, default_config)
-
-        # 验证并创建模型实例
         return self.validate_config(config_class, merged_config)
+
+    def _load_optional_file_config(self, file_path: Optional[Path]) -> Dict[str, Any]:
+        if not file_path:
+            return {}
+        try:
+            return self.load_from_file(file_path, default={})
+        except ConfigLoadError as e:
+            logger.warning(f"配置文件加载失败，使用默认值: {e}")
+            return {}
 
     def save_to_file(self, config: BaseModel, file_path: Path) -> None:
         """

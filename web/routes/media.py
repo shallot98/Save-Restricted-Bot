@@ -5,19 +5,21 @@
 
 Architecture: Uses new layered architecture
 - src/compat for backward compatibility
+
+Performance: WebDAV files are cached locally to avoid repeated remote fetches
 """
 import os
-import re
+import logging
 from urllib.parse import unquote
-from flask import Blueprint, redirect, url_for, request, Response, send_from_directory, current_app
-import requests
+from flask import Blueprint, request, Response, send_from_directory, current_app
 
-# New architecture imports
-from src.compat.config_compat import load_webdav_config
 from web.auth import login_required
 from web.utils.media import get_mimetype
+from web.routes.media_cache import WebDAVFetchError, get_cached_webdav_file
+from web.routes.media_range import iter_file_range, parse_byte_range
 
 media_bp = Blueprint('media', __name__)
+logger = logging.getLogger(__name__)
 
 
 def _extract_filename(storage_location: str) -> str:
@@ -62,57 +64,21 @@ def media(storage_location: str):
 
 
 def _proxy_webdav_file(file_url: str, download_name: str) -> Response:
-    """代理 WebDAV 文件请求
+    """代理 WebDAV 文件请求（带本地缓存 + 并发优化）
 
-    Args:
-        file_url: WebDAV 文件 URL
-        download_name: 展示用文件名
-
-    Returns:
-        Response: Flask 响应对象
+    缓存策略：
+    1. 首次请求：从 WebDAV 下载并缓存到本地
+    2. 后续请求：直接从本地缓存提供文件
+    3. 支持 Range 请求（针对缓存文件）
+    4. 使用文件级锁，允许多个文件并发下载
     """
     try:
-        webdav_config = load_webdav_config()
-        username = webdav_config.get('username', '')
-        password = webdav_config.get('password', '')
-
-        # 检查是否有 Range 请求头
-        range_header = request.headers.get('Range')
-        headers = {}
-        if range_header:
-            headers['Range'] = range_header
-
-        # 代理请求到 WebDAV 服务器
-        response = requests.get(
-            file_url,
-            auth=(username, password),
-            headers=headers,
-            stream=True,
-            timeout=30
-        )
-
-        if response.status_code in (200, 206):
-            response_headers = {
-                'Content-Disposition': f'inline; filename="{download_name}"',
-                'Accept-Ranges': 'bytes',
-                'Cache-Control': 'public, max-age=31536000, immutable'
-            }
-
-            if 'Content-Length' in response.headers:
-                response_headers['Content-Length'] = response.headers['Content-Length']
-            if 'Content-Range' in response.headers:
-                response_headers['Content-Range'] = response.headers['Content-Range']
-
-            return Response(
-                response.iter_content(chunk_size=8192),
-                status=response.status_code,
-                content_type=response.headers.get('Content-Type', 'application/octet-stream'),
-                headers=response_headers
-            )
-        else:
-            return Response(f"Failed to fetch from WebDAV: {response.status_code}", status=502)
-
+        cache_path = get_cached_webdav_file(file_url, download_name)
+        return _serve_local_file(cache_path)
+    except WebDAVFetchError as e:
+        return Response(f"Failed to fetch from WebDAV: {e.status_code}", status=502)
     except Exception as e:
+        logger.error(f"❌ WebDAV proxy error: {e}")
         return Response(f"Error fetching from WebDAV: {str(e)}", status=502)
 
 
@@ -155,48 +121,18 @@ def _serve_partial_content(file_path: str, file_size: int, range_header: str) ->
     Returns:
         Response: 206 Partial Content 响应
     """
-    match = re.search(r'bytes=(\d*)-(\d*)', range_header)
-    if not match:
+    byte_range = parse_byte_range(range_header, file_size)
+    if byte_range is None:
         return Response("Invalid Range header", status=416)
-
-    start_str, end_str = match.group(1), match.group(2)
-
-    # bytes=-N (suffix)
-    if not start_str and end_str:
-        suffix_len = int(end_str)
-        if suffix_len <= 0:
-            return Response("Invalid Range header", status=416)
-        start = max(file_size - suffix_len, 0)
-        end = file_size - 1
-    else:
-        if not start_str:
-            return Response("Invalid Range header", status=416)
-        start = int(start_str)
-        end = int(end_str) if end_str else file_size - 1
-        end = min(end, file_size - 1)
-
-    if start >= file_size or start < 0 or end < start:
-        return Response("Invalid Range header", status=416)
-
-    def _iter_range(path: str, start_pos: int, end_pos: int, chunk_size: int = 8192):
-        with open(path, "rb") as f:
-            f.seek(start_pos)
-            remaining = end_pos - start_pos + 1
-            while remaining > 0:
-                chunk = f.read(min(chunk_size, remaining))
-                if not chunk:
-                    break
-                remaining -= len(chunk)
-                yield chunk
 
     response = Response(
-        _iter_range(file_path, start, end),
+        iter_file_range(file_path, byte_range),
         status=206,
         mimetype=get_mimetype(file_path),
         direct_passthrough=True,
     )
-    response.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
-    response.headers['Content-Length'] = str(end - start + 1)
+    response.headers['Content-Range'] = f'bytes {byte_range.start}-{byte_range.end}/{file_size}'
+    response.headers['Content-Length'] = str(byte_range.length)
     response.headers['Accept-Ranges'] = 'bytes'
     response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     return response

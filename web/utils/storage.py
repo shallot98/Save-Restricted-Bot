@@ -23,23 +23,9 @@ def init_storage_manager() -> StorageManager:
     try:
         webdav_config = load_webdav_config()
         media_dir = os.path.join(DATA_DIR, 'media')
-
-        if webdav_config.get('enabled', False):
-            url = webdav_config.get('url', '').strip()
-            username = webdav_config.get('username', '').strip()
-            password = webdav_config.get('password', '').strip()
-            base_path = webdav_config.get('base_path', '/telegram_media')
-
-            if url and username and password:
-                try:
-                    webdav_client = WebDAVClient(url, username, password, base_path)
-                    if webdav_client.test_connection():
-                        logger.info("✅ WebDAV存储已启用")
-                        return StorageManager(media_dir, webdav_client)
-                except ConnectionError as e:
-                    logger.warning(f"⚠️ WebDAV连接失败: {e}")
-                except Exception as e:
-                    logger.warning(f"⚠️ WebDAV初始化失败: {e}")
+        webdav_storage = _init_webdav_storage(webdav_config, media_dir)
+        if webdav_storage is not None:
+            return webdav_storage
 
         logger.info("📁 使用本地存储")
         return StorageManager(media_dir)
@@ -48,3 +34,26 @@ def init_storage_manager() -> StorageManager:
         logger.error(f"❌ 存储管理器初始化失败: {e}")
         # 回退到默认本地存储
         return StorageManager(os.path.join(DATA_DIR, 'media'))
+
+
+def _init_webdav_storage(webdav_config: dict, media_dir: str) -> StorageManager | None:
+    if not webdav_config.get('enabled', False):
+        return None
+
+    url = webdav_config.get('url', '').strip()
+    username = webdav_config.get('username', '').strip()
+    password = webdav_config.get('password', '').strip()
+    base_path = webdav_config.get('base_path', '/telegram_media')
+    if not (url and username and password):
+        return None
+
+    try:
+        webdav_client = WebDAVClient(url, username, password, base_path)
+        if webdav_client.test_connection():
+            logger.info("✅ WebDAV存储已启用")
+            return StorageManager(media_dir, webdav_client)
+    except ConnectionError as e:
+        logger.warning(f"⚠️ WebDAV连接失败: {e}")
+    except Exception as e:
+        logger.warning(f"⚠️ WebDAV初始化失败: {e}")
+    return None
