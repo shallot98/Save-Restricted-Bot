@@ -1,0 +1,44 @@
+{
+  "id": "archi-hotspot-refactor",
+  "name": "archi-hotspot-refactor",
+  "title": "brainstorm: refactor architecture hotspots",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "srb",
+  "assignee": "srb",
+  "createdAt": "2026-03-30",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "feat/mobile-responsive-optimization-v2",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

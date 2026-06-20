@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Python runtime error handling patterns"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Logging behavior for long-running scripts"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing Pyrogram/session/copy patterns"}
+{"file": "scripts/pt_pay_monitor.py", "reason": "Standalone script structure reference"}
+{"file": "bot/services/pt_pay_runtime.py", "reason": "Dedicated user client and chat resolve pattern"}
+{"file": "bot/workers/message_worker.py", "reason": "copy_message and copy_media_group behavior"}

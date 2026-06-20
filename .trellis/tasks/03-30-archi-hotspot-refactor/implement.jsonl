@@ -1,0 +1,16 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "DB and migration guidance placeholder; preserve DB schema"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Route/worker/database error compatibility"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Preserve logging behavior while refactoring"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality checklist placeholder"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer compatibility constraints"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Prefer extracted shared orchestration"}
+{"file": "src/core/container.py", "reason": "Existing DI pattern to extend if new services are introduced"}
+{"file": "src/application/services/watch_service.py", "reason": "Existing application service pattern and watch config compatibility"}
+{"file": "src/application/services/note_service.py", "reason": "Existing application service pattern for note flows"}
+{"file": "src/application/services/calibration_service.py", "reason": "Existing calibration service pattern"}
+{"file": "src/application/use_cases/forward_message.py", "reason": "Existing focused use-case pattern"}
+{"file": "src/infrastructure/persistence/repositories/watch_repository.py", "reason": "Watch persistence compatibility pattern"}
+{"file": "src/infrastructure/persistence/repositories/note_repository.py", "reason": "Note repository compatibility pattern"}
+{"file": "src/infrastructure/persistence/repositories/calibration_repository.py", "reason": "Calibration repository compatibility pattern"}
