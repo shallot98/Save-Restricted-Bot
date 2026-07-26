@@ -5,7 +5,7 @@
 import sys
 sys.path.insert(0, '.')
 
-from src.core.container import get_watch_service
+from composition.container import get_watch_service
 
 def verify_access():
     print("=" * 70)

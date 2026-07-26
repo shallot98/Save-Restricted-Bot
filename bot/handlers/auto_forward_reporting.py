@@ -1,8 +1,25 @@
-"""Metrics and error reporting helpers for auto-forward handling."""
+"""Metrics and error reporting helpers for auto-forward handling.
+
+Every touch point with ``src.infrastructure.monitoring`` lives here, behind a
+lazy import: the monitoring subsystem is optional and must never be able to
+break message handling.
+"""
+
+from contextlib import nullcontext
 
 from bot.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def auto_forward_perf_context():
+    """Time the enqueue step, degrading to a no-op when monitoring is absent."""
+    try:
+        from src.infrastructure.monitoring.performance.decorators import performance_context
+    except Exception:
+        return nullcontext()
+
+    return performance_context("bot.auto_forward.enqueue", tags={"component": "auto_forward"})
 
 
 def get_auto_forward_metrics():

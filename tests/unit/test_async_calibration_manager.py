@@ -27,6 +27,26 @@ def _wait_until(predicate, timeout: float = 2.0, interval: float = 0.01) -> None
     raise AssertionError("Timed out waiting for condition")
 
 
+def _is_settled(manager, task_id) -> bool:
+    """任务是否已完全落定。
+
+    只等 status 进入终态是不够的：worker 线程发布终态与写 completed_at 若不原子，
+    主线程可能在两者之间推进假时钟，导致 completed_at 被盖成推进后的时间、TTL 永不过期
+    （历史 flaky 根因）。这里把「终态 + completed_at 已置位」作为同步点，
+    同时充当对该不变量的断言。
+    """
+    task = manager.get_task_status(task_id)
+    return (
+        task is not None
+        and task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED}
+        and task.completed_at is not None
+    )
+
+
+def _wait_settled(manager, task_id, timeout: float = 5.0) -> None:
+    _wait_until(lambda: _is_settled(manager, task_id), timeout=timeout)
+
+
 def test_submit_task_completes_success():
     manager = AsyncCalibrationManager(max_workers=2, task_ttl_seconds=3600)
     try:
@@ -36,7 +56,7 @@ def test_submit_task_completes_success():
         task_id = manager.submit_task("ABC123", do_work, "ABC123")
         assert task_id
 
-        _wait_until(lambda: manager.get_task_status(task_id) is not None and manager.get_task_status(task_id).status in {TaskStatus.COMPLETED, TaskStatus.FAILED})
+        _wait_settled(manager, task_id)
 
         task = manager.get_task_status(task_id)
         assert task is not None
@@ -55,7 +75,7 @@ def test_task_failure_sets_error():
             return None, "Calibration failed"
 
         task_id = manager.submit_task("ABC123", do_work_fail)
-        _wait_until(lambda: manager.get_task_status(task_id) is not None and manager.get_task_status(task_id).status in {TaskStatus.COMPLETED, TaskStatus.FAILED})
+        _wait_settled(manager, task_id)
 
         task = manager.get_task_status(task_id)
         assert task is not None
@@ -75,9 +95,12 @@ def test_task_result_ttl_cleanup():
             return "done", None
 
         task_id = manager.submit_task("ABC123", do_work)
-        _wait_until(lambda: manager.get_task_status(task_id) is not None and manager.get_task_status(task_id).status in {TaskStatus.COMPLETED, TaskStatus.FAILED})
+        # 等到 completed_at 落定后再推进假时钟，否则 worker 可能后盖时间戳导致 TTL 永不过期
+        _wait_settled(manager, task_id)
 
-        assert manager.get_task_status(task_id) is not None
+        settled = manager.get_task_status(task_id)
+        assert settled is not None
+        assert settled.completed_at == 1000.0
 
         clock.advance(3600.1)
         assert manager.get_task_status(task_id) is None
@@ -115,10 +138,7 @@ def test_max_concurrency_respected():
         # 让所有任务完成
         release_event.set()
         _wait_until(
-            lambda: all(
-                (manager.get_task_status(tid) is not None and manager.get_task_status(tid).status in {TaskStatus.COMPLETED, TaskStatus.FAILED})
-                for tid in task_ids
-            ),
+            lambda: all(_is_settled(manager, tid) for tid in task_ids),
             timeout=5.0,
         )
 

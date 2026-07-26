@@ -2,7 +2,7 @@
 Watch configuration and setup handlers.
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- composition/container for service access
 """
 from __future__ import annotations
 

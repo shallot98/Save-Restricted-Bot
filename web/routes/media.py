@@ -4,7 +4,8 @@
 遵循 SRP 原则：仅负责媒体文件的访问和代理
 
 Architecture: Uses new layered architecture
-- src/compat for backward compatibility
+- WebDAV 取值与缓存目录经 web/routes/media_cache.py（权威源：根 config.load_webdav_config
+  与 database.DATA_DIR）。Phase 3 已删除 src/compat，本模块不再经由任何兼容层。
 
 Performance: WebDAV files are cached locally to avoid repeated remote fetches
 """
@@ -59,8 +60,10 @@ def media(storage_location: str):
         # 本地文件
         return _serve_local_file(file_path_or_url)
 
-    except Exception as e:
-        return f"Error: {str(e)}", 500
+    except Exception:
+        # 失败方向：服务端留完整堆栈，响应只给通用文案，不泄露绝对路径/内部细节
+        logger.exception("媒体请求处理失败: storage_location=%s", storage_location)
+        return "Internal server error", 500
 
 
 def _proxy_webdav_file(file_url: str, download_name: str) -> Response:
@@ -76,10 +79,11 @@ def _proxy_webdav_file(file_url: str, download_name: str) -> Response:
         cache_path = get_cached_webdav_file(file_url, download_name)
         return _serve_local_file(cache_path)
     except WebDAVFetchError as e:
-        return Response(f"Failed to fetch from WebDAV: {e.status_code}", status=502)
-    except Exception as e:
-        logger.error(f"❌ WebDAV proxy error: {e}")
-        return Response(f"Error fetching from WebDAV: {str(e)}", status=502)
+        logger.error("❌ WebDAV 拉取失败: status=%s url=%s", e.status_code, file_url)
+        return Response("Failed to fetch remote media", status=502)
+    except Exception:
+        logger.exception("❌ WebDAV proxy error: url=%s", file_url)
+        return Response("Failed to fetch remote media", status=502)
 
 
 def _serve_local_file(file_path: str) -> Response:

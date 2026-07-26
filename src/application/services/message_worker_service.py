@@ -7,14 +7,18 @@ Application-level orchestration helpers for the legacy message worker.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 
-from bot.utils.magnet_utils import MagnetLinkParser
+from src.domain.magnet import MagnetLinkParser
 from src.application.services.note_service import NoteService
+from src.core.interfaces import BusinessMetricsProvider, ErrorTrackerProvider
 from src.domain.entities.note import NoteCreate
 from src.domain.entities.watch import WatchTask
 from src.domain.services.filter_service import FilterService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -30,10 +34,26 @@ class RecordedNoteSaveRequest:
 
 
 class MessageWorkerService:
-    """Own the business decisions behind worker message processing."""
+    """Own the business decisions behind worker message processing.
 
-    def __init__(self, note_service: NoteService) -> None:
+    可观测性协作者由组合根注入（`composition/container.py`）：
+    - ``metrics_provider``：业务计数端口的惰性提供者
+    - ``error_tracker_provider``：错误追踪端口的惰性提供者
+
+    未装配时按 DEBUG 记一条并跳过——指标缺失不该影响消息处理，
+    但也不能像原来那样吞掉全部异常后一声不响。
+    """
+
+    def __init__(
+        self,
+        note_service: NoteService,
+        *,
+        metrics_provider: Optional[BusinessMetricsProvider] = None,
+        error_tracker_provider: Optional[ErrorTrackerProvider] = None,
+    ) -> None:
         self._note_service = note_service
+        self._metrics_provider = metrics_provider
+        self._error_tracker_provider = error_tracker_provider
 
     @staticmethod
     def build_watch_task(
@@ -83,44 +103,51 @@ class MessageWorkerService:
                 self._note_service.update_magnet(note_dto.id, magnet_link, filename=None)
         return note_dto.id
 
-    @staticmethod
-    def record_note_saved(success: bool, has_media: bool, error_type: Optional[str] = None) -> None:
-        try:
-            from src.infrastructure.monitoring.performance.business_metrics import get_business_metrics
+    def _resolve_metrics(self) -> Optional[Any]:
+        return _resolve_observability(self._metrics_provider, label="Business metrics")
 
-            get_business_metrics().record_note_saved(
+    def _resolve_error_tracker(self) -> Optional[Any]:
+        return _resolve_observability(self._error_tracker_provider, label="Error tracker")
+
+    def record_note_saved(self, success: bool, has_media: bool, error_type: Optional[str] = None) -> None:
+        metrics = self._resolve_metrics()
+        if metrics is None:
+            return
+        try:
+            metrics.record_note_saved(
                 success=success,
                 has_media=has_media,
                 error_type=error_type,
             )
         except Exception:
+            logger.warning("Failed to record note_saved metric", exc_info=True)
+
+    def record_forward(self, success: bool, preserve_source: bool, error_type: Optional[str] = None) -> None:
+        metrics = self._resolve_metrics()
+        if metrics is None:
             return
-
-    @staticmethod
-    def record_forward(success: bool, preserve_source: bool, error_type: Optional[str] = None) -> None:
         try:
-            from src.infrastructure.monitoring.performance.business_metrics import get_business_metrics
-
-            get_business_metrics().record_forward(
+            metrics.record_forward(
                 success=success,
                 preserve_source=preserve_source,
                 error_type=error_type,
             )
         except Exception:
-            return
+            logger.warning("Failed to record forward metric", exc_info=True)
 
-    @staticmethod
     def track_processing_error(
+        self,
         error: Exception,
         *,
         user_id: str,
         source_chat_id: str,
         watch_key: str,
     ) -> None:
+        tracker = self._resolve_error_tracker()
+        if tracker is None:
+            return
         try:
-            from src.infrastructure.monitoring.errors.tracker import get_error_tracker
-
-            get_error_tracker().track_error(
+            tracker.track_error(
                 error=error,
                 context={
                     'component': 'message_worker',
@@ -131,7 +158,19 @@ class MessageWorkerService:
                 },
             )
         except Exception:
-            return
+            logger.warning("Failed to track processing error", exc_info=True)
+
+
+def _resolve_observability(provider: Optional[Any], *, label: str) -> Optional[Any]:
+    """Resolve an observability provider; missing wiring is logged, not swallowed."""
+    if provider is None:
+        logger.debug("%s unavailable (provider not wired); metric dropped.", label)
+        return None
+    try:
+        return provider()
+    except Exception:
+        logger.warning("%s provider failed; metric dropped.", label, exc_info=True)
+        return None
 
 
 def _recorded_note_save_request(

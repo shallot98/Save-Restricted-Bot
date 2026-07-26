@@ -5,15 +5,12 @@
 包括：密码管理、WebDAV 配置、观看网站配置、校准配置
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- 服务经 web.services.get_services() 从当前应用取（应用工厂注入）
 - src/application/services for business logic
 """
 import logging
 import threading
 from flask import Blueprint, render_template, request, current_app
-
-# New architecture imports
-from src.core.container import get_calibration_service, get_note_service
 
 # Legacy imports (for backward compatibility)
 from database import verify_user, update_password
@@ -23,6 +20,7 @@ from config import (
 )
 from bot.storage.webdav_client import WebDAVClient
 from web.auth import login_required
+from web.services import get_services
 from web.routes.admin_helpers import (
     PasswordChangeDeps,
     WebDAVSaveDeps,
@@ -48,8 +46,9 @@ def admin():
     """管理后台主页 - 仪表盘"""
     from flask import session
 
-    note_service = get_note_service()
-    calibration_service = get_calibration_service()
+    services = get_services()
+    note_service = services.note_service
+    calibration_service = services.calibration_service
     context = build_admin_context(
         note_service,
         calibration_service,
@@ -140,7 +139,7 @@ def admin_calibration():
 
     Uses CalibrationService for configuration management.
     """
-    calibration_service = get_calibration_service()
+    calibration_service = get_services().calibration_service
 
     if request.method == 'POST':
         try:
@@ -161,7 +160,7 @@ def admin_calibration():
             calibration_service.update_config(config_data)
 
             # 重新加载校准管理器配置
-            _reload_calibration_config()
+            _reload_calibration_config(get_services().reload_calibration_config)
 
             stats = calibration_service.get_stats()
             return render_template(
@@ -187,18 +186,19 @@ def admin_calibration():
     return render_template('admin_calibration.html', config=config.to_dict(), stats=stats)
 
 
-def _reload_calibration_config() -> None:
-    """在独立线程中重新加载校准配置"""
+def _reload_calibration_config(reload_config) -> None:
+    """在独立线程中重新加载校准配置。
+
+    ``reload_config`` 必须由调用方在**请求上下文内**取好再传进来：线程里没有
+    Flask 应用上下文，`get_services()` 在那里会失败。
+    """
+    def reload_in_thread():
+        try:
+            reload_config()
+        except Exception as e:
+            logger.error(f"重新加载校准配置失败: {e}")
+
     try:
-        from bot.services.calibration_manager import get_calibration_manager
-
-        def reload_in_thread():
-            try:
-                manager = get_calibration_manager()
-                manager.reload_config()
-            except Exception as e:
-                logger.error(f"重新加载校准配置失败: {e}")
-
         reload_thread = threading.Thread(target=reload_in_thread, daemon=True)
         reload_thread.start()
         reload_thread.join(timeout=2)
@@ -213,7 +213,7 @@ def admin_calibration_queue():
 
     Uses CalibrationService for task management.
     """
-    calibration_service = get_calibration_service()
+    calibration_service = get_services().calibration_service
 
     status_filter = request.args.get('status', '')
     page = int(request.args.get('page', 1))

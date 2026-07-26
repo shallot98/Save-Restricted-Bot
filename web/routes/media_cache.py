@@ -10,7 +10,7 @@ import threading
 import requests
 
 from database import DATA_DIR
-from src.compat.config_compat import load_webdav_config
+from config import load_webdav_config
 
 logger = logging.getLogger(__name__)
 

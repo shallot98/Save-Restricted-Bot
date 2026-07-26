@@ -115,8 +115,35 @@ class ConfigSaveError(Exception):
         super().__init__(self.message)
 
 
+class HotReloadUnavailableError(RuntimeError):
+    """
+    配置热重载不可用
+
+    热重载依赖可选依赖 watchdog（见 requirements.dev.txt）。运行时镜像只安装
+    requirements.runtime.txt，因此默认不含 watchdog；显式启用热重载时如果缺少它，
+    抛出本异常并给出安装提示，而不是静默降级成「启用了但不生效」。
+    """
+
+    INSTALL_HINT = "pip install 'watchdog>=3.0.0'"
+
+    def __init__(self, reason: Optional[BaseException] = None):
+        """
+        Args:
+            reason: 触发本异常的原始 ImportError（可选）
+        """
+        self.reason = reason
+        self.message = (
+            "配置热重载需要可选依赖 watchdog，当前环境未安装。"
+            f"如需启用请先安装：{self.INSTALL_HINT}"
+        )
+        if reason is not None:
+            self.message += f"（原始导入错误：{reason}）"
+        super().__init__(self.message)
+
+
 __all__ = [
     'ConfigValidationError',
     'ConfigLoadError',
     'ConfigSaveError',
+    'HotReloadUnavailableError',
 ]

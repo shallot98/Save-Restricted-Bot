@@ -2,11 +2,13 @@
 Message handlers for the bot
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- 服务由 ``register_all_handlers`` 以 ``BotServices`` 注入 ``save()``，再逐层
+  传给 ``handle_user_state_input``；本模块不认识组合根。
 """
 import pyrogram
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from bot.runtime_services import BotServices
 from bot.handlers.instances import get_bot_instance, get_acc_instance
 from bot.handlers.message_link_forwarding import (
     LinkForwardContext,
@@ -40,7 +42,12 @@ def _send_unknown_message_help(message: pyrogram.types.messages_and_media.messag
     bot.send_message(message.chat.id, text, reply_markup=keyboard, reply_to_message_id=message.id)
 
 
-def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
+def save(
+    client: pyrogram.client.Client,
+    message: pyrogram.types.messages_and_media.message.Message,
+    *,
+    services: BotServices,
+):
     """Handle user text input during multi-step interactions"""
     metrics = get_business_metrics() if get_business_metrics else None
     category = "unknown"
@@ -53,7 +60,13 @@ def save(client: pyrogram.client.Client, message: pyrogram.types.messages_and_me
     user_id = str(message.from_user.id)
 
     try:
-        handled, state_category = handle_user_state_input(message, user_id, bot)
+        handled, state_category = handle_user_state_input(
+            message,
+            user_id,
+            bot,
+            watch_service=services.watch_service,
+            watch_setup_service=services.watch_setup_service,
+        )
         category = state_category or category
         if handled:
             return

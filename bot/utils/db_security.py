@@ -44,12 +44,7 @@ class SecureDatabase:
         try:
             conn = sqlite3.connect(self.db_path, timeout=30.0)
             conn.row_factory = sqlite3.Row  # 返回字典式结果
-            try:
-                from src.infrastructure.monitoring.performance.db_tracer import get_db_tracer
-
-                conn = get_db_tracer().enable(conn)
-            except Exception as e:
-                logger.debug("db_tracer 启用失败，已忽略: %s", e, exc_info=True)
+            # NOTE: monitoring 子系统已停用，此处不再包装 db_tracer
             yield conn
             conn.commit()
         except sqlite3.Error as e:

@@ -14,13 +14,16 @@ Centralized configuration management with:
 import logging
 import os
 import threading
-from typing import Any, Dict, Optional, Set, Callable
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set, Callable
 
 from .loader import ConfigLoader
 from .models import MainConfig, WatchConfig, WebDAVConfig, ViewerConfig
 from .settings_hot_reload import SettingsHotReloadMixin
 from .settings_paths import PathConfig
 from .settings_persistence import SettingsPersistenceMixin
+
+if TYPE_CHECKING:  # 热重载依赖可选的 watchdog，运行时按需加载（见 settings_hot_reload）
+    from .hot_reload import HotReloadManager
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +69,8 @@ class Settings(SettingsPersistenceMixin, SettingsHotReloadMixin):
         self._monitored_sources: Set[str] = set()
         self._sources_loader: Optional[Callable[[], Dict[str, Any]]] = None
 
-        # Hot reload manager
-        self._hot_reload_manager: Optional[HotReloadManager] = None
+        # Hot reload manager（可选功能，未启用时始终为 None）
+        self._hot_reload_manager: Optional["HotReloadManager"] = None
 
         # Load initial configurations
         self._load_all_configs()

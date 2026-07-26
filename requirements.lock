@@ -16,7 +16,6 @@ requests==2.31.0
 libtorrent==2.0.11
 pydantic==2.12.5
 pydantic-settings==2.12.0
-watchdog==6.0.0
 
 # Flask依赖
 Werkzeug==3.1.4
@@ -30,7 +29,26 @@ blinker==1.9.0
 pyaes==1.6.1
 PySocks==1.7.1
 
-# 测试依赖
+# 类型检查依赖
+# mypy 版本直接决定 scripts/mypy_baseline.txt 的错误集合，必须锁定，
+# 否则 CI 每次装到不同版本会让基线比对产生假阳性。
+mypy==2.3.0
+types-requests==2.33.0.20260712
+
+# 依赖方向契约检查（契约定义见仓库根 .importlinter）
+# import-linter 版本决定契约语法与 grimp 的图构建行为，同样必须锁定，
+# 否则 CI 可能因解析差异产生假阳性/假阴性。
+import-linter==2.13
+grimp==3.15
+rich==15.0.0
+markdown-it-py==4.2.0
+mdurl==0.1.2
+Pygments==2.20.0
+
+# 测试/可选依赖
+# watchdog 只服务于配置热重载（可选功能），已从 requirements.runtime.txt 移到
+# requirements.dev.txt；这里保留 pin 供 CI 与本地开发环境使用。
+watchdog==6.0.0
 pytest==9.0.2
 pytest-playwright==0.7.2
 pytest-base-url==2.1.0

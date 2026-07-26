@@ -1,4 +1,8 @@
-"""Legacy authentication helpers for the root database module."""
+"""遗留认证 helper（原仓库根 ``database_auth.py``）。
+
+依赖以 ``db_connection_factory`` 形式由调用方注入，因此本模块对根目录与表现层
+零 import，可以整体下沉到 infrastructure（报告 §5.4 迁移映射末三行）。
+"""
 
 from __future__ import annotations
 

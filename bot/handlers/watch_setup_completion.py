@@ -1,4 +1,11 @@
-"""Completion handlers for watch setup flows."""
+"""Completion handlers for watch setup flows.
+
+``watch_setup_service`` 由调用方以关键字参数传入（回调处理器用
+``self.watch_setup_service``，文本状态流用 ``StateInputContext``），本模块不再
+``from composition.container import get_watch_setup_service`` 就地取服务。
+"""
+
+from typing import TYPE_CHECKING
 
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -9,18 +16,21 @@ from bot.handlers.watch_setup_models import (
     WatchSetupTarget,
 )
 from bot.utils.status import user_states
-from src.core.container import get_watch_setup_service
+
+if TYPE_CHECKING:
+    from src.application.services import WatchSetupService
 
 
 def complete_watch_setup(
     target: WatchSetupTarget | int,
     options: ForwardWatchSetupOptions | int,
     *legacy_args,
+    watch_setup_service: "WatchSetupService",
 ) -> None:
     """Complete watch setup for forward mode."""
     target, options = _resolve_forward_setup_args(target, options, legacy_args)
     bot = get_bot_instance()
-    service = get_watch_setup_service()
+    service = watch_setup_service
 
     try:
         result = service.create_forward_watch(
@@ -49,11 +59,12 @@ def complete_watch_setup_single(
     target: WatchSetupTarget | int,
     filters: WatchFilterOptions | int,
     *legacy_args,
+    watch_setup_service: "WatchSetupService",
 ) -> None:
     """Complete watch setup for record mode."""
     target, filters = _resolve_record_setup_args(target, filters, legacy_args)
     bot = get_bot_instance()
-    service = get_watch_setup_service()
+    service = watch_setup_service
 
     try:
         result = service.create_record_watch(

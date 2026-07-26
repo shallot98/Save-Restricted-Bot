@@ -123,16 +123,9 @@ def test_auto_reload_on_save():
         print("\n" + "="*60)
         print("✅ All tests passed!")
         print("="*60)
-        return True
-        
-    except AssertionError as e:
-        print(f"\n❌ Test failed: {e}")
-        return False
-    except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+
+    # 原先 except AssertionError/Exception -> return False：pytest 忽略返回值，
+    # 断言失败会被吞成 passed（假绿灯）。现让异常直接向上抛，只保留清理。
     finally:
         shutil.rmtree(temp_dir)
 
@@ -165,18 +158,15 @@ def test_message_filtering():
                 all_pass = False
         
         print("\n" + "="*60)
-        if all_pass:
-            print("✅ All filtering tests passed!")
-        else:
-            print("❌ Some filtering tests failed!")
+        assert all_pass, "部分过滤用例结果与预期不符"
+        print("✅ All filtering tests passed!")
         print("="*60)
-        return all_pass
-        
+
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 if __name__ == "__main__":
@@ -185,22 +175,18 @@ if __name__ == "__main__":
     print("Testing Monitoring Configuration Persistence Fix")
     print("*"*60)
     
-    test1_pass = test_auto_reload_on_save()
-    test2_pass = test_message_filtering()
-    
+    try:
+        test_auto_reload_on_save()
+        test_message_filtering()
+    except AssertionError as exc:
+        print("\n")
+        print("*"*60)
+        print(f"⚠️ Some tests failed: {exc}")
+        print("*"*60)
+        sys.exit(1)
+
     print("\n")
     print("*"*60)
-    print("Final Results:")
+    print("🎉 All tests passed! The fix is working correctly.")
     print("*"*60)
-    print(f"Test 1 (Auto-reload): {'✅ PASS' if test1_pass else '❌ FAIL'}")
-    print(f"Test 2 (Message filtering): {'✅ PASS' if test2_pass else '❌ FAIL'}")
-    print("*"*60)
-    
-    all_pass = test1_pass and test2_pass
-    if all_pass:
-        print("\n🎉 All tests passed! The fix is working correctly.")
-    else:
-        print("\n⚠️ Some tests failed. Please review the implementation.")
-    print()
-    
-    sys.exit(0 if all_pass else 1)
+    sys.exit(0)

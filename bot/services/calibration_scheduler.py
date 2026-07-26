@@ -1,11 +1,18 @@
 """
 后台定时任务调度器
 负责定期执行校准任务
+
+``CalibrationManager`` 由构造函数注入（沿 ``composition/calibration.py`` 已确立的
+先例）：调度器不再 ``from composition.calibration import get_calibration_manager``
+自取单例，装配责任回到 ``main.py`` 这个进程入口。
 """
 import threading
 import time
 import logging
-from bot.services.calibration_manager import get_calibration_manager
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from bot.services.calibration_manager import CalibrationManager
 
 logger = logging.getLogger(__name__)
 
@@ -13,17 +20,18 @@ logger = logging.getLogger(__name__)
 class CalibrationScheduler:
     """校准任务调度器"""
 
-    def __init__(self, interval: int = 60):
+    def __init__(self, interval: int = 60, *, manager: "CalibrationManager"):
         """
         初始化调度器
 
         Args:
             interval: 检查间隔（秒），默认60秒
+            manager: 组合根构造的校准管理器（进程内单例）
         """
         self.interval = interval
         self.running = False
         self.thread = None
-        self.manager = get_calibration_manager()
+        self.manager = manager
 
     def start(self):
         """启动调度器"""
@@ -78,25 +86,27 @@ class CalibrationScheduler:
 _scheduler = None
 
 
-def get_scheduler(interval: int = 60) -> CalibrationScheduler:
+def get_scheduler(interval: int = 60, *, manager: "CalibrationManager") -> CalibrationScheduler:
     """获取全局调度器实例
 
     Args:
         interval: 检查间隔（秒）
+        manager: 组合根构造的校准管理器（仅首次创建时使用）
     """
     global _scheduler
     if _scheduler is None:
-        _scheduler = CalibrationScheduler(interval)
+        _scheduler = CalibrationScheduler(interval, manager=manager)
     return _scheduler
 
 
-def start_scheduler(interval: int = 60):
+def start_scheduler(interval: int = 60, *, manager: "CalibrationManager"):
     """启动全局调度器
 
     Args:
         interval: 检查间隔（秒）
+        manager: 组合根构造的校准管理器
     """
-    scheduler = get_scheduler(interval)
+    scheduler = get_scheduler(interval, manager=manager)
     scheduler.start()
 
 

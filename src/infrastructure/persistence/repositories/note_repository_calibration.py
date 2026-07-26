@@ -121,7 +121,7 @@ class SQLiteNoteCalibrationMixin:
     def _replace_calibrated_result(self, message_text: str, result: Dict[str, Any]) -> str:
         if not result.get("success"):
             return message_text
-        from bot.utils.magnet_utils import MagnetLinkParser
+        from src.domain.magnet import MagnetLinkParser
 
         regex = self._regex()
         info_hash = result["info_hash"]
@@ -142,7 +142,7 @@ class SQLiteNoteCalibrationMixin:
         return old_magnet_link, old_filename
 
     def _build_primary_calibrated_link(self, result: Dict[str, Any]) -> Tuple[str, str]:
-        from bot.utils.magnet_utils import MagnetLinkParser
+        from src.domain.magnet import MagnetLinkParser
 
         regex = self._regex()
         filename = MagnetLinkParser.clean_filename(result.get("filename", ""))

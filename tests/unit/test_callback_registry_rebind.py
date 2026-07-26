@@ -9,9 +9,10 @@ from bot.handlers.instances import set_bot_instance, set_acc_instance
 
 
 class _DummyHandler:
-    def __init__(self, bot, acc):
+    def __init__(self, bot, acc, *, services=None):
         self.bot = bot
         self.acc = acc
+        self.services = services
 
     def can_handle(self, _data: str) -> bool:
         return True

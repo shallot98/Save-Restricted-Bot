@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import List, Optional, Tuple
-from zoneinfo import ZoneInfo
 
-from src.core.utils.datetime_utils import format_db_datetime
+from src.core.utils.datetime_utils import DB_TIMEZONE, db_now, format_db_datetime
 from src.domain.entities.note import Note, NoteCreate
 
 logger = logging.getLogger(__name__)
-CHINA_TZ = ZoneInfo("Asia/Shanghai")
+
+# Kept as an alias: the storage timezone now lives in datetime_utils so that
+# writers and "recent" queries cannot drift onto different bases.
+CHINA_TZ = DB_TIMEZONE
 
 
 class SQLiteNoteCrudMixin:
@@ -56,7 +57,7 @@ class SQLiteNoteCrudMixin:
                 note_data.source_chat_id,
                 note_data.source_name,
                 note_data.message_text,
-                format_db_datetime(datetime.now(CHINA_TZ)),
+                format_db_datetime(db_now()),
                 note_data.media_type,
                 note_data.media_path,
                 self._media_paths_json(note_data.media_paths),

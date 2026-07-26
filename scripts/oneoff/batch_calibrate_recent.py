@@ -16,7 +16,7 @@ import argparse
 sys.path.insert(0, os.path.dirname(__file__))
 
 from database import get_notes
-from bot.services.calibration_manager import get_calibration_manager
+from composition.calibration import get_calibration_manager
 import logging
 
 # 配置日志

@@ -2,26 +2,47 @@
 Command handlers for /start, /help, /watch commands
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- ``WatchService`` 由 ``register_all_handlers`` 注入，逐层传给 ``show_watch_menu``；
+  本模块不认识组合根（报告 §5.3 规则 3）。
 """
 import pyrogram
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import logging
+from typing import TYPE_CHECKING, Optional
 
-# New architecture imports
-from src.core.container import get_watch_service
 from bot.services.history_copy_task_manager import get_history_copy_task_manager
 from bot.services.pt_pay_manager import get_pt_pay_monitor_manager
 from bot.services.signin_manager import get_scheduled_signin_manager
 
+if TYPE_CHECKING:
+    from src.application.services import WatchService
+
 logger = logging.getLogger(__name__)
 
 
-def register_command_handlers(bot, acc):
-    """Register all command handlers"""
+def register_command_handlers(
+    bot,
+    acc,
+    owner_filter=None,
+    *,
+    watch_service: Optional["WatchService"] = None,
+):
+    """Register all command handlers.
 
-    @bot.on_message(filters.command(["start"]))
+    ``owner_filter`` restricts the commands to the bot owner. It is resolved
+    from configuration when the caller does not supply one, so there is no
+    call path that registers these commands unprotected.
+
+    ``watch_service`` 由 ``register_all_handlers`` 注入。允许为 None 仅是为了让
+    只验证 /start、/help 键盘的单测能免装配构造；``/watch`` 真正取用时未注入会
+    立刻抛错，不做静默回落。
+    """
+    if owner_filter is None:
+        from bot.handlers.authorization import build_owner_filter, resolve_owner_ids
+        owner_filter = build_owner_filter(resolve_owner_ids(acc))
+
+    @bot.on_message(owner_filter & filters.command(["start"]))
     def send_start(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         bot.send_message(
             message.chat.id,
@@ -30,7 +51,7 @@ def register_command_handlers(bot, acc):
             reply_to_message_id=message.id,
         )
 
-    @bot.on_message(filters.command(["help"]))
+    @bot.on_message(owner_filter & filters.command(["help"]))
     def send_help(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         bot.send_message(
             message.chat.id,
@@ -39,7 +60,7 @@ def register_command_handlers(bot, acc):
             reply_to_message_id=message.id,
         )
 
-    @bot.on_message(filters.command(["watch"]))
+    @bot.on_message(owner_filter & filters.command(["watch"]))
     def watch_command(client: pyrogram.client.Client, message: pyrogram.types.messages_and_media.message.Message):
         if acc is None:
             bot.send_message(
@@ -50,7 +71,12 @@ def register_command_handlers(bot, acc):
             )
             return
 
-        show_watch_menu(message.chat.id, message.id)
+        if watch_service is None:
+            raise RuntimeError(
+                "register_command_handlers 未注入 WatchService，/watch 无法工作；"
+                "请检查 main.py → register_all_handlers 的装配路径"
+            )
+        show_watch_menu(message.chat.id, message.id, watch_service=watch_service)
 
 
 def _start_keyboard() -> InlineKeyboardMarkup:
@@ -124,13 +150,11 @@ def _help_text() -> str:
 """
 
 
-def show_watch_menu(chat_id, reply_to_message_id=None):
-    """Show watch menu using WatchService"""
+def show_watch_menu(chat_id, reply_to_message_id=None, *, watch_service: "WatchService"):
+    """Show watch menu using the injected WatchService."""
     from bot.handlers import get_bot_instance
     bot = get_bot_instance()
 
-    # 使用 WatchService 获取配置
-    watch_service = get_watch_service()
     watch_config = watch_service.get_all_configs_dict()
     user_id = str(chat_id)
 

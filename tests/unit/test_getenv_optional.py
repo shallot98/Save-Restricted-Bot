@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.compat.config_compat import getenv_optional
+from src.core.config import getenv_optional
 
 
 class TestGetenvOptional:

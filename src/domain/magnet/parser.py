@@ -2,8 +2,8 @@
 
 from typing import Dict, List, Optional
 
-from bot.utils import magnet_parsing
-from bot.utils.magnet_note import extract_all_dns_from_note
+from src.domain.magnet import parsing as magnet_parsing
+from src.domain.magnet.note import extract_all_dns_from_note
 
 
 class MagnetLinkParser:

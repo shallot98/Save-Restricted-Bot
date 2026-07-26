@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class TestMessage:
+class MockMessage:
     """Test message object"""
     id: int
     text: str
@@ -57,7 +57,7 @@ class MockAsyncClient:
         raise ValueError("Peer id invalid")
 
 
-class TestMessageWorker:
+class MockMessageWorker:
     """Test worker with async support"""
     
     def __init__(self, message_queue: queue.Queue, mock_client: MockAsyncClient):
@@ -130,7 +130,7 @@ class TestMessageWorker:
             logger.error(f"❌ Operation timeout ({timeout}s)")
             raise
     
-    def process_message(self, msg_obj: TestMessage) -> bool:
+    def process_message(self, msg_obj: MockMessage) -> bool:
         """Process single message"""
         try:
             logger.info(f"⚙️ Processing message: id={msg_obj.id}, text={msg_obj.text}")
@@ -197,7 +197,7 @@ def test_async_message_processing():
     # Create queue and worker
     msg_queue = queue.Queue()
     mock_client = MockAsyncClient()
-    worker = TestMessageWorker(msg_queue, mock_client)
+    worker = MockMessageWorker(msg_queue, mock_client)
     
     # Start worker thread
     worker_thread = threading.Thread(target=worker.run, daemon=True, name="TestWorker")
@@ -206,16 +206,16 @@ def test_async_message_processing():
     
     # Enqueue test messages
     test_messages = [
-        TestMessage(1, "fast message 1"),
-        TestMessage(2, "slow message 2"),
-        TestMessage(3, "fast message 3"),
-        TestMessage(4, "error message 4"),  # Will handle error gracefully
-        TestMessage(5, "fast message 5"),
-        TestMessage(6, "timeout message 6"),  # Will timeout but not block
-        TestMessage(7, "fast message 7"),
-        TestMessage(8, "slow message 8"),
-        TestMessage(9, "fast message 9"),
-        TestMessage(10, "fast message 10"),
+        MockMessage(1, "fast message 1"),
+        MockMessage(2, "slow message 2"),
+        MockMessage(3, "fast message 3"),
+        MockMessage(4, "error message 4"),  # Will handle error gracefully
+        MockMessage(5, "fast message 5"),
+        MockMessage(6, "timeout message 6"),  # Will timeout but not block
+        MockMessage(7, "fast message 7"),
+        MockMessage(8, "slow message 8"),
+        MockMessage(9, "fast message 9"),
+        MockMessage(10, "fast message 10"),
     ]
     
     logger.info(f"\n📤 Enqueuing {len(test_messages)} messages...")
@@ -254,14 +254,12 @@ def test_async_message_processing():
     logger.info("=" * 80)
     
     # Verify results
-    if worker.processed_count >= 8:
-        logger.info("✅ TEST PASSED: All non-failing messages were processed!")
-        return True
-    else:
-        logger.error(f"❌ TEST FAILED: Only {worker.processed_count} messages processed")
-        return False
+    # 断言而非 return：pytest 忽略返回值，返回 False 也会报 passed（假绿灯）
+    assert worker.processed_count >= 8, (
+        f"只处理了 {worker.processed_count} 条消息，期望 >= 8"
+    )
+    logger.info("✅ TEST PASSED: All non-failing messages were processed!")
 
 
 if __name__ == "__main__":
-    success = test_async_message_processing()
-    exit(0 if success else 1)
+    test_async_message_processing()

@@ -7,9 +7,34 @@ Supports local filesystem, WebDAV, and other storage types.
 """
 
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Optional, BinaryIO, List
+from typing import (
+    BinaryIO,
+    Callable,
+    List,
+    Optional,
+    Protocol,
+    runtime_checkable,
+)
 from dataclasses import dataclass
+
+
+@runtime_checkable
+class MediaStorage(Protocol):
+    """
+    Narrow port for note media deletion.
+
+    `src.application` 删除笔记时只需要「按存储位置删文件」这一个动作；
+    具体实现是 `bot/storage/storage_manager.py:StorageManager`（本地 + WebDAV），
+    由组合根 `composition/wiring.py` 装配注入。
+    """
+
+    def delete_file(self, storage_location: str) -> bool:
+        """Delete a stored media file. Returns True when removed."""
+        ...
+
+
+#: 组合根注入的惰性提供者：未装配时返回 None，调用方必须显式处理。
+MediaStorageProvider = Callable[[], Optional[MediaStorage]]
 
 
 @dataclass

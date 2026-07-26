@@ -47,7 +47,12 @@ def apply_watch_task_schema_updates(cursor: sqlite3.Cursor) -> None:
 
 
 def migrate_watch_config_from_json(cursor: sqlite3.Cursor) -> None:
-    """Best-effort migration from legacy watch_config.json into watch_tasks."""
+    """Best-effort migration from legacy watch_config.json into watch_tasks.
+
+    ``watch_config.json`` is a read-only legacy artifact: nothing writes it any
+    more (``SQLiteWatchRepository._sync_to_json`` was removed), so this is a
+    one-way import that only runs while ``watch_tasks`` is still empty.
+    """
     if not _watch_tasks_is_empty(cursor):
         return
 

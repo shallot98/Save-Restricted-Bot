@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import bot.handlers.messages as messages_module
+from bot.runtime_services import BotServices
 
 
 class _DummyBot:
@@ -42,7 +43,14 @@ def test_save_replies_with_help_for_unknown_private_text(monkeypatch) -> None:
         id=3003,
     )
 
-    messages_module.save(None, message)
+    # save() 现在要求显式注入服务；本用例走的是「未识别文本」分支，不触达服务。
+    services = BotServices(
+        watch_service=object(),
+        watch_setup_service=object(),
+        message_worker_service=object(),
+        calibration_manager=object(),
+    )
+    messages_module.save(None, message, services=services)
 
     assert len(bot.sent) == 1
     payload = bot.sent[0]

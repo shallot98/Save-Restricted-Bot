@@ -8,14 +8,15 @@ Application orchestration for manual calibration and related web API flows.
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 from typing import Optional, Tuple, Dict, Any, List
 
-from bot.utils.magnet_utils import extract_all_dns_from_note
+from src.core.utils.script_paths import resolve_runtime_script
+from src.domain.magnet import extract_all_dns_from_note
 from src.application.services.calibration_service import CalibrationService
 from src.application.services.note_service import NoteService
-from src.core.exceptions import NotFoundError
+from src.core.exceptions import ConfigurationError, NotFoundError
+from src.core.interfaces import CalibrationScheduler, CalibrationSchedulerProvider
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +28,11 @@ class CalibrationWorkflowService:
         self,
         note_service: NoteService,
         calibration_service: CalibrationService,
+        calibration_scheduler_provider: Optional[CalibrationSchedulerProvider] = None,
     ) -> None:
         self._note_service = note_service
         self._calibration_service = calibration_service
+        self._calibration_scheduler_provider = calibration_scheduler_provider
 
     def calibrate_note(self, note_id: int) -> Tuple[Optional[dict], Optional[str], int]:
         try:
@@ -88,9 +91,7 @@ class CalibrationWorkflowService:
         return None, last_error
 
     def batch_schedule_recent_notes(self, count: int, force: bool) -> Dict[str, Any]:
-        from bot.services.calibration_manager import get_calibration_manager
-
-        manager = get_calibration_manager()
+        manager = self._require_calibration_scheduler()
         notes = self._note_service.get_notes(page=1, page_size=count).items
         counts = {'added': 0, 'skipped': 0, 'error': 0}
 
@@ -108,7 +109,21 @@ class CalibrationWorkflowService:
             'message': f"成功添加 {counts['added']} 条笔记到校准队列（{mode_text}模式）",
         }
 
-    def _schedule_recent_note(self, manager, note, force: bool) -> str:
+    def _require_calibration_scheduler(self) -> CalibrationScheduler:
+        """Fail loudly when the composition root did not wire a scheduler."""
+        scheduler = (
+            self._calibration_scheduler_provider()
+            if self._calibration_scheduler_provider is not None
+            else None
+        )
+        if scheduler is None:
+            raise ConfigurationError(
+                "校准调度器未装配，无法批量排队（组合根未完成 wiring）",
+                config_key="calibration_scheduler",
+            )
+        return scheduler
+
+    def _schedule_recent_note(self, manager: CalibrationScheduler, note, force: bool) -> str:
         try:
             note_dict = dict(vars(note))
             if not force and not manager.should_calibrate_note(note_dict):
@@ -164,16 +179,9 @@ class CalibrationWorkflowService:
 
     @staticmethod
     def _get_script_path(script_name: str) -> Optional[str]:
-        docker_path = f'/app/{script_name}'
-        if os.path.exists(docker_path):
-            return docker_path
-        local_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-            script_name,
-        )
-        if os.path.exists(local_path):
-            return local_path
-        return None
+        """Resolve a runtime script; missing files are logged by the resolver."""
+        path = resolve_runtime_script(script_name)
+        return str(path) if path else None
 
     @staticmethod
     def _run_calibration_script(

@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Dict, Optional
 
-from src.core.container import get_calibration_service
-
 from database import (
     add_calibration_task,
     get_calibration_stats,
@@ -29,18 +27,16 @@ class CalibrationManager(
     CalibrationScriptMixin,
     CalibrationTaskProcessorMixin,
 ):
-    """Manage automatic calibration tasks."""
+    """Manage automatic calibration tasks.
 
-    def __init__(self):
+    ``calibration_service`` 由构造函数注入（§5.3 rule 3：业务代码不做服务定位）。
+    单例装配在 ``composition/calibration.py``。
+    """
+
+    def __init__(self, calibration_service):
+        self.calibration_service = calibration_service
         self.config = None
-        self._calibration_service = None
         self.reload_config()
-
-    @property
-    def calibration_service(self):
-        if self._calibration_service is None:
-            self._calibration_service = get_calibration_service()
-        return self._calibration_service
 
     def reload_config(self) -> None:
         try:
@@ -98,13 +94,3 @@ class CalibrationManager(
     @staticmethod
     def _update_note_with_calibrated_dns(note_id: int, calibrated_results):
         return update_note_with_calibrated_dns(note_id, calibrated_results)
-
-
-_calibration_manager = None
-
-
-def get_calibration_manager() -> CalibrationManager:
-    global _calibration_manager
-    if _calibration_manager is None:
-        _calibration_manager = CalibrationManager()
-    return _calibration_manager

@@ -38,25 +38,18 @@ class TestNotesPageRendering:
         assert response.status_code == 200
         assert b'login' in response.data.lower() or 'login'.encode() in response.data.lower()
 
-    def test_static_css_files_exist(self, client):
-        """测试CSS静态文件存在"""
-        css_files = [
-            '/static/css/base/reset.css',
-            '/static/css/base/variables.css',
-            '/static/css/components/sidebar.css',
-            '/static/css/components/topbar.css',
-        ]
-        for css_file in css_files:
-            response = client.get(css_file)
-            assert response.status_code == 200, f"CSS file not found: {css_file}"
-
     def test_static_js_files_exist(self, client):
-        """测试JS静态文件存在"""
+        """测试模板实际引用的 JS 静态文件存在。
+
+        只断言 templates/ 里真正 <script src> 引用的资产；此前断言的
+        css/* 与 js/{utils,pages,components/sidebar} 全部零引用，已随死资产清理删除。
+        """
         js_files = [
-            '/static/js/utils/network.js',
-            '/static/js/utils/storage.js',
-            '/static/js/components/sidebar.js',
-            '/static/js/pages/notes.js',
+            '/static/js/utils.js',
+            '/static/js/notes.js',
+            '/static/js/components/note-card.js',
+            '/static/js/components/csp-events.js',
+            '/static/js/components/layout-fallback.js',
         ]
         for js_file in js_files:
             response = client.get(js_file)

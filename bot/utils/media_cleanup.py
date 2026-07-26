@@ -15,16 +15,6 @@ from database import DATABASE_FILE
 logger = logging.getLogger(__name__)
 
 
-def _enable_db_tracer(conn):
-    try:
-        from src.infrastructure.monitoring.performance.db_tracer import get_db_tracer
-
-        return get_db_tracer().enable(conn)
-    except Exception as e:
-        logger.debug("db_tracer 启用失败，已忽略: %s", e, exc_info=True)
-        return conn
-
-
 def _fetch_media_paths(cursor) -> set:
     cursor.execute("SELECT media_path FROM notes WHERE media_path IS NOT NULL")
     return {row[0] for row in cursor.fetchall() if row[0]}
@@ -92,7 +82,7 @@ class MediaCleaner:
         
         try:
             conn = sqlite3.connect(self.db_file)
-            conn = _enable_db_tracer(conn)
+            # NOTE: monitoring 子系统已停用，此处不再包装 db_tracer
             cursor = conn.cursor()
             referenced_files.update(_fetch_media_paths(cursor))
             referenced_files.update(_fetch_media_path_arrays(cursor))

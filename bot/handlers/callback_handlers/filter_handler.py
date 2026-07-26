@@ -31,8 +31,6 @@ class FilterCallbackHandler(CallbackHandler):
         self.dispatch_context(
             context,
             {
-                "filter_none": self._handle_filter_none,
-                "filter_none_single": self._handle_filter_none_single,
                 "filter_done": self._handle_filter_done,
                 "filter_done_single": self._handle_filter_done_single,
                 "clear_filters": self._handle_clear_filters,
@@ -48,35 +46,6 @@ class FilterCallbackHandler(CallbackHandler):
             },
             (("preserve_", self._handle_preserve),),
         )
-
-    def _handle_filter_none(self, context: CallbackContext) -> None:
-        """处理无过滤（转发模式）"""
-        if context.user_id not in user_states:
-            self.answer_and_log(context.callback_query, "❌ 会话已过期", show_alert=True)
-            return
-
-        user_states[context.user_id]["whitelist"] = []
-        user_states[context.user_id]["blacklist"] = []
-        user_states[context.user_id]["whitelist_regex"] = []
-        user_states[context.user_id]["blacklist_regex"] = []
-        show_preserve_source_options(context.chat_id, context.message_id, context.user_id)
-        self.answer_and_log(context.callback_query)
-
-    def _handle_filter_none_single(self, context: CallbackContext) -> None:
-        """处理无过滤（记录模式）"""
-        if context.user_id not in user_states:
-            self.answer_and_log(context.callback_query, "❌ 会话已过期", show_alert=True)
-            return
-
-        user_states[context.user_id]["whitelist"] = []
-        user_states[context.user_id]["blacklist"] = []
-        user_states[context.user_id]["whitelist_regex"] = []
-        user_states[context.user_id]["blacklist_regex"] = []
-
-        msg = self.bot.send_message(context.chat_id, "⏳ 正在完成设置...")
-        self.bot.delete_messages(context.chat_id, [context.message_id])
-        complete_watch_setup_single(msg.chat.id, msg.id, context.user_id, [], [], [], [])
-        self.answer_and_log(context.callback_query)
 
     def _handle_filter_done(self, context: CallbackContext) -> None:
         """处理过滤完成（转发模式）"""
@@ -100,7 +69,11 @@ class FilterCallbackHandler(CallbackHandler):
 
         msg = self.bot.send_message(context.chat_id, "⏳ 正在完成设置...")
         self.bot.delete_messages(context.chat_id, [context.message_id])
-        complete_watch_setup_single(msg.chat.id, msg.id, context.user_id, whitelist, blacklist, whitelist_regex, blacklist_regex)
+        complete_watch_setup_single(
+            msg.chat.id, msg.id, context.user_id,
+            whitelist, blacklist, whitelist_regex, blacklist_regex,
+            watch_setup_service=self.watch_setup_service,
+        )
         self.answer_and_log(context.callback_query, "✅ 过滤规则已保存")
 
     def _handle_clear_filters(self, context: CallbackContext) -> None:

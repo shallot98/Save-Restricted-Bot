@@ -5,10 +5,25 @@ Filter Service
 Domain service for message filtering logic.
 """
 
+import logging
 import re
-from typing import Optional
+from typing import Optional, Set
 
 from src.domain.entities.watch import WatchTask
+
+logger = logging.getLogger(__name__)
+
+# 已记录过的非法正则，避免每条消息重复刷日志
+_reported_invalid_patterns: Set[str] = set()
+
+
+def _report_invalid_pattern(field: str, pattern: str, error: re.error) -> None:
+    """非法正则只告警一次；该条规则被跳过，其余规则继续生效。"""
+    key = f"{field}:{pattern}"
+    if key in _reported_invalid_patterns:
+        return
+    _reported_invalid_patterns.add(key)
+    logger.error("非法正则表达式已被忽略: field=%s pattern=%r error=%s", field, pattern, error)
 
 
 class FilterService:
@@ -32,6 +47,16 @@ class FilterService:
         Returns:
             True if message should be forwarded
         """
+        if getattr(task, "filters_corrupt", False):
+            # 过滤器数据损坏时失败方向必须是「拒绝」：宁可漏转，也不能把
+            # 本该被拦截的内容放行。
+            logger.error(
+                "过滤器数据损坏，拒绝转发该来源的消息: source=%s watch_id=%s",
+                getattr(task, "source", None),
+                getattr(task, "watch_id", None),
+            )
+            return False
+
         if not message_text:
             # No text to filter - forward if no whitelist
             return not task.whitelist and not task.whitelist_regex
@@ -66,7 +91,8 @@ class FilterService:
             try:
                 if re.search(pattern, original_text):
                     return True
-            except re.error:
+            except re.error as exc:
+                _report_invalid_pattern("blacklist_regex", pattern, exc)
                 continue
 
         return False
@@ -88,7 +114,8 @@ class FilterService:
             try:
                 if re.search(pattern, original_text):
                     return True
-            except re.error:
+            except re.error as exc:
+                _report_invalid_pattern("whitelist_regex", pattern, exc)
                 continue
 
         return False
@@ -112,7 +139,8 @@ class FilterService:
         for pattern in task.extract_patterns:
             try:
                 matches = re.findall(pattern, message_text)
-            except re.error:
+            except re.error as exc:
+                _report_invalid_pattern("extract_patterns", pattern, exc)
                 continue
 
             if not matches:

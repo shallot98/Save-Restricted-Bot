@@ -1,17 +1,64 @@
-"""Hot reload helpers for legacy Settings."""
+"""Hot reload helpers for legacy Settings.
+
+热重载是可选功能：生产入口（main.py / app.py）从不调用 enable_hot_reload()，
+唯一使用方是 tests/integration/test_hot_reload.py。而 `.hot_reload` 的导入链是
+`hot_reload -> watcher -> watchdog`，模块级 import 会把 watchdog 变成只为未启用
+功能而存在的强制运行时依赖（报告 §3 P1-8 末段）。
+
+因此这里按需加载：`Settings` 的常规读写路径不触碰 watchdog；只有显式调用
+enable_hot_reload() / subscribe() 时才导入，缺 watchdog 则抛
+HotReloadUnavailableError（带安装提示），不静默降级。
+"""
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional, Type
 
-from .hot_reload import HotReloadManager
+from .exceptions import HotReloadUnavailableError
 from .manager import ConfigChangeCallback
 from .models import MainConfig, ViewerConfig, WatchConfig, WebDAVConfig
+
+if TYPE_CHECKING:  # 仅供类型检查，运行时不加载 watchdog
+    from .hot_reload import HotReloadManager
 
 logger = logging.getLogger(__name__)
 
 
+def _is_watchdog_missing(exc: ImportError) -> bool:
+    """判断 ImportError 是否由缺失 watchdog 引起（而非本仓库自身的导入错误）。"""
+    missing = getattr(exc, "name", None) or ""
+    return missing == "watchdog" or missing.startswith("watchdog.")
+
+
+def load_hot_reload_manager_cls() -> "Type[HotReloadManager]":
+    """按需导入 HotReloadManager。
+
+    Raises:
+        HotReloadUnavailableError: 缺少可选依赖 watchdog。
+        ImportError: 其他导入失败原样抛出，避免掩盖真实错误。
+    """
+    try:
+        from .hot_reload import HotReloadManager
+    except ImportError as exc:
+        if not _is_watchdog_missing(exc):
+            raise
+        raise HotReloadUnavailableError(exc) from exc
+    return HotReloadManager
+
+
 class SettingsHotReloadMixin:
     """Hot reload and subscription helpers shared by Settings."""
+
+    # 由 Settings.__init__ 赋值；在此声明类型，避免各方对该属性的类型推断打架。
+    _hot_reload_manager: Optional["HotReloadManager"]
+
+    def _create_hot_reload_manager(self) -> "HotReloadManager":
+        """Create a hot reload manager, importing watchdog-backed code on demand."""
+        manager_cls = load_hot_reload_manager_cls()
+        return manager_cls(
+            config_dir=self._paths.config_dir,
+            reload_callback=self._handle_config_reload,
+        )
 
     def enable_hot_reload(self) -> None:
         """Enable configuration hot reload."""
@@ -20,10 +67,7 @@ class SettingsHotReloadMixin:
                 logger.warning("热重载已经启用")
                 return
 
-            self._hot_reload_manager = HotReloadManager(
-                config_dir=self._paths.config_dir,
-                reload_callback=self._handle_config_reload,
-            )
+            self._hot_reload_manager = self._create_hot_reload_manager()
             self._hot_reload_manager.start()
             logger.info("配置热重载已启用")
 
@@ -38,10 +82,7 @@ class SettingsHotReloadMixin:
     def subscribe(self, callback: ConfigChangeCallback) -> str:
         """Subscribe to configuration change notifications."""
         if self._hot_reload_manager is None:
-            self._hot_reload_manager = HotReloadManager(
-                config_dir=self._paths.config_dir,
-                reload_callback=self._handle_config_reload,
-            )
+            self._hot_reload_manager = self._create_hot_reload_manager()
         return self._hot_reload_manager.notifier.subscribe(callback)
 
     def unsubscribe(self, subscription_id: str) -> bool:

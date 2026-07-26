@@ -4,7 +4,7 @@
 遵循 SRP 原则：仅负责笔记的展示、编辑和删除
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- 服务经 web.services.get_services() 从当前应用取（应用工厂注入）
 - src/application/services for business logic
 """
 import math
@@ -14,14 +14,14 @@ from urllib.parse import quote
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 
 # New architecture imports
-from src.core.container import get_note_service
 from src.core.exceptions import NotFoundError
 
 # Legacy imports (for backward compatibility)
 from config import load_viewer_config
 from bot.config.constants import AppConstants
-from bot.utils.magnet_utils import extract_all_dns_from_note
+from src.domain.magnet import extract_all_dns_from_note
 from web.auth import login_required, api_login_required
+from web.services import get_services
 from web.utils.filters import format_text_with_magnet_break
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ def notes_list():
 
     Uses NoteService from new architecture for data access.
     """
-    note_service = get_note_service()
+    note_service = get_services().note_service
     filters = _read_notes_list_filters()
     result = _query_notes(note_service, filters)
     viewer_url = _load_viewer_url()
@@ -185,7 +185,7 @@ def edit_note(note_id: int):
     Args:
         note_id: 笔记 ID
     """
-    note_service = get_note_service()
+    note_service = get_services().note_service
 
     try:
         note_dto = note_service.get_note(note_id)
@@ -226,7 +226,7 @@ def delete_note_route(note_id: int):
     Returns:
         JSON 响应
     """
-    note_service = get_note_service()
+    note_service = get_services().note_service
 
     try:
         note_service.delete_note(note_id)
@@ -251,7 +251,7 @@ def toggle_favorite_route(note_id: int):
     Returns:
         JSON 响应
     """
-    note_service = get_note_service()
+    note_service = get_services().note_service
 
     try:
         new_status = note_service.toggle_favorite(note_id)

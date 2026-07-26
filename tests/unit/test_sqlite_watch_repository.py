@@ -4,8 +4,12 @@ Unit tests for SQLiteWatchRepository.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Dict, List
 
 import pytest
 
@@ -129,3 +133,55 @@ def test_sqlite_watch_repository_resolves_legacy_watch_key(monkeypatch: pytest.M
 
     repo.add_task("1", "s3|d2", WatchTask(source="s3", dest="d2"))
     assert repo.get_task("1", "s3") is None
+
+
+def test_sqlite_watch_repository_writes_never_touch_watch_json(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    captured_watch_config_saves: List[Dict[str, Any]],
+) -> None:
+    """Every mutation must leave watch_config.json byte-identical.
+
+    The JSON file is a read-only legacy migration source; the old
+    ``_sync_to_json`` mirror rewrote it from a single process' cache on every
+    write, which let bot and web clobber each other's tasks.
+    """
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    _create_watch_schema(conn)
+
+    @contextmanager
+    def _fake_db():
+        yield conn
+
+    monkeypatch.setattr(
+        "src.infrastructure.persistence.repositories.sqlite_watch_repository.get_db_connection",
+        _fake_db,
+        raising=True,
+    )
+
+    # Stand-in for the real persistence: replace conftest's silent capture with
+    # a writer, so a resurrected double-write actually shows up on disk.
+    watch_file = tmp_path / "watch_config.json"
+    original = {"999": {"-100999|me": {"source": "-100999", "dest": "me"}}}
+    watch_file.write_text(json.dumps(original), encoding="utf-8")
+    before = hashlib.md5(watch_file.read_bytes()).hexdigest()
+
+    from src.core.config import settings
+
+    def _writing_save(config: Dict[str, Any], auto_reload: bool = True) -> None:
+        captured_watch_config_saves.append(config)
+        watch_file.write_text(json.dumps(config), encoding="utf-8")
+
+    monkeypatch.setattr(settings, "save_watch_config", _writing_save, raising=False)
+
+    repo = SQLiteWatchRepository()
+    repo.add_task("1", "s9|d9", WatchTask(source="s9", dest="d9"))
+    repo.save_config_dict({"2": {"s8|d8": {"source": "s8", "dest": "d8"}}})
+    repo.remove_task("2", "s8|d8")
+    repo.delete_user_config("1")
+
+    assert captured_watch_config_saves == []
+    assert hashlib.md5(watch_file.read_bytes()).hexdigest() == before
+    assert json.loads(watch_file.read_text(encoding="utf-8")) == original
+    assert not hasattr(repo, "_sync_to_json")

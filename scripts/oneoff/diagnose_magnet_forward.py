@@ -9,7 +9,7 @@ sys.path.insert(0, '.')
 
 from pyrogram import Client
 from src.core.config import settings
-from src.core.container import get_watch_service
+from composition.container import get_watch_service
 from bot.utils.peer import is_dest_cached
 
 def check_peer_cache():

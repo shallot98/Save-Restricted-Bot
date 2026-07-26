@@ -4,7 +4,7 @@ Watch callback handler - 监控回调处理器
 处理监控相关的回调：watch_add, watch_list, watch_remove, watch_view
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- WatchService 由 CallbackRegistry 构造期注入（self.watch_service）
 """
 
 from pyrogram import Client
@@ -14,9 +14,6 @@ from .base import CallbackContext, CallbackHandler
 from .watch_detail import build_watch_detail, build_watch_detail_keyboard, render_watch_detail_text
 from bot.utils.status import user_states
 from bot.handlers.watch_task_utils import extract_watch_id, resolve_watch_entry
-
-# New architecture imports
-from src.core.container import get_watch_service
 
 
 class WatchCallbackHandler(CallbackHandler):
@@ -66,7 +63,7 @@ class WatchCallbackHandler(CallbackHandler):
 
     def _handle_list(self, context: CallbackContext) -> None:
         """处理查看监控列表"""
-        watch_service = get_watch_service()
+        watch_service = self.watch_service
         watch_config = watch_service.get_all_configs_dict()
 
         if context.user_id not in watch_config or not watch_config[context.user_id]:
@@ -95,7 +92,7 @@ class WatchCallbackHandler(CallbackHandler):
 
     def _handle_remove_start(self, context: CallbackContext) -> None:
         """处理删除监控开始"""
-        watch_service = get_watch_service()
+        watch_service = self.watch_service
         watch_config = watch_service.get_all_configs_dict()
 
         if context.user_id not in watch_config or not watch_config[context.user_id]:
@@ -122,7 +119,7 @@ class WatchCallbackHandler(CallbackHandler):
     def _handle_view(self, context: CallbackContext) -> None:
         """处理查看监控详情"""
         token = context.data.split("_")[2]
-        watch_service = get_watch_service()
+        watch_service = self.watch_service
         watch_config = watch_service.get_all_configs_dict()
 
         if context.user_id not in watch_config or not watch_config[context.user_id]:
@@ -145,7 +142,7 @@ class WatchCallbackHandler(CallbackHandler):
     def _handle_remove(self, context: CallbackContext) -> None:
         """处理删除监控"""
         token = context.data.split("_")[2]
-        watch_service = get_watch_service()
+        watch_service = self.watch_service
         watch_config = watch_service.get_all_configs_dict()
 
         if context.user_id not in watch_config or not watch_config[context.user_id]:

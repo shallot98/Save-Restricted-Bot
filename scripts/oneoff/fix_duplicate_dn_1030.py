@@ -9,7 +9,7 @@
 import sqlite3
 import re
 from urllib.parse import quote
-from bot.utils.magnet_utils import MagnetLinkParser
+from src.domain.magnet import MagnetLinkParser
 
 def fix_note_1030():
     """修复笔记1030的重复DN参数"""

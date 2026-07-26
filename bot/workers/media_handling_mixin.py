@@ -10,16 +10,22 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
-from zoneinfo import ZoneInfo
 
-from src.compat.config_compat import MEDIA_DIR
 from src.core.config import settings
+from src.core.utils.datetime_utils import DB_TIMEZONE
 from bot.storage.webdav_client import StorageManager, WebDAVClient
 from constants import MAX_MEDIA_PER_GROUP
 
 logger = logging.getLogger(__name__)
 
-CHINA_TZ = ZoneInfo("Asia/Shanghai")
+# 直取权威源（原为 src.compat.config_compat.MEDIA_DIR，Phase 3 已删该包）。
+# 保持 import 期快照语义：settings.paths.media_dir 每次访问都重读 DATA_DIR 环境
+# 变量，而本模块的存储根目录在进程内必须恒定。
+MEDIA_DIR = str(settings.paths.media_dir)
+
+# Alias: the storage timezone is defined once in datetime_utils so that writers
+# and time-window queries cannot drift onto different bases.
+CHINA_TZ = DB_TIMEZONE
 
 
 @dataclass(frozen=True)

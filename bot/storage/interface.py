@@ -4,7 +4,7 @@
 NOTE: This module now delegates to the new layered architecture.
       For new code, prefer using:
           from src.core.interfaces.storage import StorageBackend
-          from src.infrastructure.external.webdav import WebDAVStorageBackend
+          from bot.storage.webdav_remote import WebDAVClient
 """
 
 # Re-export from new architecture for backward compatibility

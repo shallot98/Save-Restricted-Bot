@@ -140,6 +140,9 @@ class AsyncCalibrationManager:
                 return
             task.status = TaskStatus.RUNNING
 
+        # 不变量：终态（COMPLETED/FAILED）与 completed_at 必须在同一个锁块内发布，
+        # 否则观察者可能读到「已完成但 completed_at 仍为 None」的中间态
+        # （TTL 清理会因此永不过期，/api/.../task 也会返回 completed_at=null）。
         try:
             result, error = calibration_func(*args, **kwargs)
             with self._lock:
@@ -152,6 +155,7 @@ class AsyncCalibrationManager:
                 else:
                     task.status = TaskStatus.FAILED
                     task.error = error or "Unknown error"
+                task.completed_at = self._time_fn()
         except Exception as e:
             logger.error("Async calibration task failed: task_id=%s error=%s", task_id, e, exc_info=True)
             with self._lock:
@@ -159,10 +163,12 @@ class AsyncCalibrationManager:
                 if task:
                     task.status = TaskStatus.FAILED
                     task.error = str(e)
+                    task.completed_at = self._time_fn()
         finally:
             with self._lock:
+                # 兜底：仅覆盖上面未走到（如提前 return）的路径，不重写已发布的时间戳
                 task = self._tasks.get(task_id)
-                if task:
+                if task and task.completed_at is None:
                     task.completed_at = self._time_fn()
                 self._futures.pop(task_id, None)
 

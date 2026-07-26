@@ -3,7 +3,7 @@ Flask Web 应用入口
 
 Architecture: Uses new layered architecture (src/)
 - src/core/           Configuration and constants
-- src/presentation/   Web routes and views
+- web/                Flask 表现层（唯一，src/presentation 空壳已删除）
 - src/application/    Services for business logic
 - src/infrastructure/ Database and storage
 
@@ -24,11 +24,17 @@ from src.infrastructure.monitoring.performance.middleware import PerformanceMidd
 setup_logging()
 logger = get_logger(__name__)
 
-# 导入 Web 应用工厂（保持使用现有 web 模块，它已通过兼容层使用新架构）
+# 组合根：装配 bot 侧具体实现（必须早于任何服务被取用），并构造交给 Flask 的
+# 服务集合——web/ 自身不再认识组合根（报告 §5.3 规则 3）。
+from composition.web_runtime import build_web_services
+from composition.wiring import configure_runtime_implementations
+
+# 导入 Web 应用工厂
 from web import create_app
 
 # 创建 Flask 应用实例
-app = create_app()
+configure_runtime_implementations()
+app = create_app(services=build_web_services())
 PerformanceMiddleware(app)
 
 # 记录启动信息

@@ -8,7 +8,6 @@ Orchestrates magnet link calibration operations.
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
-from zoneinfo import ZoneInfo
 
 from src.domain.entities.calibration import (
     CalibrationTask,
@@ -21,10 +20,13 @@ from src.domain.repositories.calibration_repository import (
     CalibrationConfigRepository,
 )
 from src.core.exceptions import NotFoundError, ValidationError
+from src.core.utils.datetime_utils import DB_TIMEZONE
 
 logger = logging.getLogger(__name__)
 
-CHINA_TZ = ZoneInfo("Asia/Shanghai")
+# Alias: the storage timezone is defined once in datetime_utils so that writers
+# and time-window queries cannot drift onto different bases.
+CHINA_TZ = DB_TIMEZONE
 
 
 class CalibrationService:

@@ -5,8 +5,11 @@ Watch Entity
 Domain entities for watch/monitoring configuration.
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -28,6 +31,9 @@ class WatchTask:
         forward_mode: "full" or "extract"
         extract_patterns: Patterns for content extraction
         record_mode: Only record, don't forward
+        filters_corrupt: Filter data could not be decoded (runtime-only flag).
+            When True the task must be treated as "block everything" — see
+            FilterService.should_forward. Never persisted.
     """
 
     source: str
@@ -41,12 +47,21 @@ class WatchTask:
     extract_patterns: List[str] = field(default_factory=list)
     record_mode: bool = False
     watch_id: Optional[str] = None
+    filters_corrupt: bool = False
 
     @classmethod
     def from_dict(cls, data: dict) -> "WatchTask":
-        """Create WatchTask from dictionary"""
+        """Create WatchTask from dictionary
+
+        Raises:
+            ValueError: 'source' 缺失或为空。失败方向是拒绝该条任务（由调用方
+                记录日志并跳过），不允许构造出一个没有来源的监控任务。
+        """
+        source = data.get("source")
+        if source is None or not str(source).strip():
+            raise ValueError("WatchTask requires a non-empty 'source' field")
         return cls(
-            source=data["source"],
+            source=source,
             dest=data.get("dest"),
             whitelist=data.get("whitelist", []),
             blacklist=data.get("blacklist", []),
@@ -101,11 +116,19 @@ class WatchConfig:
 
     @classmethod
     def from_dict(cls, user_id: str, data: dict) -> "WatchConfig":
-        """Create WatchConfig from dictionary"""
-        tasks = {
-            key: WatchTask.from_dict(value)
-            for key, value in data.items()
-        }
+        """Create WatchConfig from dictionary
+
+        失败方向：单条任务不合法时跳过该条并记录 error，其余任务保留；
+        绝不因为一条坏数据丢掉整个用户的监控配置。
+        """
+        tasks: Dict[str, WatchTask] = {}
+        for key, value in (data or {}).items():
+            try:
+                tasks[key] = WatchTask.from_dict(value)
+            except Exception as exc:
+                logger.error(
+                    "跳过不合法的监控任务: user=%s key=%s error=%s", user_id, key, exc
+                )
         return cls(user_id=user_id, tasks=tasks)
 
     def to_dict(self) -> Dict[str, Dict[str, Any]]:

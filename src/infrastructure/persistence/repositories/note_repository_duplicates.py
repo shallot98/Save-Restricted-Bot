@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from src.core.constants import AppConstants
+from src.core.utils.datetime_utils import db_cutoff
 
 
 @dataclass(frozen=True)
@@ -94,13 +95,13 @@ class SQLiteNoteDuplicateMixin:
         cursor.execute(
             """SELECT id FROM notes
                WHERE user_id = ? AND source_chat_id = ? AND message_text = ?
-               AND datetime(timestamp) > datetime('now', ? || ' seconds')
+               AND datetime(timestamp) > datetime(?)
                LIMIT 1""",
             (
                 request.user_id,
                 request.source_chat_id,
                 request.message_text,
-                f"-{AppConstants.Time.DB_DEDUP_WINDOW}",
+                db_cutoff(AppConstants.Time.DB_DEDUP_WINDOW),
             ),
         )
         row = cursor.fetchone()

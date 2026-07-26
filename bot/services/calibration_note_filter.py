@@ -6,7 +6,7 @@ import logging
 from typing import Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
-from bot.utils.magnet_utils import MagnetLinkParser, extract_all_dns_from_note
+from src.domain.magnet import MagnetLinkParser, extract_all_dns_from_note
 
 logger = logging.getLogger(__name__)
 

@@ -8,13 +8,16 @@ Contains:
 - exceptions/ Custom exceptions
 - interfaces/ Common interfaces
 - utils/      Utility functions
-- container   Service container for DI
+
+本层只放共享基础设施与纯抽象，不得依赖 `src.application` / `src.infrastructure`。
+DI 容器已迁往组合根 `composition/container.py`（见其 docstring）；原先在此
+re-export `get_container` 等工厂会把外层实现倒灌进最内层，且全仓无调用方。
 """
 
 from typing import Any
 
 
-__all__ = ["settings", "AppConstants", "get_container", "get_note_service", "get_watch_service", "get_calibration_service"]
+__all__ = ["settings", "AppConstants"]
 
 
 def __getattr__(name: str) -> Any:
@@ -30,17 +33,4 @@ def __getattr__(name: str) -> Any:
     if name == "AppConstants":
         from src.core.constants import AppConstants
         return AppConstants
-    if name in {"get_container", "get_note_service", "get_watch_service", "get_calibration_service"}:
-        from src.core.container import (
-            get_container,
-            get_note_service,
-            get_watch_service,
-            get_calibration_service,
-        )
-        return {
-            "get_container": get_container,
-            "get_note_service": get_note_service,
-            "get_watch_service": get_watch_service,
-            "get_calibration_service": get_calibration_service,
-        }[name]
     raise AttributeError(name)

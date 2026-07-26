@@ -1,6 +1,14 @@
 pytest>=7.4.0
 pytest-playwright>=0.4.0
 playwright>=1.40.0
-# Type checking
-mypy>=1.8.0
+
+# 配置热重载的可选依赖（src/core/config/watcher.py）。
+# 生产入口不启用热重载，故不在 requirements.runtime.txt 中；
+# tests/integration/test_hot_reload.py 需要它，显式启用热重载时也需要。
+watchdog>=3.0.0
+# Type checking（实际版本由 requirements.lock 锁定，见 scripts/mypy_baseline.txt）
+mypy>=2.3.0
 types-requests>=2.31.0
+
+# 依赖方向契约（契约定义见仓库根 .importlinter）
+import-linter>=2.13

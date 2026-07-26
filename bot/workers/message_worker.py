@@ -3,20 +3,20 @@ Message queue worker thread
 Processes messages from the queue and handles forwarding/recording
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- 服务由构造函数注入（main.py → bot.core.initialize_message_queue → MessageWorker）
 - src/application/services for business logic
 """
 import time
 import os
 import logging
 import queue
+import threading
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import TYPE_CHECKING, Optional, Dict, Any
 import pyrogram
 
 # New architecture imports
 from src.core.config import settings
-from src.core.container import get_message_worker_service
 from bot.workers.chain_forward_mixin import ChainForwardMixin
 from bot.workers.errors import RetryLater, UnrecoverableError
 from bot.workers.forwarding_mixin import ForwardingMixin
@@ -26,6 +26,9 @@ from bot.workers.processing_models import ForwardModeContext, RecordModeContext
 from bot.workers.queue_loop_mixin import QueueLoopMixin
 from bot.workers.record_mode_mixin import RecordModeMixin
 from bot.workers.telegram_execution_mixin import TelegramExecutionMixin
+
+if TYPE_CHECKING:
+    from src.application.services import MessageWorkerService, WatchService
 
 try:
     from src.infrastructure.monitoring.performance.decorators import monitor_performance
@@ -77,7 +80,24 @@ class MessageWorker(
 ):
     """消息工作线程，处理队列中的消息"""
 
-    def __init__(self, message_queue: queue.Queue, acc_client, max_retries: int = MAX_RETRIES):
+    def __init__(
+        self,
+        message_queue: queue.Queue,
+        acc_client,
+        max_retries: int = MAX_RETRIES,
+        *,
+        message_service: Optional["MessageWorkerService"] = None,
+        watch_service: Optional["WatchService"] = None,
+    ):
+        """构造 worker。
+
+        ``message_service`` / ``watch_service`` 由组合根经 ``main.py`` →
+        ``initialize_message_queue`` 注入。两者允许为 None 只是为了让不触碰服务的
+        单测（重试退避、消息装载）能免装配构造；真正取用走下面的属性，未注入会
+        立刻抛 RuntimeError，不静默回落到全局容器（§5.3 规则 5）。
+        """
+        self.__message_service = message_service
+        self.__watch_service = watch_service
         self.message_queue = message_queue
         self.acc = acc_client
         self.max_retries = max_retries
@@ -88,13 +108,34 @@ class MessageWorker(
         self.running = True
         self.last_stats_time = time.time()
         self.loop = None
+        self.thread: Optional[threading.Thread] = None
         self._delayed: list[tuple[float, int, Message]] = []
         self._delayed_seq: int = 0
         self._chain_max_hops = self._load_chain_max_hops()
-        self._message_service = get_message_worker_service()
 
         # 初始化存储管理器
         self.storage_manager = self._init_storage_manager()
+
+    @staticmethod
+    def _missing(name: str) -> RuntimeError:
+        return RuntimeError(
+            f"MessageWorker 未注入 {name}；"
+            "请检查 main.py → initialize_message_queue 的装配路径"
+        )
+
+    @property
+    def _message_service(self) -> "MessageWorkerService":
+        """笔记落库与指标上报的编排服务（构造期注入）。"""
+        if self.__message_service is None:
+            raise self._missing("MessageWorkerService")
+        return self.__message_service
+
+    @property
+    def _watch_service(self) -> "WatchService":
+        """链式转发查询目标频道监控配置用（构造期注入）。"""
+        if self.__watch_service is None:
+            raise self._missing("WatchService")
+        return self.__watch_service
 
     @staticmethod
     def _load_chain_max_hops() -> int:
@@ -209,7 +250,33 @@ class MessageWorker(
         self._track_processing_error(error, msg_obj)
         return "retry"
 
+    @property
+    def delayed_count(self) -> int:
+        """当前内部延迟（重试）队列长度。"""
+        return len(self._delayed)
+
     def stop(self):
-        """停止工作线程"""
+        """请求停止工作线程（不阻塞；主循环最多 0.3 秒内感知）"""
         self.running = False
         logger.info("🛑 正在停止消息工作线程...")
+
+    def join_thread(self, timeout: float) -> bool:
+        """等待工作线程退出。
+
+        Returns:
+            True 表示线程已退出（或从未启动），False 表示超时仍在运行。
+        """
+        thread = self.thread
+        if thread is None or not thread.is_alive():
+            return True
+
+        thread.join(timeout=max(0.0, timeout))
+        if thread.is_alive():
+            logger.warning(f"⚠️ 工作线程 {thread.name} 未在 {timeout:.1f}s 内退出")
+            return False
+        return True
+
+    def stop_and_join(self, timeout: float) -> bool:
+        """停止工作线程并等待其退出。"""
+        self.stop()
+        return self.join_thread(timeout)

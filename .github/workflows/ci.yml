@@ -17,15 +17,50 @@ jobs:
           python-version: "3.10"
           cache: "pip"
 
+      - name: Check requirements lock coverage
+        run: |
+          python scripts/check_requirements_lock.py --include-dev
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -c requirements.lock -r requirements.runtime.txt -r requirements.dev.txt
 
       - name: Run unit tests
+        timeout-minutes: 10
         run: |
           pytest
 
-      - name: Type check
+      - name: Run integration tests
+        # pytest.ini 的 testpaths/norecursedirs 只约束「不带参数的默认收集」，
+        # 本地开发跑 `pytest` 仍然只跑 tests/unit；显式传目录参数不受其限制，
+        # 因此这里用独立 step 把 tests/integration（114 用例，约 50s）纳入 CI。
+        # 外部依赖：watchdog（requirements.dev.txt）、pyrogram/flask（runtime）；
+        # 已验证无网络、无 playwright、无预置 data/ 依赖（空 checkout 可跑通）。
+        timeout-minutes: 15
         run: |
-          mypy .
+          pytest tests/integration
+
+      - name: Import contracts (dependency direction)
+        # 契约定义见仓库根 .importlinter。基线是 Phase 1/2/3 清理后的干净拓扑
+        # （src/ 对 bot/、web/、仓库根模块与 composition/ 的 import 边均为 0），
+        # Phase 3 删除 src/compat 后 ignore_imports 豁免已清零，
+        # 故直接 error 级：新增反向依赖即 CI 失败。
+        run: |
+          lint-imports
+
+      - name: Type check (baseline diff)
+        # mypy 范围由 mypy.ini 的 files/exclude 决定（bot src web composition main.py app.py）。
+        # 存量错误已记录在 scripts/mypy_baseline.txt，只有【新增】错误才让 CI 失败。
+        run: |
+          mypy --no-pretty --no-color-output > mypy-output.txt || true
+          cat mypy-output.txt
+          python scripts/check_mypy_baseline.py mypy-output.txt
+
+      - name: Upload mypy output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-output
+          path: mypy-output.txt
+          if-no-files-found: ignore

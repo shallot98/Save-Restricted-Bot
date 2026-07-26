@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 import sys
 from dataclasses import dataclass
 from typing import Optional
+
+from src.core.utils.script_paths import resolve_runtime_script
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class CalibrationScript:
     label: str
-    path: str
+    path: Optional[str]
 
 
 class CalibrationScriptMixin:
@@ -51,11 +52,10 @@ class CalibrationScriptMixin:
         return [qbt_script, bot_script]
 
     @staticmethod
-    def _script_path(script_name: str) -> str:
-        docker_path = f"/app/{script_name}"
-        if os.path.exists(docker_path):
-            return docker_path
-        return os.path.join(os.path.dirname(__file__), f"../../{script_name}")
+    def _script_path(script_name: str) -> Optional[str]:
+        """Resolve a runtime script; missing files are logged by the resolver."""
+        path = resolve_runtime_script(script_name)
+        return str(path) if path else None
 
     def _try_calibration_script(
         self,
@@ -63,7 +63,7 @@ class CalibrationScriptMixin:
         magnet_hash: str,
         timeout: int,
     ) -> Optional[str]:
-        if not os.path.exists(script.path):
+        if not script.path:
             return None
         logger.info(f"🔄 使用{script.label}校准: {magnet_hash[:16]}...")
         result = subprocess.run(
@@ -89,5 +89,5 @@ class CalibrationScriptMixin:
         if idx + 1 >= len(scripts):
             return
         next_script = scripts[idx + 1]
-        if os.path.exists(next_script.path):
+        if next_script.path:
             logger.info(f"🔄 回退到{next_script.label}方式...")

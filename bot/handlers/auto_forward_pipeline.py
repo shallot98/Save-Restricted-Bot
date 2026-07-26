@@ -1,25 +1,46 @@
-"""Auto-forward message processing pipeline."""
+"""Auto-forward message processing pipeline (orchestration only).
+
+Validates an incoming Telegram message, matches it against the watch tasks of
+its source chat, and fans it out into the worker queue.
+
+All "already handled" bookkeeping — dedup marks, media-group registry, cursor
+gaps, the durable catch-up cursor and the :class:`MessageProgress` contract
+read by ``WatchCatchupScanner`` — belongs to
+``bot/handlers/auto_forward_progress.py``. ``MessageProgress`` and
+``EnqueueOutcome`` are re-exported here as part of this pipeline's published
+return contract.
+"""
 
 import queue
-from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from bot.services.pt_pay_manager import get_pt_pay_monitor_manager
+from bot.handlers.auto_forward_progress import (
+    EnqueueOutcome,
+    MessageProgress,
+    finalize_message_progress,
+    is_media_group_already_handled,
+    is_recently_processed,
+    mark_message_handled,
+    register_media_group,
+)
 from bot.handlers.auto_forward_reporting import (
+    auto_forward_perf_context,
     get_auto_forward_metrics,
     is_peer_lookup_error,
     report_auto_forward_error,
     track_queue_full,
 )
-from bot.utils import cleanup_old_messages, is_message_processed, mark_message_processed
-from bot.utils.dedup import is_media_group_processed, processed_messages, register_processed_media_group
 from bot.utils.logger import get_logger
 from bot.workers import Message
-from constants import MESSAGE_CACHE_CLEANUP_THRESHOLD
-from src.core.container import get_watch_service
+
+if TYPE_CHECKING:
+    from src.application.services import WatchService
 
 logger = get_logger(__name__)
+
+__all__ = ["EnqueueOutcome", "MessageProgress", "process_auto_forward_message"]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -27,6 +48,7 @@ class AutoForwardContext:
     message: object
     message_queue: object
     metrics: Optional[object]
+    watch_service: object
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -45,24 +67,40 @@ class TaskCandidate:
     record_mode: bool
 
 
-def process_auto_forward_message(message, message_queue) -> None:
-    """Validate, match, and enqueue a monitored Telegram message."""
+def process_auto_forward_message(
+    message,
+    message_queue,
+    *,
+    watch_service: "WatchService",
+) -> MessageProgress:
+    """Validate, match, and enqueue a monitored Telegram message.
+
+    Returns the progress made, so that callers driving a durable cursor (the
+    catch-up scanner) can tell «handled» from «dropped». Failures resolve to
+    ``BLOCKED``: an unhandled message must stay behind the cursor.
+
+    ``watch_service`` 由调用方传入（自动转发 handler 的闭包 / catch-up 扫描器），
+    本模块不再从组合根就地取服务。
+    """
     context = AutoForwardContext(
         message=message,
         message_queue=message_queue,
         metrics=get_auto_forward_metrics(),
+        watch_service=watch_service,
     )
 
     try:
-        _process_auto_forward_context(context)
+        return _process_auto_forward_context(context)
     except (ValueError, KeyError) as e:
         if not is_peer_lookup_error(e):
             report_auto_forward_error("⚠️ auto_forward 错误", e)
+        return MessageProgress.BLOCKED
     except Exception as e:
         report_auto_forward_error("⚠️ auto_forward 意外错误", e)
+        return MessageProgress.BLOCKED
 
 
-def _process_auto_forward_context(context: AutoForwardContext) -> None:
+def _process_auto_forward_context(context: AutoForwardContext) -> MessageProgress:
     message = context.message
     logger.info(
         f"🔔 收到消息: chat_id={message.chat.id if message and message.chat else 'Unknown'}, "
@@ -70,17 +108,20 @@ def _process_auto_forward_context(context: AutoForwardContext) -> None:
     )
 
     if not _is_valid_message(message):
-        return
-    if _is_duplicate_message(message):
-        return
+        return MessageProgress.SKIPPED
+    if is_recently_processed(message):
+        return MessageProgress.SKIPPED
 
     _log_message_direction(message)
     _dispatch_pt_monitor(message)
-    source_context = _load_source_context(message)
+    source_context = _load_source_context(message, context.watch_service)
     if source_context is None:
-        return
+        # 非监控源：没有待入队的工作，可以直接标记已处理（无 catch-up 游标）。
+        mark_message_handled(message)
+        return MessageProgress.SKIPPED
 
-    _enqueue_tasks_with_monitoring(context, source_context)
+    outcome = _enqueue_tasks_with_monitoring(context, source_context)
+    return finalize_message_progress(message, source_context.source_chat_id, outcome)
 
 
 def _is_valid_message(message) -> bool:
@@ -94,17 +135,6 @@ def _is_valid_message(message) -> bool:
         logger.debug("跳过：消息缺少有效的 message ID")
         return False
     return True
-
-
-def _is_duplicate_message(message) -> bool:
-    if is_message_processed(message.id, message.chat.id):
-        logger.debug(f"⏭️ 跳过已处理的消息: chat_id={message.chat.id}, message_id={message.id}")
-        return True
-
-    mark_message_processed(message.id, message.chat.id)
-    if len(processed_messages) > MESSAGE_CACHE_CLEANUP_THRESHOLD:
-        cleanup_old_messages()
-    return False
 
 
 def _log_message_direction(message) -> None:
@@ -121,9 +151,8 @@ def _dispatch_pt_monitor(message) -> None:
         logger.error(f"❌ PT 联动脚本分发失败: {type(pt_err).__name__}: {pt_err}", exc_info=True)
 
 
-def _load_source_context(message) -> Optional[SourceContext]:
+def _load_source_context(message, watch_service) -> Optional[SourceContext]:
     source_chat_id = str(message.chat.id)
-    watch_service = get_watch_service()
     monitored_sources = watch_service.get_monitored_sources()
     if source_chat_id not in monitored_sources:
         logger.debug(f"⏭️ 消息来自非监控源，已跳过: chat_id={source_chat_id}, message_id={message.id}")
@@ -138,40 +167,43 @@ def _load_source_context(message) -> Optional[SourceContext]:
     )
 
 
-def _enqueue_tasks_with_monitoring(context: AutoForwardContext, source_context: SourceContext) -> None:
-    with _auto_forward_perf_context():
-        enqueued_count = _enqueue_matching_tasks(context, source_context)
+def _enqueue_tasks_with_monitoring(
+    context: AutoForwardContext,
+    source_context: SourceContext,
+) -> EnqueueOutcome:
+    with auto_forward_perf_context():
+        outcome = _enqueue_matching_tasks(context, source_context)
 
-    if enqueued_count > 0:
-        logger.info(f"✅ 本次共入队 {enqueued_count} 条消息")
+    if outcome.enqueued > 0:
+        logger.info(f"✅ 本次共入队 {outcome.enqueued} 条消息")
         if context.metrics is not None:
             context.metrics.record_message_processed(success=True, category="auto_forward", error_type=None)
+    return outcome
 
 
-def _auto_forward_perf_context():
-    try:
-        from src.infrastructure.monitoring.performance.decorators import performance_context
-    except Exception:
-        return nullcontext()
-
-    return performance_context("bot.auto_forward.enqueue", tags={"component": "auto_forward"})
-
-
-def _enqueue_matching_tasks(context: AutoForwardContext, source_context: SourceContext) -> int:
+def _enqueue_matching_tasks(context: AutoForwardContext, source_context: SourceContext) -> EnqueueOutcome:
     enqueued_count = 0
+    dropped_count = 0
     tasks_for_source = source_context.watch_service.get_tasks_for_source(source_context.source_chat_id)
     for entry in tasks_for_source:
         candidate = _build_task_candidate(entry, source_context.source_chat_id)
         if candidate is None:
             continue
-        if _should_skip_media_group(context, candidate):
+
+        media_group_key = _build_media_group_key(context, candidate)
+        if is_media_group_already_handled(media_group_key):
             continue
 
         msg_obj = _build_worker_message(context, source_context, candidate)
-        if _enqueue_worker_message(context, msg_obj, candidate):
-            enqueued_count += 1
+        if not _enqueue_worker_message(context, msg_obj, candidate):
+            dropped_count += 1
+            continue
 
-    return enqueued_count
+        # 入队成功后才登记媒体组，丢弃时保持未登记以便补扫重投。
+        register_media_group(media_group_key)
+        enqueued_count += 1
+
+    return EnqueueOutcome(enqueued=enqueued_count, dropped=dropped_count)
 
 
 def _build_task_candidate(entry, source_chat_id: str) -> Optional[TaskCandidate]:
@@ -205,22 +237,13 @@ def _task_to_watch_data(task) -> Optional[dict]:
     return None
 
 
-def _should_skip_media_group(context: AutoForwardContext, candidate: TaskCandidate) -> bool:
+def _build_media_group_key(context: AutoForwardContext, candidate: TaskCandidate) -> Optional[str]:
     media_group_id = context.message.media_group_id
     if not media_group_id:
-        return False
+        return None
 
     mode_suffix = "record" if candidate.record_mode else "forward"
-    media_group_key = (
-        f"{candidate.user_id}_{candidate.watch_key}_{candidate.dest_chat_id}_{mode_suffix}_{media_group_id}"
-    )
-    if is_media_group_processed(media_group_key):
-        logger.debug(f"⏭️ 跳过已处理的媒体组: {media_group_key}")
-        return True
-
-    register_processed_media_group(media_group_key)
-    logger.info(f"📸 首次处理媒体组: {media_group_key}")
-    return False
+    return f"{candidate.user_id}_{candidate.watch_key}_{candidate.dest_chat_id}_{mode_suffix}_{media_group_id}"
 
 
 def _build_worker_message(

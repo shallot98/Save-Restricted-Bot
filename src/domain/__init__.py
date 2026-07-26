@@ -4,7 +4,7 @@ Domain Layer - Business Logic Core
 
 Contains:
 - entities/      Domain entities (Note, Watch, Calibration)
-- value_objects/ Value objects (immutable domain concepts)
+- magnet/        Magnet link parsing (pure domain logic)
 - services/      Domain services (business rules)
 - repositories/  Repository interfaces
 - events/        Domain events

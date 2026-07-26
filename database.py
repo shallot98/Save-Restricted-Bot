@@ -1,8 +1,27 @@
 """
-Database Module - Backward Compatible Interface
+Database Module - 纯兼容外观，零实现，计划 Phase 4 删除
 
-This module provides backward-compatible database functions
-that delegate to the new layered architecture.
+Phase 3 收尾后本模块已不含任何实现体。四组旧 API 的实现全部住在
+``src.infrastructure.persistence``：
+
+- ``init_database``            → ``...persistence.sqlite.bootstrap``
+- note 侧（add_note 等）        → ``...persistence.legacy.note_facade``
+- auth 侧（verify_user 等）     → ``...persistence.legacy.auth``
+- calibration 侧               → ``...persistence.legacy.calibration``
+
+对应的根模块 ``database_notes.py`` / ``database_note_requests.py`` /
+``database_auth.py`` / ``database_calibration.py`` 均已删除。这里只剩「旧 import
+路径 → 新位置」的转接与位置参数适配。
+
+**为什么还没删**：仍有 8 个生产消费方（``main.py``、``web/routes/{admin,auth,
+media_cache}.py``、``web/utils/storage.py``、``bot/services/{calibration_manager,
+calibration_scheduler}.py``、``bot/utils/media_cleanup.py``）。逐个改到权威源属
+Phase 4，且其中 3 个在 ``web/routes/`` 下——本轮有并行改动，不宜同时动。
+
+拆桥时一并删除的零引用函数（全仓 rg 复核）：``get_note_count`` /
+``get_sources`` / ``update_note`` / ``update_magnet_link`` / ``delete_note`` /
+``toggle_favorite`` / ``update_note_with_calibrated_dn``。现役调用方全部走
+``NoteService`` 上的同名方法。
 
 For new code, prefer using:
     from src.infrastructure.persistence.repositories import SQLiteNoteRepository
@@ -10,50 +29,56 @@ For new code, prefer using:
 """
 
 import logging
-from zoneinfo import ZoneInfo
 from typing import Any, Optional
 
-from database_auth import update_password as _update_password
-from database_auth import verify_user as _verify_user
-from database_calibration import (
+from src.core.config import settings
+from composition.container import get_container, get_note_service
+from src.core.utils.datetime_utils import DB_TIMEZONE
+from src.infrastructure.persistence.legacy import (
     CalibrationDeps,
     CalibrationTaskCreate,
     CalibrationTaskQuery,
     CalibrationTaskUpdate,
+    LegacyNoteCreateRequest,
+    LegacyNoteQuery,
+    NoteCompatibilityDeps,
+    legacy_note_create_request,
+    legacy_note_query,
 )
-from database_calibration import add_calibration_task as _add_calibration_task
-from database_calibration import clear_completed_calibration_tasks as _clear_completed_calibration_tasks
-from database_calibration import delete_calibration_task as _delete_calibration_task
-from database_calibration import delete_calibration_tasks_by_note_id as _delete_calibration_tasks_by_note_id
-from database_calibration import get_all_calibration_tasks as _get_all_calibration_tasks
-from database_calibration import get_calibration_config as _get_calibration_config
-from database_calibration import get_calibration_stats as _get_calibration_stats
-from database_calibration import get_pending_calibration_tasks as _get_pending_calibration_tasks
-from database_calibration import update_calibration_config as _update_calibration_config
-from database_calibration import update_calibration_task as _update_calibration_task
-from database_note_requests import legacy_note_create_request, legacy_note_query
-from database_notes import LegacyNoteCreateRequest, LegacyNoteQuery, NoteCompatibilityDeps
-from database_notes import _normalize_note_identity, _note_to_legacy_dict, _parse_media_paths
-from database_notes import add_note as _add_note
-from database_notes import apply_calibrated_magnet as _apply_calibrated_magnet
-from database_notes import apply_calibrated_magnets as _apply_calibrated_magnets
-from database_notes import delete_note as _delete_note
-from database_notes import get_note_by_id as _get_note_by_id
-from database_notes import get_note_count as _get_note_count
-from database_notes import get_notes as _get_notes
-from database_notes import get_sources as _get_sources
-from database_notes import toggle_favorite as _toggle_favorite
-from database_notes import update_magnet_link as _update_magnet_link
-from database_notes import update_note as _update_note
-from src.core.config import settings
-from src.core.container import get_container, get_note_service
+from src.infrastructure.persistence.legacy import add_calibration_task as _add_calibration_task
+from src.infrastructure.persistence.legacy import (
+    clear_completed_calibration_tasks as _clear_completed_calibration_tasks,
+)
+from src.infrastructure.persistence.legacy import delete_calibration_task as _delete_calibration_task
+from src.infrastructure.persistence.legacy import (
+    delete_calibration_tasks_by_note_id as _delete_calibration_tasks_by_note_id,
+)
+from src.infrastructure.persistence.legacy import get_all_calibration_tasks as _get_all_calibration_tasks
+from src.infrastructure.persistence.legacy import get_calibration_config as _get_calibration_config
+from src.infrastructure.persistence.legacy import get_calibration_stats as _get_calibration_stats
+from src.infrastructure.persistence.legacy import get_pending_calibration_tasks as _get_pending_calibration_tasks
+from src.infrastructure.persistence.legacy import update_calibration_config as _update_calibration_config
+from src.infrastructure.persistence.legacy import update_calibration_task as _update_calibration_task
+from src.infrastructure.persistence.legacy import update_password as _update_password
+from src.infrastructure.persistence.legacy import verify_user as _verify_user
+from src.infrastructure.persistence.legacy.note_facade import (  # noqa: F401  (兼容再导出)
+    _normalize_note_identity,
+    _note_to_legacy_dict,
+    _parse_media_paths,
+)
+from src.infrastructure.persistence.legacy.note_facade import add_note as _add_note
+from src.infrastructure.persistence.legacy.note_facade import (
+    apply_calibrated_magnets as _apply_calibrated_magnets,
+)
+from src.infrastructure.persistence.legacy.note_facade import get_note_by_id as _get_note_by_id
+from src.infrastructure.persistence.legacy.note_facade import get_notes as _get_notes
+from src.infrastructure.persistence.sqlite.bootstrap import init_database as _init_database
 from src.infrastructure.persistence.sqlite.connection import get_db_connection
-from src.infrastructure.persistence.sqlite.migrations import run_migrations
 
 logger = logging.getLogger(__name__)
 
-# China timezone
-CHINA_TZ = ZoneInfo("Asia/Shanghai")
+# China timezone -- single source of truth lives in datetime_utils.DB_TIMEZONE.
+CHINA_TZ = DB_TIMEZONE
 
 # Path constants for backward compatibility
 DATA_DIR = str(settings.paths.data_dir)
@@ -61,16 +86,8 @@ DATABASE_FILE = str(settings.paths.data_dir / 'notes.db')
 
 
 def init_database() -> None:
-    """Initialize database - delegates to new architecture"""
-    print("=" * 50)
-    print("🔧 正在初始化数据库...")
-    print(f"📁 数据目录: {DATA_DIR}")
-    print(f"💾 数据库路径: {DATABASE_FILE}")
-
-    run_migrations()
-
-    print("✅ 数据库初始化完成！")
-    print("=" * 50)
+    """Initialize database - delegates to src.infrastructure.persistence."""
+    _init_database()
 
 
 def _get_note_repository():
@@ -110,43 +127,9 @@ def get_notes(
     return _get_notes(_note_deps(), legacy_note_query(query, legacy_args, legacy_kwargs))
 
 
-def get_note_count(
-    query: LegacyNoteQuery | Any = None,
-    *legacy_args,
-    **legacy_kwargs,
-) -> int:
-    """Get notes count with the same filter semantics as the application layer."""
-    return _get_note_count(_note_deps(), legacy_note_query(query, legacy_args, legacy_kwargs))
-
-
-def get_sources(user_id: Optional[int] = None) -> list[dict[str, Any]]:
-    """Get all sources"""
-    return _get_sources(get_db_connection, user_id)
-
-
 def get_note_by_id(note_id: int) -> Optional[dict[str, Any]]:
     """Get note by ID through the concrete repository."""
     return _get_note_by_id(_note_deps(), note_id)
-
-
-def update_note(note_id: int, message_text: str) -> bool:
-    """Update note content via NoteService."""
-    return _update_note(_note_deps(), note_id, message_text)
-
-
-def update_magnet_link(note_id: int, magnet_link: str) -> bool:
-    """Update magnet link through the concrete repository."""
-    return _update_magnet_link(_note_deps(), note_id, magnet_link)
-
-
-def delete_note(note_id: int) -> bool:
-    """Delete note via NoteService while preserving legacy bool semantics."""
-    return _delete_note(_note_deps(), note_id)
-
-
-def toggle_favorite(note_id: int) -> bool:
-    """Toggle favorite status"""
-    return _toggle_favorite(get_db_connection, note_id)
 
 
 def verify_user(username: str, password: str) -> bool:
@@ -222,11 +205,6 @@ def get_all_calibration_tasks(status: Optional[str] = None, limit: int = 100, of
     """Get all calibration tasks"""
     query = CalibrationTaskQuery(status=status, limit=limit, offset=offset)
     return _get_all_calibration_tasks(_calibration_deps(), query)
-
-
-def update_note_with_calibrated_dn(note_id: int, new_magnet_link: str, filename: str) -> bool:
-    """Update note with calibrated magnet link through NoteService."""
-    return _apply_calibrated_magnet(_note_deps(), note_id, new_magnet_link, filename)
 
 
 def update_note_with_calibrated_dns(note_id: int, calibrated_results: list[dict[str, Any]]) -> bool:

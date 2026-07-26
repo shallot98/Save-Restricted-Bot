@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.core.config import settings
-from src.compat.config_compat import (
+from config import (
     load_config, load_watch_config, load_webdav_config, load_viewer_config,
     DATA_DIR, CONFIG_DIR, MEDIA_DIR, CONFIG_FILE, WATCH_FILE
 )
@@ -165,7 +165,7 @@ class TestSourcesManager:
     def test_sources_manager_initialization(self):
         """测试监控源管理器可以初始化"""
         from bot.utils.sources_manager import MonitoredSourcesManager
-        from src.compat.config_compat import load_watch_config
+        from config import load_watch_config
 
         # 使用兼容层函数初始化
         manager = MonitoredSourcesManager(config_loader=load_watch_config)
@@ -174,7 +174,7 @@ class TestSourcesManager:
     def test_sources_manager_reload(self):
         """测试监控源管理器可以重载"""
         from bot.utils.sources_manager import MonitoredSourcesManager
-        from src.compat.config_compat import load_watch_config
+        from config import load_watch_config
 
         manager = MonitoredSourcesManager(config_loader=load_watch_config)
         sources = manager.reload()

@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional
 
-from bot.utils.magnet_parsing import extract_all_magnets, extract_dn_parameter, extract_info_hash
+from src.domain.magnet.parsing import extract_all_magnets, extract_dn_parameter, extract_info_hash
 
 
 def extract_all_dns_from_note(note: Dict) -> List[Dict]:

@@ -11,7 +11,7 @@ from typing import Optional, List
 
 from src.domain.entities.note import NoteCreate
 from src.domain.repositories.note_repository import NoteRepository
-from src.domain.value_objects.magnet import MagnetLink
+from src.domain.magnet import MagnetLinkParser
 from src.application.dto import NoteDTO
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ class SaveNoteUseCase:
         # Extract magnet link if present
         magnet = None
         if input_data.message_text:
-            magnet = MagnetLink.parse(input_data.message_text)
+            magnet = MagnetLinkParser.extract_magnet_from_text(input_data.message_text)
 
         # Create note
         note_create = NoteCreate(

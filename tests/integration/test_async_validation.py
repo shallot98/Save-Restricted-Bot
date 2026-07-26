@@ -7,7 +7,7 @@ This script tests the specific fix for TypeError: An asyncio.Future, a coroutine
 
 import asyncio
 import logging
-from test_async_fix import TestMessageWorker, MockAsyncClient
+from .test_async_fix import MockMessageWorker, MockAsyncClient
 import queue
 
 # Configure logging
@@ -28,7 +28,7 @@ def test_non_coroutine_validation():
     # Create worker
     msg_queue = queue.Queue()
     mock_client = MockAsyncClient()
-    worker = TestMessageWorker(msg_queue, mock_client)
+    worker = MockMessageWorker(msg_queue, mock_client)
     
     # Manually initialize event loop
     worker.loop = asyncio.new_event_loop()
@@ -147,14 +147,12 @@ def test_non_coroutine_validation():
     logger.info(f"Failed: {len(test_results) - sum(test_results)}")
     logger.info("=" * 80)
     
-    if all(test_results):
-        logger.info("✅ ALL TESTS PASSED: Async validation is working correctly!")
-        return True
-    else:
-        logger.error(f"❌ SOME TESTS FAILED: {len(test_results) - sum(test_results)} test(s) failed")
-        return False
+    # 断言而非 return：pytest 会忽略返回值，返回 False 也算 passed（假绿灯）
+    assert all(test_results), (
+        f"{len(test_results) - sum(test_results)} 项断言失败: {test_results}"
+    )
+    logger.info("✅ ALL TESTS PASSED: Async validation is working correctly!")
 
 
 if __name__ == "__main__":
-    success = test_non_coroutine_validation()
-    exit(0 if success else 1)
+    test_non_coroutine_validation()

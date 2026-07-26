@@ -5,7 +5,7 @@
 import sys
 import json
 from database import get_note_by_id
-from bot.utils.magnet_utils import extract_all_dns_from_note
+from src.domain.magnet import extract_all_dns_from_note
 
 def diagnose_note(note_id: int):
     """诊断笔记的校准数据"""

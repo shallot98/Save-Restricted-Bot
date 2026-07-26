@@ -1,8 +1,13 @@
-"""User-state text input handlers for multi-step bot flows."""
+"""User-state text input handlers for multi-step bot flows.
+
+服务依赖走 ``StateInputContext``：``bot.handlers.messages.save`` 从
+``register_all_handlers`` 注入的 ``BotServices`` 里取出后一路传进来，本模块不再
+``from composition.container import get_watch_service``（报告 §5.3 规则 3）。
+"""
 
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -27,7 +32,9 @@ from bot.handlers.watch_setup import (
     show_filter_options_single,
 )
 from bot.utils.status import user_states
-from src.core.container import get_watch_service
+
+if TYPE_CHECKING:
+    from src.application.services import WatchService, WatchSetupService
 
 DIRECT_ACTION_HANDLERS = {
     "add_source": handle_add_source,
@@ -51,6 +58,8 @@ class StateInputContext:
     message: object
     user_id: str
     bot: object
+    watch_service: "WatchService"
+    watch_setup_service: "WatchSetupService"
 
 
 @dataclass(frozen=True)
@@ -59,13 +68,26 @@ class FilterEditTarget:
     color: Optional[str]
 
 
-def handle_user_state_input(message, user_id: str, bot) -> tuple[bool, Optional[str]]:
+def handle_user_state_input(
+    message,
+    user_id: str,
+    bot,
+    *,
+    watch_service: "WatchService",
+    watch_setup_service: "WatchSetupService",
+) -> tuple[bool, Optional[str]]:
     """Handle text input for an active user state."""
     state = user_states.get(user_id)
     if not state:
         return False, None
 
-    context = StateInputContext(message=message, user_id=user_id, bot=bot)
+    context = StateInputContext(
+        message=message,
+        user_id=user_id,
+        bot=bot,
+        watch_service=watch_service,
+        watch_setup_service=watch_setup_service,
+    )
     action = state.get("action")
     category = action or "user_state"
     if action in DIRECT_ACTION_HANDLERS:
@@ -165,6 +187,7 @@ def _handle_add_extract_patterns(context: StateInputContext) -> bool:
         state.get("preserve_source", False),
         "extract",
         patterns,
+        watch_setup_service=context.watch_setup_service,
     )
     return True
 
@@ -176,7 +199,7 @@ def _handle_edit_filter(context: StateInputContext, action: str) -> bool:
         color=None if parts[2] == "extract" else parts[3] if len(parts) > 3 else None,
     )
     state = user_states[context.user_id]
-    watch_service = get_watch_service()
+    watch_service = context.watch_service
     watch_config = watch_service.get_all_configs_dict()
     user_id_str = str(context.message.from_user.id)
     watch_key = state.get("watch_key")
@@ -223,7 +246,7 @@ def _handle_edit_extract_patterns(context: StateInputContext) -> bool:
         return True
 
     state = user_states[context.user_id]
-    watch_service = get_watch_service()
+    watch_service = context.watch_service
     watch_config = watch_service.get_all_configs_dict()
     user_id_str = str(context.message.from_user.id)
     watch_key = state.get("watch_key")

@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.domain.entities.watch import WatchConfig, WatchTask
+
+logger = logging.getLogger(__name__)
+
+_FILTER_LIST_COLUMNS = (
+    ("whitelist", "whitelist_json"),
+    ("blacklist", "blacklist_json"),
+    ("whitelist_regex", "whitelist_regex_json"),
+    ("blacklist_regex", "blacklist_regex_json"),
+    ("extract_patterns", "extract_patterns_json"),
+)
+
+
+class CorruptFilterDataError(ValueError):
+    """过滤器列表字段无法解析（JSON 损坏或类型不符）。"""
 
 SELECT_WATCH_TASKS_SQL = """
     SELECT
@@ -61,28 +76,60 @@ UPSERT_WATCH_TASK_SQL = INSERT_WATCH_TASK_SQL + """
 
 
 def row_to_task(row: Dict[str, Any]) -> WatchTask:
+    """把一行 watch_tasks 记录转成 WatchTask。
+
+    失败方向：任一过滤器列（黑/白名单等）JSON 损坏时，记录 error 并把该任务标记
+    为 filters_corrupt=True —— FilterService 会据此拦截该源的全部消息。绝不能像
+    以前那样静默降级成空列表（那等于把过滤器无声关掉，方向是「放行」）。
+    """
+    filter_lists, corrupt_columns = _load_filter_lists(row)
+    if corrupt_columns:
+        logger.error(
+            "监控任务过滤器数据损坏，该任务将拦截全部消息: user=%s watch_key=%s columns=%s",
+            row.get("user_id"),
+            row.get("watch_key"),
+            ",".join(corrupt_columns),
+        )
+
     return WatchTask(
         source=str(row.get("source_id") or "").strip(),
         dest=str(row["dest_id"]) if row.get("dest_id") is not None else None,
-        whitelist=safe_load_list(row.get("whitelist_json")),
-        blacklist=safe_load_list(row.get("blacklist_json")),
-        whitelist_regex=safe_load_list(row.get("whitelist_regex_json")),
-        blacklist_regex=safe_load_list(row.get("blacklist_regex_json")),
         preserve_forward_source=bool(row.get("preserve_forward_source", 0)),
         forward_mode=str(row.get("forward_mode") or "full"),
-        extract_patterns=safe_load_list(row.get("extract_patterns_json")),
         record_mode=bool(row.get("record_mode", 0)),
         watch_id=str(row.get("watch_id") or "").strip() or None,
+        filters_corrupt=bool(corrupt_columns),
+        **filter_lists,
     )
 
 
+def _load_filter_lists(row: Dict[str, Any]) -> Tuple[Dict[str, List[str]], List[str]]:
+    """加载全部过滤器列表列，返回 (字段值, 损坏的列名列表)。"""
+    values: Dict[str, List[str]] = {}
+    corrupt_columns: List[str] = []
+    for field_name, column in _FILTER_LIST_COLUMNS:
+        try:
+            values[field_name] = safe_load_list(row.get(column))
+        except CorruptFilterDataError as exc:
+            logger.error("过滤器列解析失败: column=%s error=%s", column, exc)
+            values[field_name] = []
+            corrupt_columns.append(column)
+    return values, corrupt_columns
+
+
 def safe_load_list(value: Any) -> List[str]:
+    """解析存储为 JSON 的字符串列表。
+
+    Raises:
+        CorruptFilterDataError: 值无法解析成列表。调用方必须显式处理，
+            不允许静默返回空列表。
+    """
     if value is None:
         return []
     if isinstance(value, list):
         return [str(item) for item in value if item is not None]
     if not isinstance(value, str):
-        return []
+        raise CorruptFilterDataError(f"unexpected value type: {type(value).__name__}")
     value = value.strip()
     if not value:
         return []
@@ -92,10 +139,10 @@ def safe_load_list(value: Any) -> List[str]:
 def _json_list_to_strings(value: str) -> List[str]:
     try:
         parsed = json.loads(value)
-    except Exception:
-        return []
+    except ValueError as exc:
+        raise CorruptFilterDataError(f"invalid JSON: {exc}") from exc
     if not isinstance(parsed, list):
-        return []
+        raise CorruptFilterDataError(f"expected JSON list, got {type(parsed).__name__}")
     return [str(item) for item in parsed if item is not None]
 
 
@@ -136,6 +183,13 @@ def canonical_config_for_user(user_id: str, config: WatchConfig) -> WatchConfig:
 
 
 def task_to_row(user_id: str, watch_key: str, task: WatchTask) -> Tuple[Any, ...]:
+    if getattr(task, "filters_corrupt", False):
+        # 该任务的过滤器数据读取时已损坏，此处回写会用空列表覆盖原始损坏值。
+        logger.error(
+            "回写过滤器数据已损坏的监控任务，原过滤器内容将被清空: user=%s watch_key=%s",
+            user_id,
+            watch_key,
+        )
     return (
         str(user_id),
         str(watch_key),
@@ -192,10 +246,20 @@ def _parse_watch_task(watch_key: str, watch_data: Any) -> Optional[WatchTask]:
 
 
 def _parse_dict_watch_task(watch_key: str, watch_data: dict) -> Optional[WatchTask]:
+    """解析单条任务字典。
+
+    失败方向：字段不兼容时跳过该条并记录 error（此前是静默消失、零日志）。
+    """
     payload = dict(watch_data)
     if "source" not in payload or not payload.get("source"):
         payload["source"] = watch_key.split("|")[0] if "|" in watch_key else watch_key
     try:
         return WatchTask.from_dict(payload)
-    except Exception:
+    except Exception as exc:
+        logger.error(
+            "跳过无法解析的监控任务: watch_key=%s error=%s keys=%s",
+            watch_key,
+            exc,
+            sorted(payload.keys()),
+        )
         return None

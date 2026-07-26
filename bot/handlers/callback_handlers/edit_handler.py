@@ -4,7 +4,7 @@ Edit callback handler - 编辑回调处理器
 处理编辑相关的回调：edit_filter, edit_preserve, editf_*, clear_filter_*
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- WatchService 由 CallbackRegistry 构造期注入（self.watch_service）
 """
 
 from dataclasses import dataclass
@@ -15,9 +15,6 @@ from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBu
 from .base import CallbackContext, CallbackHandler
 from bot.utils.status import user_states
 from bot.handlers.watch_task_utils import resolve_watch_entry
-
-# New architecture imports
-from src.core.container import get_watch_service
 
 
 @dataclass(frozen=True)
@@ -104,7 +101,7 @@ class EditCallbackHandler(CallbackHandler):
         """处理编辑过滤规则菜单"""
         token = context.data.split("_")[2]
 
-        watch_service = get_watch_service()
+        watch_service = self.watch_service
         watch_config = watch_service.get_all_configs_dict()
         if context.user_id not in watch_config or not watch_config[context.user_id]:
             self.answer_and_log(context.callback_query, "❌ 监控任务不存在", show_alert=True)
@@ -142,7 +139,7 @@ class EditCallbackHandler(CallbackHandler):
         from bot.handlers.callbacks import callback_handler
 
         token = context.data.split("_")[2]
-        watch_service = get_watch_service()
+        watch_service = self.watch_service
         watch_config = watch_service.get_all_configs_dict()
 
         if context.user_id not in watch_config or not watch_config[context.user_id]:
@@ -180,7 +177,7 @@ class EditCallbackHandler(CallbackHandler):
     def _handle_editf(self, context: CallbackContext) -> None:
         """处理编辑过滤规则"""
         selection = _parse_edit_filter_selection(context.data)
-        watch_service = get_watch_service()
+        watch_service = self.watch_service
         watch_config = watch_service.get_all_configs_dict()
         if context.user_id not in watch_config or not watch_config[context.user_id]:
             self.answer_and_log(context.callback_query, "❌ 监控任务不存在", show_alert=True)
@@ -226,7 +223,7 @@ class EditCallbackHandler(CallbackHandler):
             color = parts[3]
             token = parts[4]
 
-        watch_service = get_watch_service()
+        watch_service = self.watch_service
         watch_config = watch_service.get_all_configs_dict()
 
         if context.user_id not in watch_config or not watch_config[context.user_id]:

@@ -41,6 +41,7 @@ def _ensure_typing_extensions_sentinel() -> None:
 _ensure_typing_extensions_sentinel()
 
 from src.core.config.settings import Settings, settings
+from src.core.config.env_access import getenv, getenv_optional
 from src.core.config.models import (
     PathConfig,
     MainConfig,
@@ -58,6 +59,9 @@ __all__ = [
     # Legacy settings (保持向后兼容)
     "Settings",
     "settings",
+    # Value access helpers (config.json 优先、env 兜底)
+    "getenv",
+    "getenv_optional",
     # Configuration models (新配置模型)
     "PathConfig",
     "MainConfig",

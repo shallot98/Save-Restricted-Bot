@@ -13,7 +13,7 @@
 import sqlite3
 import re
 from urllib.parse import quote, unquote_plus
-from bot.utils.magnet_utils import MagnetLinkParser
+from src.domain.magnet import MagnetLinkParser
 
 
 def deduplicate_dn_value(dn_value: str) -> str:

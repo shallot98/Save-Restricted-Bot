@@ -7,7 +7,7 @@ from typing import Optional
 
 import pyrogram
 
-from bot.utils.helpers import get_message_type
+from bot.utils.helpers import UNSUPPORTED_MESSAGE_TYPE, get_message_type
 from bot.utils.progress import downstatus, progress, upstatus
 
 
@@ -34,6 +34,10 @@ def forward_private_message(context: PrivateMessageContext) -> None:
         context.msgid,
     )
     msg_type = get_message_type(msg)
+
+    if msg_type == UNSUPPORTED_MESSAGE_TYPE:
+        # 失败方向：显式报错，不走下载流程（下载流程对未知类型是静默空操作）
+        raise ValueError(f"不支持的消息类型: chat={context.chatid} msg_id={context.msgid}")
 
     if msg_type == "Text":
         context.bot.send_message(context.message.chat.id, msg.text, entities=msg.entities)

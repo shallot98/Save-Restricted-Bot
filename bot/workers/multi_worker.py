@@ -14,7 +14,15 @@ logger = logging.getLogger(__name__)
 class MultiWorkerQueue:
     """多 Worker 消息队列管理器"""
     
-    def __init__(self, acc_client, worker_count: int = 4, max_retries: int = 3):
+    def __init__(
+        self,
+        acc_client,
+        worker_count: int = 4,
+        max_retries: int = 3,
+        *,
+        message_service=None,
+        watch_service=None,
+    ):
         """
         初始化多 Worker 队列
         
@@ -22,11 +30,19 @@ class MultiWorkerQueue:
             acc_client: User 客户端实例
             worker_count: Worker 线程数量
             max_retries: 最大重试次数
+            message_service: 组合根装配的笔记落库/指标编排服务，透传给每个 worker
+            watch_service: 组合根装配的监控配置服务，透传给每个 worker
+        
+        注意：本模块当前无生产调用方（报告 §2.3 死代码清单）。两个服务参数
+        保留是为了「若被启用，装配路径与 bot/core/queue.py 一致」——MessageWorker
+        取用未注入的服务会直接抛 RuntimeError，不会静默降级。
         """
         self.message_queue = queue.Queue()
         self.acc = acc_client
         self.worker_count = worker_count
         self.max_retries = max_retries
+        self._message_service = message_service
+        self._watch_service = watch_service
         self.workers: List[MessageWorker] = []
         self.worker_threads: List[threading.Thread] = []
         self.running = False
@@ -46,7 +62,9 @@ class MultiWorkerQueue:
             worker = MessageWorker(
                 message_queue=self.message_queue,
                 acc_client=self.acc,
-                max_retries=self.max_retries
+                max_retries=self.max_retries,
+                message_service=self._message_service,
+                watch_service=self._watch_service,
             )
             self.workers.append(worker)
             
@@ -146,7 +164,13 @@ class MultiWorkerQueue:
 
 
 # 使用示例
-def create_multi_worker_queue(acc_client, worker_count: int = 4):
+def create_multi_worker_queue(
+    acc_client,
+    worker_count: int = 4,
+    *,
+    message_service=None,
+    watch_service=None,
+):
     """
     创建多 Worker 队列实例
     
@@ -157,4 +181,9 @@ def create_multi_worker_queue(acc_client, worker_count: int = 4):
     Returns:
         MultiWorkerQueue: 多 Worker 队列实例
     """
-    return MultiWorkerQueue(acc_client, worker_count=worker_count)
+    return MultiWorkerQueue(
+        acc_client,
+        worker_count=worker_count,
+        message_service=message_service,
+        watch_service=watch_service,
+    )

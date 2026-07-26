@@ -4,16 +4,13 @@ Menu callback handler - 菜单回调处理器
 处理所有菜单相关的回调：menu_main, menu_help, menu_watch
 
 Architecture: Uses new layered architecture
-- src/core/container for service access
+- WatchService 由 CallbackRegistry 构造期注入（self.watch_service）
 """
 
 from pyrogram import Client
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from .base import CallbackContext, CallbackHandler
-
-# New architecture imports
-from src.core.container import get_watch_service
 from bot.services.history_copy_task_manager import get_history_copy_task_manager
 from bot.services.pt_pay_manager import get_pt_pay_monitor_manager
 from bot.services.signin_manager import get_scheduled_signin_manager
@@ -128,8 +125,7 @@ class MenuCallbackHandler(CallbackHandler):
             self.answer_and_log(context.callback_query, "❌ 需要配置 String Session", show_alert=True)
             return
 
-        watch_service = get_watch_service()
-        watch_config = watch_service.get_all_configs_dict()
+        watch_config = self.watch_service.get_all_configs_dict()
         watch_count = len(watch_config.get(context.user_id, {}))
 
         keyboard = InlineKeyboardMarkup([

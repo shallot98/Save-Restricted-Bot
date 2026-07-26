@@ -8,7 +8,7 @@ to keep the worker focused on queue scheduling and message execution flow.
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 from bot.workers.chain_forward_models import (
     ChainProcessContext,
@@ -16,15 +16,26 @@ from bot.workers.chain_forward_models import (
     normalize_chain_task_entry,
 )
 from bot.workers.processing_models import ForwardModeContext, RecordModeContext
-from src.core.container import get_watch_service
 from src.domain.entities.watch import WatchTask
 from src.domain.services.filter_service import FilterService
+
+if TYPE_CHECKING:
+    from src.application.services import WatchService
 
 logger = logging.getLogger(__name__)
 
 
 class ChainForwardMixin:
-    """Provide chain-forwarding helpers for MessageWorker."""
+    """Provide chain-forwarding helpers for MessageWorker.
+
+    ``_watch_service`` 由宿主类 ``MessageWorker`` 以构造期注入的实例提供
+    （见 ``bot/workers/message_worker.py``）；这里只声明 Mixin 对宿主的期望。
+    """
+
+    if TYPE_CHECKING:
+        # 只读属性形态（而非可写属性标注），与宿主类的 @property 实现兼容。
+        @property
+        def _watch_service(self) -> "WatchService": ...
 
     def _build_chain_context(self, message, chain_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """构建链式转发上下文（深度 + 已访问节点集合）。"""
@@ -194,7 +205,8 @@ class ChainForwardMixin:
         chain_context: Optional[Dict[str, Any]] = None,
     ):
         """手动触发目标频道的监控配置处理。"""
-        watch_service = get_watch_service()
+        # MessageWorker 构造期注入，见 bot/workers/message_worker.py::_watch_service
+        watch_service = self._watch_service
         dest_chat_id_str = str(dest_chat_id)
         if dest_chat_id_str not in watch_service.get_monitored_sources():
             return

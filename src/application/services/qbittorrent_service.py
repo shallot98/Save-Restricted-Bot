@@ -12,7 +12,7 @@ from typing import Optional, Tuple, Dict, Any, List
 
 import requests
 
-from bot.utils.magnet_utils import MagnetLinkParser
+from src.domain.magnet import MagnetLinkParser
 
 
 class QBittorrentService:

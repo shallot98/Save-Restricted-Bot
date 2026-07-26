@@ -12,6 +12,8 @@ from src.domain.entities.watch import WatchTask, WatchConfig
 from src.domain.repositories.watch_repository import WatchRepository
 from src.domain.services.filter_service import FilterService
 from src.core.exceptions import NotFoundError
+from src.core.interfaces import ConfigCache, ConfigCacheProvider
+from src.application.services.cache_fallback import resolve_cache
 from src.application.services.watch_task_requests import (
     WatchTaskCreateRequest,
     watch_task_create_request,
@@ -27,22 +29,29 @@ class WatchService:
     Orchestrates watch configuration and message filtering.
     """
 
-    def __init__(self, watch_repository: WatchRepository) -> None:
+    def __init__(
+        self,
+        watch_repository: WatchRepository,
+        *,
+        cache_provider: Optional[ConfigCacheProvider] = None,
+    ) -> None:
         """
         Initialize service
 
         Args:
             watch_repository: Watch repository implementation
+            cache_provider: Lazy provider for the config cache port, injected by
+                the composition root (`composition/container.py`)
         """
         self._repository = watch_repository
         self._filter_service = FilterService()
-        self._cache = None  # Lazy initialization to avoid circular imports
+        self._cache: Optional[ConfigCache] = None  # Resolved on first use
+        self._cache_provider = cache_provider
 
-    def _get_cache(self):
-        """Get cache manager with lazy initialization"""
+    def _get_cache(self) -> ConfigCache:
+        """Resolve the injected config cache port (degrades to NullCache)."""
         if self._cache is None:
-            from src.infrastructure.cache.managers import get_config_cache_manager
-            self._cache = get_config_cache_manager()
+            self._cache = resolve_cache(self._cache_provider, label="Config")
         return self._cache
 
     def get_user_config(self, user_id: str) -> Optional[WatchConfig]:

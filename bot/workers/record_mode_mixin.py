@@ -16,6 +16,18 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
+_DISCARD_PREVIEW_CHARS = 200
+
+
+def _preview(text) -> str:
+    """Truncate discarded content so the log stays readable but diagnosable."""
+    if text is None:
+        return ""
+    rendered = str(text)
+    if len(rendered) <= _DISCARD_PREVIEW_CHARS:
+        return rendered
+    return f"{rendered[:_DISCARD_PREVIEW_CHARS]}…(共 {len(rendered)} 字符)"
+
 
 class RecordModeMixin:
     """Provide record-mode note persistence behavior."""
@@ -106,7 +118,15 @@ class RecordModeMixin:
             return "success"
         except ValidationError as e:
             if "Duplicate" in str(e):
-                logger.info("⏭️ 记录模式：检测到重复笔记，已跳过写入")
+                logger.info(
+                    "⏭️ 记录模式：检测到重复笔记，已跳过写入 | user_id=%s source=%s "
+                    "media_group=%s media_type=%s 文本=%r",
+                    context.user_id,
+                    context.source_chat_id,
+                    context.media_group_id,
+                    context.media_type,
+                    _preview(context.content_to_save),
+                )
                 return "success"
             raise
         except Exception as e:

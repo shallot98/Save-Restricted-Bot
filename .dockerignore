@@ -1,0 +1,73 @@
+# 白名单式构建上下文：先忽略一切，再显式放行运行时必需项。
+#
+# 背景：此前无 .dockerignore，构建上下文 1.1GB，且 .env / 根 config.json /
+# data/*.session 等凭据全部进入镜像层。黑名单式很容易漏掉新增的敏感文件，
+# 因此这里改成白名单——新增运行时文件必须在本文件显式放行。
+#
+# 校验清单（改动本文件后请确认）：
+#   docker/entrypoint.sh → python3 app.py / python3 main.py
+#   main.py  → bot.*, database*, config, constants
+#   app.py   → web.* → templates/, static/
+#   bot/* web/* database.py → composition.container（DI 组合根，缺失即 ImportError）
+#   bot/services/calibration_scripts.py → scripts/runtime/calibrate_{qbt,bot}_helper.py（生产组件）
+
+*
+
+# --- 进程入口 ---
+!main.py
+!app.py
+
+# --- 交付层与内核包 ---
+!bot
+!web
+!src
+
+# --- 组合根：DI 装配，被 bot/ web/ database.py 直接 import ---
+!composition
+
+# --- 仍被生产代码 import 的根模块（向后兼容外观，Phase 4 删） ---
+# Phase 3 删掉了另外 6 个：database_{auth,calibration,migrations,note_requests,
+# notes,optimization}.py。前四个的实现已下沉到
+# src/infrastructure/persistence/legacy/，后两个是死代码。白名单式清单必须与
+# 仓库现状同步——放行一个不存在的文件不会报错，只会掩盖清单已经过期这件事。
+!config.py
+!constants.py
+!database.py
+
+# --- 交互式配置向导（运维在容器内执行，写 data/config/config.json） ---
+!setup.py
+
+# --- 前端资源 ---
+!templates
+!static
+
+# --- 容器脚本 ---
+!docker
+
+# --- 运行时脚本：只放行 scripts/runtime/，其余一次性脚本不入镜像 ---
+!scripts
+scripts/*
+!scripts/runtime
+
+# --- 依赖声明（Dockerfile 显式 COPY 两个，其余供容器内复现安装） ---
+!requirements.txt
+!requirements.runtime.txt
+!requirements.lock
+
+# --- 白名单内部的二次排除：缓存 / 凭据 / 备份 / 测试产物 ---
+**/__pycache__
+**/*.py[cod]
+**/*.session
+**/*.session-journal
+**/*.db
+**/*.sqlite*
+**/*.bak
+**/*.backup
+**/*.backup.*
+**/*.old
+**/.env
+**/.env.*
+**/node_modules
+**/.pytest_cache
+**/.mypy_cache
+**/tests

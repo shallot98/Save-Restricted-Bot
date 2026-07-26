@@ -3,27 +3,30 @@
 from __future__ import annotations
 
 import logging
-from typing import Set
+from typing import Optional, Set
 
+from src.core.interfaces import MediaStorage, MediaStorageProvider
 from src.domain.entities.note import Note
 
 logger = logging.getLogger(__name__)
 
 
 class NoteServiceMediaMixin:
-    def _get_storage_manager(self):
+    # 由 NoteService.__init__ 注入（组合根装配），此处仅声明契约供类型检查使用。
+    _media_storage_provider: Optional[MediaStorageProvider]
+    _storage_manager: Optional[MediaStorage]
+
+    def _get_storage_manager(self) -> Optional[MediaStorage]:
+        """Resolve the injected media storage once and cache it."""
         if self._storage_manager is None:
-            self._storage_manager = self._build_storage_manager()
+            if self._media_storage_provider is not None:
+                self._storage_manager = self._media_storage_provider()
+            if self._storage_manager is None:
+                logger.warning(
+                    "Media storage unavailable (composition root not wired); "
+                    "note media cleanup is skipped"
+                )
         return self._storage_manager
-
-    @staticmethod
-    def _build_storage_manager():
-        from bot.storage.webdav_client import StorageManager, WebDAVClient
-        from src.core.config import settings
-
-        media_dir = str(settings.paths.media_dir)
-        webdav_client = _build_webdav_client(settings.webdav_config)
-        return StorageManager(media_dir, webdav_client)
 
     @staticmethod
     def _collect_media_locations(note: Note) -> Set[str]:
@@ -44,7 +47,7 @@ class NoteServiceMediaMixin:
         for location in media_locations:
             self._delete_media_location(storage_manager, note.id, location)
 
-    def _try_get_storage_manager(self):
+    def _try_get_storage_manager(self) -> Optional[MediaStorage]:
         try:
             return self._get_storage_manager()
         except Exception as exc:
@@ -52,27 +55,9 @@ class NoteServiceMediaMixin:
             return None
 
     @staticmethod
-    def _delete_media_location(storage_manager, note_id: int, location: str) -> None:
+    def _delete_media_location(storage_manager: MediaStorage, note_id: Optional[int], location: str) -> None:
         try:
             if not storage_manager.delete_file(location):
                 logger.warning(f"Failed to delete media: note={note_id}, path={location}")
         except Exception as exc:
             logger.warning(f"Failed to delete media: note={note_id}, path={location}, err={exc}")
-
-
-def _build_webdav_client(webdav_config):
-    from bot.storage.webdav_client import WebDAVClient
-
-    if not webdav_config.get("enabled", False):
-        return None
-    url = (webdav_config.get("url") or "").strip()
-    username = (webdav_config.get("username") or "").strip()
-    password = (webdav_config.get("password") or "").strip()
-    base_path = webdav_config.get("base_path") or "/telegram_media"
-    if not url or not username or not password:
-        return None
-    try:
-        return WebDAVClient(url, username, password, base_path)
-    except Exception as exc:
-        logger.warning(f"WebDAV storage init failed, fallback to local: {exc}")
-        return None

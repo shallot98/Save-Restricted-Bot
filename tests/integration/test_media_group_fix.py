@@ -45,12 +45,9 @@ def test_no_async_wrapping_in_media_handling():
         if pattern in content:
             found_correct.append(pattern)
     
-    if issues:
-        print("❌ FAILED: Found problematic async wrapping:")
-        for issue in issues:
-            print(f"   - {issue}")
-        return False
-    
+    # 断言而非 return：pytest 忽略返回值，返回 False 也会报 passed（假绿灯）
+    assert not issues, f"Found problematic async wrapping: {issues}"
+
     if len(found_correct) < len(correct_patterns):
         print(f"⚠️  WARNING: Only found {len(found_correct)}/{len(correct_patterns)} correct patterns")
         for pattern in correct_patterns:
@@ -62,7 +59,6 @@ def test_no_async_wrapping_in_media_handling():
         print(f"✅ PASSED: All {len(correct_patterns)} correct patterns found")
     
     print("\n✅ PASSED: No problematic async wrapping found in media handling")
-    return True
 
 
 def test_direct_acc_calls():
@@ -103,14 +99,11 @@ def test_direct_acc_calls():
         print(f"      ... and {len(direct_calls) - 5} more")
     
     print(f"\n   Wrapped acc calls (bad): {len(wrapped_calls)}")
-    if wrapped_calls:
-        for line_num, method in wrapped_calls:
-            print(f"      ❌ Line {line_num}: acc.{method}() wrapped with _run_async_with_timeout")
-        return False
-    else:
-        print(f"      ✅ None found!")
-    
-    return True
+    # 断言而非 return，理由同上
+    assert not wrapped_calls, (
+        f"acc 调用被 _run_async_with_timeout 包裹: {wrapped_calls}"
+    )
+    print(f"      ✅ None found!")
 
 
 if __name__ == '__main__':
@@ -118,15 +111,16 @@ if __name__ == '__main__':
     print("Testing Media Group Fix")
     print("="*60)
     
-    test1_passed = test_no_async_wrapping_in_media_handling()
-    test2_passed = test_direct_acc_calls()
-    
-    print("\n" + "="*60)
-    if test1_passed and test2_passed:
-        print("✅ ALL TESTS PASSED")
-        print("="*60)
-        sys.exit(0)
-    else:
-        print("❌ SOME TESTS FAILED")
+    try:
+        test_no_async_wrapping_in_media_handling()
+        test_direct_acc_calls()
+    except AssertionError as exc:
+        print("\n" + "="*60)
+        print(f"❌ SOME TESTS FAILED: {exc}")
         print("="*60)
         sys.exit(1)
+
+    print("\n" + "="*60)
+    print("✅ ALL TESTS PASSED")
+    print("="*60)
+    sys.exit(0)

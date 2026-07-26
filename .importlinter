@@ -1,0 +1,151 @@
+; import-linter 依赖方向契约
+;
+; 依据：docs/ARCHITECTURE_REFACTOR_REPORT_2026-07-26.md §4 Phase 2 ①、§5.2 分层约定。
+;
+; 目的：把 Phase 1/2/3 清零的依赖边锁住，防止回归。当前基线状态：
+;   - src/ 对 bot/、web/、仓库根模块的 import 边 = 0
+;   - DI 容器已从 src/core 迁到 composition/
+;   - src/core 不再顶层依赖 src/application 与 src/infrastructure
+;   - src/ 对 composition/ 的 import 边 = 0（Phase 3 删除 src/compat 后，
+;     四条 ignore_imports 豁免全部撤除，四条契约现已零豁免）
+;
+; 范围：只覆盖 4 个生产包。scripts/、tests/、docs/ 不入契约。
+;
+; 两点实现约束（import-linter 2.13 的硬限制，不是取舍）：
+;   1. root_packages 只接受【包】（带 __init__.py 的目录），单文件模块会直接报
+;      "'X' is a module, not a package"。因此入口 main.py / app.py 与仓库根的
+;      config.py / constants.py / database*.py 无法作为 root_packages。
+;   2. 改用 include_external_packages = True：仓库根模块在图中以外部模块节点出现，
+;      仍可作为 forbidden_modules 被引用。已实测反证（临时在 src/domain/ 下写入
+;      `from database import ...`，契约 1 正确报 BROKEN）——即使 database 未被任何
+;      root package 导入，约束依然生效。
+;   入口 main.py / app.py 无任何模块导入它们，不构成反向依赖风险，故不覆盖。
+;
+; 本地执行：lint-imports
+
+[importlinter]
+root_packages =
+    composition
+    web
+    bot
+    src
+include_external_packages = True
+
+
+; ---------------------------------------------------------------------------
+; 契约 1：src/ 不得依赖表现层与仓库根模块
+;
+; 这是 Phase 1/2 刚清零的 16 条反向边，直接 error 级守住。
+;
+; forbidden_modules 只列**现存**的 3 个根模块。Phase 3 删除的 6 个
+; （database_auth / database_calibration / database_migrations /
+;   database_note_requests / database_notes / database_optimization）已移出：
+; 留着它们不增加保护——模块不存在就无从 import——只会让清单与仓库现状脱节，
+; 下一个读这份契约的人得先去确认哪些还活着。
+; ---------------------------------------------------------------------------
+[importlinter:contract:src-no-outward-deps]
+name = src/ 不得 import bot/、web/ 或仓库根兼容模块
+type = forbidden
+source_modules =
+    src
+forbidden_modules =
+    bot
+    web
+    config
+    constants
+    database
+
+
+; ---------------------------------------------------------------------------
+; 契约 2：src/ 不得依赖组合根
+;
+; §5.2「组合根是唯一认识具体实现的地方」——依赖只能从 composition 指向 src，
+; 不能反向。
+;
+; Phase 3 前这里挂着一条豁免 `src.compat.config_compat -> composition.container`
+; （5 处函数内延迟 import，旧版 watch config 外观）。处置不是「把豁免删掉硬扛」，
+; 而是把那 5 个函数搬回仓库根 config.py——它们本就是遗留外观，根模块位于组合根
+; 之上、不入契约，是它们的正确归属。整个 src/compat 包随之删除，本契约现已零豁免。
+; ---------------------------------------------------------------------------
+[importlinter:contract:src-no-composition-dep]
+name = src/ 不得 import 组合根 composition/
+type = forbidden
+source_modules =
+    src
+forbidden_modules =
+    composition
+
+
+; ---------------------------------------------------------------------------
+; 契约 3：内层不得依赖外层
+;
+; §5.2：src.core 只放纯抽象，src.domain 零外部依赖；两者都不能反向认识
+; application 与 infrastructure。这条是 Phase 2 ② 容器迁出 src/core 的成果。
+;
+; 原 forbidden 清单里的 src.compat 已随该包删除而移出。
+; ---------------------------------------------------------------------------
+[importlinter:contract:core-domain-are-innermost]
+name = src.core / src.domain 不得 import src.application 或 src.infrastructure
+type = forbidden
+source_modules =
+    src.core
+    src.domain
+forbidden_modules =
+    src.application
+    src.infrastructure
+
+
+; ---------------------------------------------------------------------------
+; 契约 4：主分层序
+;
+; 自上而下，上层可依赖下层，下层不得依赖上层：
+;     composition  →  web  →  bot  →  src.application  →  src.domain
+;
+; 与报告 §5.2 的差异（如实建模，不粉饰）：
+;   1. composition 已于 Phase 3 纳入本契约，且位于最顶层（组合根天然认识所有
+;      具体实现）。此前它无法入契约的原因是 bot/ 有 11 处、web/ 有 5 处
+;      `from composition.container import get_xxx()` 服务定位调用，与
+;      composition → bot.services / bot.storage 构成双向环。现已全部消除：
+;        - bot/：服务集合 `bot.runtime_services.BotServices` 由
+;          `composition.bot_runtime.build_bot_services()` 构造，`main.py` 经
+;          `register_all_handlers(..., services=...)` 注入，再由 CallbackRegistry
+;          / MessageWorker / 各闭包以构造参数形式分发。
+;        - web/：`web.services.WebServices` 由
+;          `composition.web_runtime.build_web_services()` 构造，`app.py` 经
+;          `create_app(services=...)` 注入，路由用 `web.services.get_services()`
+;          从 `current_app.extensions` 取。
+;      两个 DTO 都由**下层**（bot/、web/）定义、上层构造——反过来会让下层为了写
+;      类型标注重新 import 组合根，把刚拆掉的边原样装回去。
+;      `rg "^from composition" bot/ web/` 现为 0 命中。
+;   2. web 位于 bot 之上而非同层：web/ 有 6 处 import bot/（WebDAVClient、
+;      AppConstants、异步校准管理器），bot/ 对 web/ 为 0，故为单向。
+;
+; src.application 与 src.infrastructure 写成同一层的两个「独立兄弟」
+; （import-linter 的 `A | B` 语法；注意 `A : B` 是相反语义——同层但**允许**
+; 互相 import，实测用 `:` 时故意加一条违规 import 仍报 KEPT）：
+; 两者互不可见，各自只能向下依赖 src.domain。
+;   - application → infrastructure：原有 5 处函数内延迟 import（笔记缓存、
+;     监控指标、错误追踪）已全部改为 `src.core.interfaces` 端口 + 组合根
+;     `composition/container.py` 注入 provider，现为 0；
+;   - infrastructure → application：一直是 0（rg 实测），顺带一并锁住。
+; bot/ 与 web/ 仍可直接 import src.infrastructure（例如 monitoring），这是
+; 层序允许的向下依赖，不受影响。
+;
+;   3. Phase 3 前这里挂着与契约 2 同源的一条豁免
+;      `src.compat.config_compat -> composition.container`：bot 与 web 从该模块
+;      只取 `MEDIA_DIR` 与 `load_webdav_config`（都不碰组合根），但 import-linter
+;      的图是模块粒度、无法区分符号，于是同模块里 5 个 watch config 函数指向组合根
+;      的边被记到了 bot/web 头上。删包时两个取值点已各自改到权威源
+;      （`bot/workers/media_handling_mixin.py` 直取 `settings.paths.media_dir`，
+;      `web/routes/media_cache.py` 改取根 `config.load_webdav_config`），
+;      这条传递边随之消失，本契约现已零豁免。
+; ---------------------------------------------------------------------------
+[importlinter:contract:main-layers]
+name = 主分层序：composition → web → bot → (src.application | src.infrastructure) → src.domain
+type = layers
+layers =
+    composition
+    web
+    bot
+    src.application | src.infrastructure
+    src.domain

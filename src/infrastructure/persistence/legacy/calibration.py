@@ -1,4 +1,8 @@
-"""Legacy calibration-task helpers for the root database module."""
+"""遗留校准任务 helper（原仓库根 ``database_calibration.py``）。
+
+与 ``auth.py`` 同理：连接工厂与时区都由 ``CalibrationDeps`` 注入，模块本身只依赖
+``src.core.utils``，故可整体下沉（报告 §5.4 迁移映射末三行）。
+"""
 
 from __future__ import annotations
 

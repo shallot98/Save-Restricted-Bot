@@ -7,6 +7,12 @@ SQLite-backed persistence for watch configuration.
 Notes:
 - Keeps an in-memory cache + source index for fast hot-path lookups.
 - SQLite is the source of truth; cache is refreshed on writes or explicit reload().
+- ``data/config/watch_config.json`` is a read-only legacy artifact. This
+  repository never writes it. It is only consumed once by
+  ``migrate_watch_config_from_json`` when ``watch_tasks`` is still empty.
+  The former ``_sync_to_json`` mirror was removed: it rewrote the whole file
+  from one process' cache on every mutation, so bot and web (each holding
+  their own repository instance) overwrote each other.
 """
 
 from __future__ import annotations

@@ -8,13 +8,23 @@ Database connection handling with context manager support.
 import os
 import sqlite3
 import logging
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from typing import Generator, Optional
 
 from src.core.config import settings
 from src.core.exceptions import DatabaseError
 
 logger = logging.getLogger(__name__)
+
+
+def _rollback(conn: Optional[sqlite3.Connection]) -> None:
+    """回滚未提交事务；回滚本身失败只记录，不掩盖原始异常。"""
+    if conn is None:
+        return
+    try:
+        conn.rollback()
+    except sqlite3.Error as e:
+        logger.error(f"Rollback failed: {e}")
 
 
 def _configure_connection(conn: sqlite3.Connection, timeout_seconds: float) -> None:
@@ -78,30 +88,28 @@ class DatabaseConnection:
             conn = sqlite3.connect(self.db_path, timeout=self._timeout)
             conn.row_factory = sqlite3.Row
             _configure_connection(conn, timeout_seconds=self._timeout)
-            try:
-                from src.infrastructure.monitoring.performance.db_tracer import get_db_tracer
-
-                conn = get_db_tracer().enable(conn)
-            except Exception:
-                # 监控系统故障不应影响主流程
-                pass
+            # NOTE: monitoring 子系统已停用，此处不再包装 db_tracer
+            # （db.query.duration_ms 曾占 monitoring.db 写入量的 68.8%）。
             yield conn
             conn.commit()
         except sqlite3.OperationalError as e:
-            if conn:
-                conn.rollback()
+            _rollback(conn)
             logger.error(f"Database operational error: {e}")
             raise DatabaseError(f"Database operation failed: {e}", operation="connect")
         except sqlite3.IntegrityError as e:
-            if conn:
-                conn.rollback()
+            _rollback(conn)
             logger.error(f"Database integrity error: {e}")
             raise DatabaseError(f"Data integrity violation: {e}", operation="integrity")
         except sqlite3.Error as e:
-            if conn:
-                conn.rollback()
+            _rollback(conn)
             logger.error(f"Database error: {e}")
             raise DatabaseError(f"Database error: {e}")
+        except Exception:
+            # 非 sqlite 异常此前会跳过 commit 直奔 close()：无回滚、无日志。
+            # 这里显式回滚并记录后原样抛出，不做任何吞错。
+            _rollback(conn)
+            logger.exception("Non-sqlite error in database transaction; transaction rolled back")
+            raise
         finally:
             if conn:
                 conn.close()
@@ -111,7 +119,7 @@ class DatabaseConnection:
 _connection_manager: Optional[DatabaseConnection] = None
 
 
-def get_db_connection() -> Generator[sqlite3.Connection, None, None]:
+def get_db_connection() -> AbstractContextManager[sqlite3.Connection]:
     """
     Get database connection context manager
 
@@ -120,8 +128,13 @@ def get_db_connection() -> Generator[sqlite3.Connection, None, None]:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM notes")
 
-    Yields:
-        sqlite3.Connection: Database connection
+    Returns:
+        AbstractContextManager[sqlite3.Connection]: 进入 ``with`` 后得到数据库连接。
+
+    注意：本函数**不是**生成器函数，它返回 ``@contextmanager`` 装饰过的
+    ``DatabaseConnection.get_connection()`` 的调用结果（一个上下文管理器）。
+    早先标注为 ``Generator[...]`` 与运行时不符，导致所有调用方的 ``with`` 语句
+    被判为访问不存在的 ``__enter__``/``__exit__``（40+ 处连锁误报）。
     """
     global _connection_manager
     if _connection_manager is None:

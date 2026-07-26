@@ -68,6 +68,13 @@ logs/
 .architec/
 .hippocampus/
 
+# AI 工具产物目录（本地缓存/运行态，不入库）
+# 注：.workflow/ .agents/ .claude/ .codex/ .spec-workflow/ .trellis/ 已有大量文件被跟踪，
+#     本轮不改动其跟踪状态；是否整体移出版本库需单独决策（见重构报告 §6.2）。
+.grok/
+.hippos/
+.trellis/.runtime/
+
 # Local agent sessions
 .claude-session
 .codex-session
@@ -78,6 +85,13 @@ logs/
 .coverage
 htmlcov/
 .tox/
+
+# 类型检查
+.mypy_cache/
+mypy-output.txt
+
+# 依赖方向契约（import-linter 图缓存）
+.import_linter_cache/
 
 # 环境变量
 .env

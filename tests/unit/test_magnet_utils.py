@@ -2,7 +2,7 @@
 磁力链接工具模块的单元测试
 """
 import pytest
-from bot.utils.magnet_utils import MagnetLinkParser
+from src.domain.magnet import MagnetLinkParser
 
 
 class TestMagnetLinkParser:
@@ -265,7 +265,7 @@ class TestBackwardCompatibility:
 
     def test_extract_all_magnets_from_text(self):
         """测试向后兼容的extract_all_magnets_from_text函数"""
-        from bot.utils.magnet_utils import extract_all_magnets_from_text
+        from src.domain.magnet import extract_all_magnets_from_text
 
         text = "测试 magnet:?xt=urn:btih:ABC123&dn=test.mp4"
         magnets = extract_all_magnets_from_text(text)
@@ -275,7 +275,7 @@ class TestBackwardCompatibility:
 
     def test_extract_dn_from_magnet(self):
         """测试向后兼容的extract_dn_from_magnet函数"""
-        from bot.utils.magnet_utils import extract_dn_from_magnet
+        from src.domain.magnet import extract_dn_from_magnet
 
         # 优先使用filename参数
         dn = extract_dn_from_magnet("magnet:?xt=urn:btih:ABC123&dn=old.mp4", None, "new.mp4")
@@ -291,7 +291,7 @@ class TestBackwardCompatibility:
 
     def test_extract_all_dns_from_note(self):
         """测试向后兼容的extract_all_dns_from_note函数"""
-        from bot.utils.magnet_utils import extract_all_dns_from_note
+        from src.domain.magnet import extract_all_dns_from_note
 
         note = {
             'message_text': 'magnet:?xt=urn:btih:ABC123&dn=test.mp4',
@@ -307,7 +307,7 @@ class TestBackwardCompatibility:
 
     def test_extract_all_dns_from_note_uses_magnet_link(self):
         """message_text 无磁力链接时，应回退使用 magnet_link 字段"""
-        from bot.utils.magnet_utils import extract_all_dns_from_note
+        from src.domain.magnet import extract_all_dns_from_note
 
         note = {
             'message_text': '',
@@ -324,7 +324,7 @@ class TestBackwardCompatibility:
 
     def test_extract_all_dns_from_note_deduplicates_magnet_link(self):
         """message_text 与 magnet_link 同时存在时，应按 info_hash 去重"""
-        from bot.utils.magnet_utils import extract_all_dns_from_note
+        from src.domain.magnet import extract_all_dns_from_note
 
         note = {
             'message_text': 'magnet:?xt=urn:btih:ABC123&dn=test.mp4',

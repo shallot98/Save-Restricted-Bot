@@ -209,13 +209,12 @@ class TestDatabaseOptimization(unittest.TestCase):
         self.assertIsNotNone(note_id)
         self.assertGreater(note_id, 0)
     
-    def test_helper_functions_exist(self):
-        """Verify helper functions are defined"""
-        self.assertTrue(hasattr(self.database, '_validate_and_convert_params'))
-        self.assertTrue(hasattr(self.database, '_check_duplicate_media_group'))
-        self.assertTrue(hasattr(self.database, '_check_duplicate_message'))
-        self.assertTrue(hasattr(self.database, '_parse_media_paths'))
-    
+    # 已删除 test_helper_functions_exist：断言 database.py 的私有 helper
+    # (_validate_and_convert_params / _check_duplicate_media_group /
+    #  _check_duplicate_message) 存在，这些符号自 HEAD 起全仓零定义
+    # （rg 全仓无命中），实现早已迁到 src/infrastructure/persistence。
+    # 断言私有符号存在无回归价值，故删除而非修补。
+
     def test_duplicate_media_group_detection(self):
         """Test media group deduplication"""
         media_group_id = "test_media_group_123"
@@ -316,12 +315,12 @@ class TestModuleIntegration(unittest.TestCase):
         self.assertTrue(hasattr(dedup, 'MESSAGE_CACHE_TTL'))
         self.assertTrue(hasattr(dedup, 'MAX_MEDIA_GROUP_CACHE'))
     
-    def test_constants_import_in_database(self):
-        """Verify database module imports constants"""
-        import database
-        # Check if DB_DEDUP_WINDOW is used
-        self.assertTrue(hasattr(database, 'DB_DEDUP_WINDOW') or 'DB_DEDUP_WINDOW' in str(database))
-    
+    # 已删除 test_constants_import_in_database：断言根 database.py 命名空间里有
+    # DB_DEDUP_WINDOW。该常量现只定义/使用于 constants.py、src/core/constants、
+    # src/infrastructure/persistence/repositories/note_repository_duplicates.py，
+    # 根 database.py 已不再 import 它（rg 在 database.py 内零命中）。
+    # 「某模块的命名空间里应有某常量」不是行为断言，无回归价值，故删除。
+
     def test_main_imports(self):
         """Test main module can import all dependencies"""
         try:

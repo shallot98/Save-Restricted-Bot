@@ -19,6 +19,9 @@ from src.infrastructure.persistence.sqlite.watch_task_migrations import (
 
 logger = logging.getLogger(__name__)
 
+# SQLite 对重复加列的报错文本（用于精确识别「另一进程已加过这一列」）
+_DUPLICATE_COLUMN_ERROR = "duplicate column name"
+
 
 def run_migrations() -> None:
     """
@@ -29,6 +32,9 @@ def run_migrations() -> None:
     logger.info("Running database migrations...")
 
     with get_db_connection() as conn:
+        # bot 与 web 两个进程都会在启动时跑迁移。BEGIN IMMEDIATE 立即取写锁，
+        # 后到的进程在 busy_timeout 内等待而不是并发执行同一批 DDL。
+        _begin_immediate(conn)
         cursor = conn.cursor()
 
         # Create tables
@@ -36,6 +42,7 @@ def run_migrations() -> None:
         _create_users_table(cursor)
         _create_calibration_tables(cursor)
         _create_watch_tables(cursor)
+        _create_watch_catchup_tables(cursor)
 
         # Apply migrations
         _apply_column_migrations(cursor)
@@ -58,6 +65,13 @@ def run_migrations() -> None:
         conn.commit()
 
     logger.info("Database migrations completed")
+
+
+def _begin_immediate(conn: sqlite3.Connection) -> None:
+    """Serialize migrations across processes by taking the write lock upfront."""
+    if conn.in_transaction:
+        return
+    conn.execute("BEGIN IMMEDIATE")
 
 
 def _create_notes_table(cursor: sqlite3.Cursor) -> None:
@@ -163,6 +177,21 @@ def _create_watch_tables(cursor: sqlite3.Cursor) -> None:
     logger.debug("Watch tables created/verified")
 
 
+def _create_watch_catchup_tables(cursor: sqlite3.Cursor) -> None:
+    """Create catch-up cursor tables for missed channel update recovery."""
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS watch_catchup_cursors (
+            source_chat_id TEXT PRIMARY KEY,
+            last_seen_id INTEGER NOT NULL DEFAULT 0,
+            initialized INTEGER NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL
+        )
+        """
+    )
+    logger.debug("Watch catch-up tables created/verified")
+
+
 def _apply_watch_tasks_migrations(cursor: sqlite3.Cursor) -> None:
     """Apply schema updates for watch_tasks table."""
     apply_watch_task_schema_updates(cursor)
@@ -190,8 +219,22 @@ def _apply_column_migrations(cursor: sqlite3.Cursor) -> None:
 
     for column_name, column_type in migrations:
         if column_name not in existing_columns:
-            cursor.execute(f"ALTER TABLE notes ADD COLUMN {column_name} {column_type}")
-            logger.info(f"Added column: {column_name}")
+            _add_note_column(cursor, column_name, column_type)
+
+
+def _add_note_column(cursor: sqlite3.Cursor, column_name: str, column_type: str) -> None:
+    """Add a notes column, tolerating a concurrent process that already added it.
+
+    只吞 "duplicate column name"（另一进程赢得竞态），其余 OperationalError 照常抛出。
+    """
+    try:
+        cursor.execute(f"ALTER TABLE notes ADD COLUMN {column_name} {column_type}")
+    except sqlite3.OperationalError as exc:
+        if _DUPLICATE_COLUMN_ERROR not in str(exc).lower():
+            raise
+        logger.info(f"Column already added by another process: {column_name}")
+        return
+    logger.info(f"Added column: {column_name}")
 
 
 def _create_notes_fts(cursor: sqlite3.Cursor) -> None:

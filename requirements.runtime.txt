@@ -8,4 +8,5 @@ requests
 libtorrent
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
-watchdog>=3.0.0
+# watchdog 已移出运行时依赖：它只服务于配置热重载，而生产入口从不启用该功能
+# （报告 §3 P1-8 末段）。需要热重载时按 requirements.dev.txt 单独安装。
