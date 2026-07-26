@@ -1,0 +1,10 @@
+# 统一行尾：入库一律 LF，杜绝混排导致的幻影 diff
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.db binary
+*.session binary
