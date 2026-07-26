@@ -49,3 +49,11 @@
 - 终检 PASS + 3 项一致性修复（基线棘轮 670→659、2 处失真注释）。函数内延迟 import 94→69。
 - 终态：548 unit + 114 integration 全绿 / lint-imports 4 kept 0 豁免 / mypy 659 新增 0 / web/routes 84%。全部未提交。
 - 未达成（范围决策）：integration 入 CI、配置入口完全收敛（setup.py 直写 + pt_pay/signin 独立 store + src/core/config 2331 行）。中断插曲：登录过期×1，SendMessage 续跑无损失。
+
+## 2026-07-26（终）收尾完成：修复、提交、部署全闭环
+
+- 收尾修复：/health 泄露与降级语义、api.py 异常回显、bool count、async_calibration_manager 生产竞态（确定性复现验证）、integration 入 CI（干净 checkout 模拟 114 全绿）。
+- 提交 5 个：notes 筛选栏 / 安全端口绑定 / 分析报告与任务记录 / 重构全量（P0+Phase0-3）/ 行尾 LF 归一化（.gitattributes）。工作区清零。
+- 线上加固已执行：ufw 关 10000、compose 绑回环、FLASK_SECRET_KEY 与 ADMIN_PASSWORD 强随机（.env）、库内 admin 哈希轮换、monitoring.db（681MB）删除。
+- 新镜像已构建部署，OWNER_ID=907446443 显式配置生效（日志确认「已从 OWNER_ID 配置解析出 1 个所有者」），catch-up 调度器运行中，双容器 healthy。
+- 终态门禁：552 unit + 114 integration / lint-imports 4 kept 0 豁免 / mypy 654 新增 0。
