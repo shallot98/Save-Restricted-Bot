@@ -88,6 +88,13 @@
                 window.ThemeManager.apply(initialState.darkMode, false);
                 initialState.sidebarOpen = window.NotesSidebarStorage.readOpen();
 
+                // Server-driven list filters (URL query params)
+                initialState.filterFavorite = {{ 'true' if favorite_only else 'false' }};
+                initialState.dateFrom = {{ (date_from or '')|tojson }};
+                initialState.dateTo = {{ (date_to or '')|tojson }};
+                initialState.selectedSource = {{ (selected_source or '')|tojson }};
+                initialState.searchQuery = {{ (search_query or '')|tojson }};
+
 	            window.__NOTES_INITIAL_STATE__ = initialState;
 	        })();
 	    </script>
@@ -457,34 +464,111 @@
                     <span class="text-sm text-yellow-800 dark:text-yellow-200">
                         搜索 "<span class="font-semibold">{{ search_query }}</span>" 找到 <span class="font-semibold">{{ total_count }}</span> 条结果
                     </span>
-                    <a href="/notes" class="ml-auto text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200 text-sm font-medium">
+                    <button type="button"
+                            @click="navigateWithFilters({ search: '' })"
+                            class="ml-auto text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200 text-sm font-medium">
                         清除搜索
-                    </a>
+                    </button>
                 </div>
                 {% endif %}
 
-                <!-- 筛选栏 -->
-                <div class="mb-6 flex flex-wrap gap-2">
-                    <button @click="filterFavorite = !filterFavorite"
-                            :class="filterFavorite ? 'bg-primary-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'"
-                            class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:shadow-md transition flex items-center gap-2">
+                <!-- 筛选栏：收藏 / 日期 / 来源（标签按钮语义为 source） -->
+                <div class="mb-6 flex flex-wrap gap-2 relative">
+                    <button type="button"
+                            @click="toggleFavoriteFilter()"
+                            :class="filterFavorite ? 'bg-primary-500 text-white border-primary-500' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'"
+                            class="px-4 py-2 rounded-lg border text-sm font-medium hover:shadow-md transition flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
                         </svg>
                         收藏
                     </button>
-                    <button class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:shadow-md transition flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                        </svg>
-                        日期筛选
-                    </button>
-                    <button class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:shadow-md transition flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
-                        </svg>
-                        标签
-                    </button>
+
+                    <div class="relative">
+                        <button type="button"
+                                @click="showDatePanel = !showDatePanel; showSourcePanel = false"
+                                :class="hasDateFilter ? 'bg-primary-500 text-white border-primary-500' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'"
+                                class="px-4 py-2 rounded-lg border text-sm font-medium hover:shadow-md transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            日期筛选
+                        </button>
+                        <div x-show="showDatePanel"
+                             x-cloak
+                             @click.away="showDatePanel = false"
+                             x-transition:enter="transition ease-out duration-150"
+                             x-transition:enter-start="opacity-0 translate-y-1"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-100"
+                             x-transition:leave-start="opacity-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 translate-y-1"
+                             class="absolute left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] z-40 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">开始日期</label>
+                                    <input type="date" x-model="dateFromDraft"
+                                           class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">结束日期</label>
+                                    <input type="date" x-model="dateToDraft"
+                                           class="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+                                </div>
+                                <div class="flex gap-2 pt-1">
+                                    <button type="button" @click="applyDateFilter()"
+                                            class="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-primary-500 text-white hover:bg-primary-600 transition">
+                                        应用
+                                    </button>
+                                    <button type="button" @click="clearDateFilter()"
+                                            class="flex-1 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                                        清除
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative">
+                        <button type="button"
+                                @click="showSourcePanel = !showSourcePanel; showDatePanel = false"
+                                :class="hasSourceFilter ? 'bg-primary-500 text-white border-primary-500' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'"
+                                class="px-4 py-2 rounded-lg border text-sm font-medium hover:shadow-md transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                            </svg>
+                            标签
+                        </button>
+                        <div x-show="showSourcePanel"
+                             x-cloak
+                             @click.away="showSourcePanel = false"
+                             x-transition:enter="transition ease-out duration-150"
+                             x-transition:enter-start="opacity-0 translate-y-1"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-100"
+                             x-transition:leave-start="opacity-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 translate-y-1"
+                             class="absolute left-0 sm:left-auto sm:right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] z-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 max-h-72 overflow-y-auto">
+                            <button type="button"
+                                    @click="clearSourceFilter()"
+                                    class="w-full text-left px-4 py-2.5 text-sm transition-colors {% if not selected_source %}bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">
+                                全部来源
+                            </button>
+                            {% if sources and sources|length > 0 %}
+                            {% for source in sources %}
+                            <button type="button"
+                                    @click="selectSource({{ source.source_chat_id|tojson }})"
+                                    class="w-full text-left px-4 py-2.5 text-sm transition-colors truncate {% if selected_source|string == source.source_chat_id|string %}bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium{% else %}text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}"
+                                    title="{{ source.source_name or source.source_chat_id }}">
+                                {{ source.source_name or source.source_chat_id }}
+                                {% if source.count is defined %}<span class="text-xs text-gray-400 ml-1">({{ source.count }})</span>{% endif %}
+                            </button>
+                            {% endfor %}
+                            {% else %}
+                            <div class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">暂无来源数据</div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 笔记网格 -->
@@ -507,8 +591,14 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
                         </svg>
                     </div>
+                    {% if search_query or favorite_only or date_from or date_to or selected_source %}
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">没有匹配的笔记</h3>
+                    <p class="text-gray-500 dark:text-gray-400 mb-4">当前筛选条件下没有结果，可调整条件或清除筛选</p>
+                    <a href="/notes" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-primary-500 text-white hover:bg-primary-600 transition">清除全部筛选</a>
+                    {% else %}
                     <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">还没有笔记</h3>
                     <p class="text-gray-500 dark:text-gray-400">开始使用 Telegram 机器人保存你的第一条笔记吧</p>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -551,8 +641,25 @@
 			                sidebarOpen: (resolvedInitial.sidebarOpen === true),
 			                showMobileSearch: false,
 			                darkMode: (typeof resolvedInitial.darkMode === 'boolean') ? resolvedInitial.darkMode : theme.readPreference(),
-			                searchQuery: '',
-			                filterFavorite: false,
+			                searchQuery: typeof resolvedInitial.searchQuery === 'string' ? resolvedInitial.searchQuery : '',
+			                filterFavorite: resolvedInitial.filterFavorite === true,
+			                dateFrom: typeof resolvedInitial.dateFrom === 'string' ? resolvedInitial.dateFrom : '',
+			                dateTo: typeof resolvedInitial.dateTo === 'string' ? resolvedInitial.dateTo : '',
+			                selectedSource: resolvedInitial.selectedSource != null && resolvedInitial.selectedSource !== ''
+			                    ? String(resolvedInitial.selectedSource)
+			                    : '',
+			                dateFromDraft: typeof resolvedInitial.dateFrom === 'string' ? resolvedInitial.dateFrom : '',
+			                dateToDraft: typeof resolvedInitial.dateTo === 'string' ? resolvedInitial.dateTo : '',
+			                showDatePanel: false,
+			                showSourcePanel: false,
+
+		                get hasDateFilter() {
+		                    return !!(this.dateFrom || this.dateTo);
+		                },
+
+		                get hasSourceFilter() {
+		                    return !!this.selectedSource;
+		                },
 
 		                init() {
                             try {
@@ -573,10 +680,70 @@
 	                        theme.apply(this.darkMode, true);
 		                },
 
-                // 点击搜索按钮或按 Enter 键时执行搜索
+                buildNotesUrl(overrides) {
+                    const opts = (overrides && typeof overrides === 'object') ? overrides : {};
+                    const search = Object.prototype.hasOwnProperty.call(opts, 'search')
+                        ? opts.search
+                        : this.searchQuery;
+                    const favorite = Object.prototype.hasOwnProperty.call(opts, 'favorite')
+                        ? opts.favorite
+                        : this.filterFavorite;
+                    const dateFrom = Object.prototype.hasOwnProperty.call(opts, 'dateFrom')
+                        ? opts.dateFrom
+                        : this.dateFrom;
+                    const dateTo = Object.prototype.hasOwnProperty.call(opts, 'dateTo')
+                        ? opts.dateTo
+                        : this.dateTo;
+                    const source = Object.prototype.hasOwnProperty.call(opts, 'source')
+                        ? opts.source
+                        : this.selectedSource;
+
+                    const params = new URLSearchParams();
+                    params.set('page', '1');
+                    const searchText = (search == null ? '' : String(search)).trim();
+                    if (searchText) params.set('search', searchText);
+                    if (favorite) params.set('favorite', '1');
+                    if (dateFrom) params.set('date_from', String(dateFrom));
+                    if (dateTo) params.set('date_to', String(dateTo));
+                    if (source) params.set('source', String(source));
+
+                    const qs = params.toString();
+                    return qs ? ('/notes?' + qs) : '/notes';
+                },
+
+                navigateWithFilters(overrides) {
+                    window.location.href = this.buildNotesUrl(overrides);
+                },
+
+                toggleFavoriteFilter() {
+                    this.navigateWithFilters({ favorite: !this.filterFavorite });
+                },
+
+                applyDateFilter() {
+                    this.navigateWithFilters({
+                        dateFrom: this.dateFromDraft || '',
+                        dateTo: this.dateToDraft || ''
+                    });
+                },
+
+                clearDateFilter() {
+                    this.dateFromDraft = '';
+                    this.dateToDraft = '';
+                    this.navigateWithFilters({ dateFrom: '', dateTo: '' });
+                },
+
+                selectSource(sourceId) {
+                    this.navigateWithFilters({ source: sourceId || '' });
+                },
+
+                clearSourceFilter() {
+                    this.navigateWithFilters({ source: '' });
+                },
+
+                // 点击搜索按钮或按 Enter 键时执行搜索（保留其它筛选）
                 executeSearch() {
                     if (this.searchQuery.trim().length > 0) {
-                        window.location.href = '/notes?search=' + encodeURIComponent(this.searchQuery.trim());
+                        this.navigateWithFilters({ search: this.searchQuery.trim() });
                     }
                 }
             }
@@ -662,43 +829,11 @@
             }
         }
 
-        function showWatchOptions(btn) {
-            const modal = document.getElementById('watchModal');
-            const optionsList = document.getElementById('watchOptionsList');
-            const viewerUrl = '{{ viewer_url }}';
-            const validDns = JSON.parse(btn.getAttribute('data-dns'));
-
-            optionsList.innerHTML = '';
-
-            validDns.forEach((dns, index) => {
-                const option = document.createElement('a');
-                option.href = viewerUrl + encodeURIComponent(dns.dn);
-                option.target = '_blank';
-                option.className = 'block p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition';
-
-                const fileName = dns.dn || dns.info_hash || '未知文件';
-                const displayName = fileName.length > 80 ? fileName.substring(0, 77) + '...' : fileName;
-
-                option.innerHTML = `
-                    <div class="flex items-center justify-between">
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                ${index + 1}. ${displayName}
-                            </div>
-                            ${dns.info_hash ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Hash: ${dns.info_hash.substring(0, 16)}...</div>` : ''}
-                        </div>
-                        <svg class="w-5 h-5 text-blue-500 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                        </svg>
-                    </div>
-                `;
-
-                optionsList.appendChild(option);
-            });
-
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
+        // 说明：观看选项弹窗的活实现是 Alpine 组件方法
+        // static/js/components/note-card.js -> showWatchOptions()
+        // （由 templates/components/note_card.html 的 @click="showWatchOptions()" 触发，
+        //   用 textContent 输出文件名）。此处原有一份依赖 data-dns 属性的全局同名函数，
+        //   该属性全仓无任何产出方，恒为 null → JSON.parse(null) 抛错，已删除。
 
         function closeWatchModal() {
             const modal = document.getElementById('watchModal');
