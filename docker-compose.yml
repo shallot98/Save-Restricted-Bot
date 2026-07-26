@@ -7,7 +7,8 @@ services:
     container_name: save-restricted-bot-web
     restart: unless-stopped
     ports:
-      - "10000:10000"
+      # 仅绑回环：外部访问一律经 nginx 反代（443），不直接暴露后台端口
+      - "127.0.0.1:10000:10000"
     environment:
       - RUN_MODE=web
       - PORT=10000
