@@ -37,11 +37,20 @@
 - [x] `setup.py` 仍在根目录（文档与 dockerignore 一致）
 - [x] 正式 import-linter 契约：`.importlinter`
 
+## 验证结果（2026-08-10 本地 venv）
+
+| 检查 | 结果 |
+|------|------|
+| `pytest tests/unit` | **552 passed** |
+| `pytest tests/integration` | **114 passed** |
+| `lint-imports` | **4 contracts kept, 0 broken** |
+| mypy 基线门禁 | 基线 659 / 当前 652 / **新增 0** / 已修 7 |
+
 ## 后续可选（非阻塞）
 
-- 安装 dev 依赖后跑 `pytest tests/unit` 与 `lint-imports`
-- 合并/推送 `feat/mobile-responsive-optimization-v2`
+- 推送分支并开 PR：`feat/mobile-responsive-optimization-v2`（本地 ahead origin 约 11 commits）
 - 生产 `.env` 设置强 `FLASK_SECRET_KEY` / `ADMIN_PASSWORD` / `OWNER_ID`
+- 可选：用 `scripts/check_mypy_baseline.py --update` 收紧基线到 652
 
 ---
 
