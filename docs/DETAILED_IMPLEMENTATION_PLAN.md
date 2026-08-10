@@ -46,11 +46,15 @@
 | `lint-imports` | **4 contracts kept, 0 broken** |
 | mypy 基线门禁 | 基线 659 / 当前 652 / **新增 0** / 已修 7 |
 
-## 后续可选（非阻塞）
+## 交付状态（2026-08-10）
 
-- 推送分支并开 PR：`feat/mobile-responsive-optimization-v2`（本地 ahead origin 约 11 commits）
-- 生产 `.env` 设置强 `FLASK_SECRET_KEY` / `ADMIN_PASSWORD` / `OWNER_ID`
-- 可选：用 `scripts/check_mypy_baseline.py --update` 收紧基线到 652
+- [x] 分支已推送：`origin/feat/mobile-responsive-optimization-v2` @ `19c863f`
+- [x] mypy 基线已收紧至 **654** 条（`scripts/mypy_baseline.txt`）
+- [ ] **PR 未能自动创建**：该分支与 `main` **无共同祖先**（历史为独立上传线），GitHub 拒绝 `createPullRequest`
+  - 对比页：https://github.com/shallot98/Save-Restricted-Bot/compare/main...feat/mobile-responsive-optimization-v2
+  - 可选处置：在 main 上 cherry-pick / 以该分支替换部署分支 / 人工在 GitHub 处理合并策略
+- [ ] 生产 `.env` 设置强 `FLASK_SECRET_KEY` / `ADMIN_PASSWORD` / `OWNER_ID`
+- [ ] `docker compose up -d --force-recreate` 烟雾验证
 
 ---
 
