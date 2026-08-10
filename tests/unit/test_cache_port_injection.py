@@ -155,7 +155,7 @@ class TestNoteCachePortInjection:
         assert repo.search_calls == 1, "second call should not reach the repository"
         assert second is first
         assert len(cache.writes) == 1
-        assert cache.writes[0][1] == 300.0
+        assert cache.writes[0][1] == 60.0
 
     def test_writes_invalidate_through_injected_cache(self) -> None:
         cache = FakeNoteCache()
