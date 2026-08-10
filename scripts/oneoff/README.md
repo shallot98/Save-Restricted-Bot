@@ -12,3 +12,8 @@
   部分会直接写生产库。
 
 需要长期运行的组件放 `scripts/runtime/`（见该目录 README），不要放这里。
+
+**不要归档到本目录的入口脚本**（必须留在仓库根）：
+
+- `setup.py` — 交互式配置向导（文档与 `.dockerignore` 白名单依赖）
+- `run_all_tests.sh` / `run_mobile_tests.sh` — 开发/CI 本地测试入口

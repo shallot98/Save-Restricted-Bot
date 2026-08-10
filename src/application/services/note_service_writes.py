@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from src.application.dto import NoteDTO
@@ -13,6 +13,12 @@ from src.domain.entities.note import NoteCreate
 from src.domain.magnet import MagnetLinkParser
 
 logger = logging.getLogger(__name__)
+
+# 有界线程池：避免频道爆发写入时无限 Thread().start() 压垮 SQLite
+_calibration_executor = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix="calib-sched",
+)
 
 
 class NoteServiceWritesMixin:
@@ -44,11 +50,10 @@ class NoteServiceWritesMixin:
             if manager is None:
                 return
             if manager.is_enabled():
-                threading.Thread(
-                    target=manager.add_note_to_calibration_queue,
-                    args=(note_id,),
-                    daemon=True,
-                ).start()
+                _calibration_executor.submit(
+                    manager.add_note_to_calibration_queue,
+                    note_id,
+                )
                 logger.debug(f"Calibration scheduled for note {note_id}")
         except Exception as exc:
             logger.error(f"Failed to schedule calibration for note {note_id}: {exc}")

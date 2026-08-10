@@ -72,7 +72,8 @@ class NoteServiceQueryMixin:
 
         result = self._search_note_dtos(options)
         if cache_key:
-            self._get_cache().set(cache_key, result, ttl=300.0)
+            # 60s：Bot 写入后 Web 首页最长延迟可接受；原 300s 跨进程不失效过久
+            self._get_cache().set(cache_key, result, ttl=60.0)
             logger.debug(f"Cache set: notes list page={options.page}")
         return result
 

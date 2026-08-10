@@ -20,6 +20,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - DATA_DIR=/app/data
       - TZ=Asia/Shanghai
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-$(openssl rand -hex 32)}
       - QBT_URL=http://qbittorrent:8080
       - QBT_USERNAME=admin
@@ -68,6 +69,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - DATA_DIR=/app/data
       - TZ=Asia/Shanghai
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-$(openssl rand -hex 32)}
       - QBT_URL=http://qbittorrent:8080
       - QBT_USERNAME=admin

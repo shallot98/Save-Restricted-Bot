@@ -13,6 +13,29 @@ from typing import Optional
 from logging.handlers import RotatingFileHandler
 
 
+def _resolve_log_level(level: int) -> int:
+    """Resolve effective log level from argument or ``LOG_LEVEL`` env.
+
+    Production default remains INFO. Set ``LOG_LEVEL=DEBUG`` only when
+    diagnosing; this keeps high-volume ``logger.debug`` calls quiet by default.
+    """
+    raw = os.environ.get("LOG_LEVEL", "").strip().upper()
+    if not raw:
+        return level
+    mapping = {
+        "CRITICAL": logging.CRITICAL,
+        "ERROR": logging.ERROR,
+        "WARNING": logging.WARNING,
+        "WARN": logging.WARNING,
+        "INFO": logging.INFO,
+        "DEBUG": logging.DEBUG,
+        "NOTSET": logging.NOTSET,
+    }
+    if raw.isdigit():
+        return int(raw)
+    return mapping.get(raw, level)
+
+
 def setup_logging(
     level: int = logging.INFO,
     format_string: Optional[str] = None,
@@ -29,6 +52,7 @@ def setup_logging(
     if format_string is None:
         format_string = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
+    effective_level = _resolve_log_level(level)
     handlers = [logging.StreamHandler(sys.stdout)]
 
     # Add file handler if log_dir specified
@@ -44,7 +68,7 @@ def setup_logging(
         handlers.append(file_handler)
 
     logging.basicConfig(
-        level=level,
+        level=effective_level,
         format=format_string,
         handlers=handlers
     )
