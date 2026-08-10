@@ -647,11 +647,6 @@ web/__init__.py	attr-defined	"Flask" has no attribute "storage_manager"
 web/routes/admin_helpers.py	no-any-return	Returning Any from function declared to return "dict[str, Any]"
 web/routes/auth.py	arg-type	Argument 1 to "verify_user" has incompatible type "str | None"; expected "str"
 web/routes/auth.py	arg-type	Argument 2 to "verify_user" has incompatible type "str | None"; expected "str"
-web/routes/main.py	index	Unsupported target for indexed assignment ("Collection[str]")
-web/routes/main.py	index	Unsupported target for indexed assignment ("Collection[str]")
-web/routes/main.py	index	Unsupported target for indexed assignment ("Collection[str]")
-web/routes/main.py	index	Unsupported target for indexed assignment ("Collection[str]")
-web/routes/main.py	index	Unsupported target for indexed assignment ("Collection[str]")
 web/routes/media.py	attr-defined	"Flask" has no attribute "storage_manager"
 web/routes/media_cache.py	no-any-return	Returning Any from function declared to return "LockType"
 web/routes/media_cache.py	var-annotated	Need type annotation for "_file_locks" (hint: "_file_locks: dict[<type>, <type>] = ...")
